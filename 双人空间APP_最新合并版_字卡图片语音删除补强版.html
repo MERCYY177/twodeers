@@ -1,0 +1,1929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>双人空间 测评版</title>
+<style id="customStyle">
+.space-comments{margin-top:14px;padding-top:12px;border-top:1px dashed #eee1d7}
+.space-comment-line{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.65;color:#5b4f47;margin-bottom:8px}
+.space-comment-line .who{font-weight:600;color:#3c332d;flex:0 0 auto}
+.space-comment-line .reply{color:#8f847c;flex:0 0 auto}
+.space-comment-line .text{min-width:0;word-break:break-word}
+.space-more-btn{margin-top:6px;background:none;border:none;padding:0;color:#6d717a;font-size:13px;cursor:pointer}
+.reply-modal{position:fixed;inset:0;background:rgba(18,18,18,.30);display:none;align-items:flex-end;justify-content:center;z-index:80}
+.reply-modal.show{display:flex}
+.reply-sheet{width:100%;max-width:480px;background:#fff;border-radius:26px 26px 0 0;max-height:78vh;display:flex;flex-direction:column;overflow:hidden}
+.reply-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid #f0e7df}
+.reply-sheet-title{font-size:18px;font-weight:700;color:#2e2621}
+.reply-sheet-close{border:none;background:none;font-size:28px;color:#8c8078;line-height:1;padding:0 4px;cursor:pointer}
+.reply-sheet-list{padding:16px 18px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.reply-item{display:flex;gap:10px;align-items:flex-start}
+.reply-avatar{width:34px;height:34px;border-radius:50%;background:#efe6de;color:#8b7a6d;display:flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 34px}
+.reply-body{min-width:0;flex:1}
+.reply-name{font-size:13px;font-weight:600;color:#4e433b}
+.reply-text{font-size:14px;line-height:1.7;color:#332c27;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+.reply-meta{font-size:12px;color:#9a8f88;margin-top:5px}
+.reply-input{padding:12px 18px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #f0e7df;background:#fff}
+.reply-input-bar{display:flex;align-items:center;gap:10px;background:#faf7f4;border:1px solid #eee1d7;border-radius:18px;padding:10px 12px}
+.reply-input-bar .placeholder{font-size:14px;color:#a0958d}
+
+</style>
+<style>
+:root{
+  --bg:#ffffff;
+  --panel:#ffffff;
+  --line:#e9e9e9;
+  --text:#222222;
+  --sub:#7a7a7a;
+  --soft:#f7f7f7;
+  --accent:#f1f1f1;
+  --accent-deep:#6b7280;
+  --shadow:0 10px 28px rgba(15,23,42,.06);
+  --avatar-radius:50%;
+  --chat-bg:#ffffff;
+  --space-bg:#ffffff;
+  --bubble-me:#f2f5fb;
+  --bubble-other:#fff;
+  --theme-color:#8aa05f;
+  --button-bg:#342d28;
+  --button-text:#ffffff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:#ffffff;font-family:"PingFang SC","Microsoft YaHei",sans-serif;color:var(--text)}
+body{overflow:hidden}
+button,input,textarea,select{font:inherit}
+button{border:none;background:none;cursor:pointer;padding:0}
+input,textarea,select{outline:none}
+.app{position:relative;width:100vw;height:100dvh;background:var(--bg);overflow:hidden}
+.page{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.page.active{display:flex}
+.top-safe{height:env(safe-area-inset-top);flex-shrink:0}
+.header{min-height:64px;padding:10px 14px 12px;background:rgba(255,255,255,.86);backdrop-filter:blur(16px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.back,.round-btn{width:40px;height:40px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:#666666}
+.back{font-size:24px}
+.round-btn{font-size:18px}
+.header-title{flex:1;min-width:0}
+.header-title h2{margin:0;font-size:20px;line-height:1.2}
+.header-title p{margin:4px 0 0;font-size:12px;color:var(--sub)}
+.header-actions{display:flex;gap:8px}
+.page-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+
+.home-wrap{padding:18px 18px 28px}
+.cover-box{height:170px;border-radius:28px;border:1px solid var(--line);background:#f5f5f5;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+.cover-box img{width:100%;height:100%;object-fit:cover;display:none}
+.cover-box.has-img img{display:block}
+.cover-box.has-img .cover-main{display:none}
+.cover-main{display:flex;flex-direction:column;align-items:center;gap:8px;color:#999999}
+.cover-main .plus{width:44px;height:44px;border-radius:22px;background:rgba(255,255,255,.78);display:flex;align-items:center;justify-content:center;font-size:24px;border:1px solid rgba(0,0,0,.04)}
+.cover-tip{position:absolute;right:12px;bottom:12px;font-size:12px;color:#6f6f6f;background:rgba(255,255,255,.88);border:1px solid rgba(0,0,0,.05);padding:6px 10px;border-radius:999px}
+.time-block{text-align:center;padding:24px 0 10px}
+.time-block .clock{font-size:78px;line-height:1;font-weight:300;letter-spacing:1px}
+.time-block .date{margin-top:10px;font-size:22px}
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-top:14px}
+.home-card{min-height:138px;background:#fff;border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.icon-slot{width:64px;height:64px;border-radius:18px;background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#a2968c;font-size:12px;text-align:center;padding:6px}
+.icon-slot img{width:100%;height:100%;object-fit:cover;display:none}
+.icon-slot.has-img img{display:block}
+.icon-slot.has-img span{display:none}
+.home-card .label{font-size:24px;font-weight:700}
+
+.avatar{width:40px;height:40px;border-radius:var(--avatar-radius);background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;color:#777777}
+.avatar img{width:100%;height:100%;object-fit:cover;display:none}
+.avatar.has-img img{display:block}
+.avatar.has-img span{display:none}
+
+.chat-page{background:#ffffff}
+.chat-header-avatar{width:42px;height:42px;border-radius:var(--avatar-radius);background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#777777;flex-shrink:0}
+.chat-header-avatar img{width:100%;height:100%;object-fit:cover;display:none}
+.chat-header-avatar.has-img img{display:block}
+.chat-header-avatar.has-img span{display:none}
+.chat-menu{position:absolute;top:calc(env(safe-area-inset-top) + 66px);right:14px;width:194px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.14);display:none;z-index:30;overflow:hidden}
+.chat-menu.show{display:block}
+.chat-menu button{width:100%;text-align:left;padding:14px 16px;border-bottom:1px solid #efefef;font-size:14px;color:#333333;background:#fff}
+.chat-menu button:last-child{border-bottom:none}
+.chat-bg{flex:1;overflow:auto;padding:14px 12px 92px;background:var(--chat-bg);background-image:radial-gradient(circle at 14% 18%, rgba(241,245,249,.9) 0 2px, transparent 2.5px),radial-gradient(circle at 74% 36%, rgba(241,245,249,.7) 0 2px, transparent 2.5px),radial-gradient(circle at 40% 82%, rgba(241,245,249,.55) 0 2px, transparent 2.5px)}
+.system-line{text-align:center;margin:8px 0 14px}
+.system-line span{display:inline-block;background:rgba(255,255,255,.88);border:1px solid var(--line);color:#7b7b7b;font-size:12px;padding:6px 10px;border-radius:999px}
+.msg-row{display:flex;align-items:flex-end;gap:8px;margin:0 0 12px}
+.msg-row.me{justify-content:flex-end}
+.chat-avatar{width:34px;height:34px;border-radius:var(--avatar-radius);background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;color:#777777;flex-shrink:0}
+.chat-avatar img{width:100%;height:100%;object-fit:cover;display:none}
+.chat-avatar.has-img img{display:block}
+.chat-avatar.has-img span{display:none}
+.bubble-wrap{max-width:72%;min-width:0}
+.bubble{padding:10px 12px;border-radius:18px;line-height:1.45;font-size:15px;word-break:break-word;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+.other .bubble{background:var(--bubble-other);border-bottom-left-radius:7px}
+.me .bubble{background:var(--bubble-me);border-bottom-right-radius:7px}
+.meta{margin-top:4px;font-size:11px;color:#8a8a8a}
+.me .meta{text-align:right}
+.meta-line{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.me .meta-line{justify-content:flex-end}
+.read-flag{color:#9cb47f}
+.typing-bubble{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:18px;border-bottom-left-radius:7px;background:var(--bubble-other);box-shadow:0 4px 14px rgba(0,0,0,.05);font-size:14px;color:#7b7b7b}
+.typing-dots{display:inline-flex;gap:4px;align-items:center}
+.typing-dots span{width:5px;height:5px;border-radius:50%;background:#a7a7a7;display:block;animation:typingPulse 1.2s infinite ease-in-out}
+.typing-dots span:nth-child(2){animation-delay:.15s}.typing-dots span:nth-child(3){animation-delay:.3s}
+@keyframes typingPulse{0%,80%,100%{transform:scale(.8);opacity:.45}40%{transform:scale(1);opacity:1}}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body.bubble-square .bubble{border-radius:12px}
+body.bubble-square .other .bubble{border-bottom-left-radius:4px}
+body.bubble-square .me .bubble{border-bottom-right-radius:4px}
+.day{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px}
+.day-num{font-size:14px;font-weight:600;line-height:1}
+.day-mood{font-size:10px;line-height:1.2;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#7a7a7a}
+.mood-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mood-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#f7f7f7;color:#6f6f6f;font-size:12px;border:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.mood-chip.hidden{display:none}
+.mood-chip-delete{width:18px;height:18px;border-radius:9px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;color:#7a7a7a}
+.mood-chip-delete.hidden{display:none}
+.small-help{font-size:12px;color:#8b7f74;margin-top:6px}
+
+.composer{position:absolute;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.88);backdrop-filter:blur(18px);border-top:1px solid var(--line)}
+.composer-row{display:flex;align-items:center;gap:8px}
+.poke-btn,.side-btn{width:38px;height:38px;border-radius:19px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:#5d554e;font-size:18px;flex-shrink:0}
+.input-shell{flex:1;min-width:0;height:42px;background:#fff;border:1px solid #e4e4e4;border-radius:21px;display:flex;align-items:center;padding:0 10px;gap:8px}
+.voice-toggle{width:24px;height:24px;border-radius:12px;background:#f7f7f7;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666666;flex-shrink:0}
+.chat-input{flex:1;min-width:0;border:none;background:transparent;font-size:15px;color:#2b2b2b}
+.hold-to-talk{display:none;flex:1;height:28px;border-radius:14px;background:#f8f8f8;align-items:center;justify-content:center;font-size:13px;color:#6c625b}
+.input-shell.voice .chat-input{display:none}
+.input-shell.voice .hold-to-talk{display:flex}
+.more-panel{position:absolute;left:12px;right:12px;bottom:calc(68px + env(safe-area-inset-bottom));background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.12);padding:14px 14px 16px;display:none}
+.more-panel.show{display:block}
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.quick-item{display:flex;flex-direction:column;align-items:center;gap:8px}
+.quick-icon{width:52px;height:52px;border-radius:18px;background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#666666;font-size:13px;text-align:center;padding:6px}
+.quick-lab{font-size:12px;color:#666666}
+.input-helper{position:absolute;left:54px;right:94px;bottom:calc(58px + env(safe-area-inset-bottom));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.10);display:none;overflow:hidden}
+.input-helper.show{display:flex}
+.input-helper button{flex:1;padding:12px 0;font-size:13px;color:#4f4f4f;background:#fff}
+.input-helper button + button{border-left:1px solid #f0e6de}
+
+.space-page{background:var(--space-bg)}
+.space-cover{height:150px;margin:16px;background:#f5f5f5;border:1px solid var(--line);border-radius:28px;box-shadow:var(--shadow);overflow:hidden;position:relative}
+.space-cover img{width:100%;height:100%;object-fit:cover;display:none}
+.space-cover.has-img img{display:block}
+.space-cover .overlay{position:absolute;inset:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.16))}
+.space-cover .title{position:absolute;left:16px;bottom:16px;color:#fff;font-size:26px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,.18)}
+.switch-bar{display:flex;gap:8px;padding:0 16px 14px}
+.switch-bar button{flex:1;height:38px;border-radius:19px;background:#fff;border:1px solid var(--line);font-size:14px;color:#6a6059;box-shadow:var(--shadow)}
+.switch-bar button.active{background:#342d28;color:#fff;border-color:#342d28}
+.feed{padding:0 16px 24px;display:grid;gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 10px;font-size:18px}
+.card p{margin:0;color:#625851;line-height:1.6}
+.badge{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;background:#f7f7f7;border:1px solid var(--line);font-size:12px;color:#7a6f67;margin-bottom:10px}
+.comment-row{margin-top:12px;padding-top:12px;border-top:1px dashed #eee1d7;font-size:13px;color:#746960}
+
+.calendar-wrap{padding:16px}
+.calendar-month{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:18px}
+.month-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.month-head h3{margin:0;font-size:22px}
+.month-head p{margin:4px 0 0;font-size:12px;color:var(--sub)}
+.mini-btn{height:34px;padding:0 12px;border-radius:17px;background:#f7f1ea;border:1px solid var(--line);font-size:12px;color:#666666}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px}
+.week div{text-align:center;font-size:12px;color:#857b73}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.day{aspect-ratio:1;border-radius:18px;border:1px solid #efe6de;background:#faf8f6;display:flex;align-items:center;justify-content:center;font-size:14px;color:#5f564f}
+.day.active{background:#342d28;color:#fff;border-color:#342d28}
+.day.marked{box-shadow:inset 0 0 0 2px #dfb38c}
+.calendar-card{margin-top:16px}
+.two-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field label{font-size:13px;color:#6d635c}
+.field input,.field textarea,.field select{width:100%;border:1px solid #ded4cc;border-radius:16px;background:#fff;padding:11px 12px;font-size:14px;color:#2b2b2b}
+.color-pair{display:grid;grid-template-columns:56px 1fr;gap:10px;align-items:center;width:100%;}
+.color-pair input[type="color"]{width:56px;height:40px;padding:4px;border:1px solid #dedede;border-radius:12px;background:#fff;}
+.color-pair input[type="text"]{height:40px;}
+.code-help{font-size:12px;color:#8a8a8a;line-height:1.6;margin-top:6px;}
+
+.field textarea{min-height:110px;resize:vertical}
+.inline-row{display:flex;align-items:center;gap:8px}
+.hidden{display:none}
+.primary{width:100%;height:44px;border-radius:22px;background:#342d28;color:#fff;font-size:15px}
+.saved-tip{font-size:12px;color:#877c74;margin-top:8px}
+
+.settings-tabs{display:flex;gap:8px;padding:16px 16px 0}
+.settings-tabs button{flex:1;height:40px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);font-size:14px;color:#655b55}
+.settings-tabs button.active{background:#342d28;color:#fff;border-color:#342d28}
+.settings-body{padding:16px}
+.panel-card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.panel-card h3{margin:0 0 14px;font-size:19px}
+.sort-list{display:grid;gap:10px}
+.sort-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:16px;background:#faf7f4;border:1px solid #eee3db}
+.sort-left{display:flex;align-items:center;gap:10px}
+.handle{width:26px;height:26px;border-radius:13px;background:#f7f7f7;display:flex;align-items:center;justify-content:center;color:#7d7168}
+.sort-actions{display:flex;gap:8px}
+.small-pill{min-width:34px;height:32px;border-radius:16px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#6b615a}
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.upload-card{border:1px solid var(--line);border-radius:18px;padding:12px;background:#faf7f4}
+.upload-card .slot{height:86px;border-radius:16px;border:1px dashed #d7cec7;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#9b8f87;font-size:12px;text-align:center;padding:8px}
+.upload-card .slot img{width:100%;height:100%;object-fit:cover;display:none}
+.upload-card .slot.has-img img{display:block}
+.upload-card .slot.has-img span{display:none}
+.upload-card .lab{font-size:13px;color:#6d625b;margin-bottom:8px}
+.upload-card .ops{display:flex;gap:8px;margin-top:10px}
+.upload-card .ops button{flex:1;height:34px;border-radius:17px;background:#fff;border:1px solid var(--line);font-size:12px;color:#625851}
+.item-list{display:grid;gap:12px}
+.item-row{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:12px 0;border-bottom:1px dashed #efe4dc}
+.item-row:last-child{border-bottom:none}
+.lab{font-size:15px}
+.desc{font-size:13px;color:#7a6f67;max-width:52%;text-align:right;line-height:1.5}
+.seg{display:flex;gap:8px}
+.seg button{padding:8px 12px;border-radius:999px;background:#f8f8f8;border:1px solid var(--line);font-size:13px;color:#635a54}
+.seg button.active{background:#342d28;border-color:#342d28;color:#fff}
+.toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:rgba(52,45,40,.92);color:#fff;padding:10px 16px;border-radius:18px;font-size:13px;display:none;z-index:50}
+.toast.show{display:block}
+.file-input{display:none}
+
+.theme-accent,.header-title p,.quick-lab,.code-help,.small-help,.saved-tip,.cover-tip{color:var(--theme-color)}
+.badge,.mood-chip{border-color:color-mix(in srgb, var(--theme-color) 28%, #ffffff);background:color-mix(in srgb, var(--theme-color) 10%, #ffffff);color:var(--theme-color)}
+.mood-chip-delete{color:var(--theme-color);border-color:color-mix(in srgb, var(--theme-color) 30%, #ffffff)}
+.switch-bar button.active,.day.active,.settings-tabs button.active,.seg button.active,.primary{background:var(--button-bg)!important;color:var(--button-text)!important;border-color:var(--button-bg)!important}
+.cover-main .plus,.icon-slot,.quick-icon,.voice-toggle{color:var(--theme-color)}
+
+
+.call-choice{position:fixed;inset:0;background:rgba(17,17,17,.28);display:none;align-items:flex-end;justify-content:center;z-index:90}
+.call-choice.show{display:flex}
+.call-choice-sheet{width:100%;max-width:430px;background:#fff;border-radius:26px 26px 0 0;padding:18px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -14px 36px rgba(0,0,0,.14)}
+.call-choice-title{font-size:18px;font-weight:700;color:#2b2b2b;margin-bottom:14px}
+.call-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.call-choice-btn{height:92px;border-radius:22px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#4b4b4b}
+.call-choice-btn .ico{width:44px;height:44px;border-radius:22px;background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--theme-color)}
+.call-choice-cancel{width:100%;height:46px;border-radius:23px;background:#f7f7f7;border:1px solid var(--line);margin-top:14px;color:#5e5e5e}
+.call-screen{position:fixed;inset:0;background:linear-gradient(180deg,#fcfcfc,#f3f4f6);display:none;flex-direction:column;z-index:95}
+.call-screen.show{display:flex}
+.call-head{padding:calc(16px + env(safe-area-inset-top)) 18px 12px;display:flex;justify-content:space-between;align-items:center}
+.call-head-btn{width:42px;height:42px;border-radius:21px;background:rgba(255,255,255,.92);border:1px solid var(--line);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:#626262;font-size:18px}
+.call-main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 22px 24px;text-align:center}
+.call-avatar{width:110px;height:110px;border-radius:var(--avatar-radius);background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 14px 32px rgba(0,0,0,.08);color:#777}
+.call-avatar img{width:100%;height:100%;object-fit:cover;display:none}
+.call-avatar.has-img img{display:block}
+.call-avatar.has-img span{display:none}
+.call-name{margin-top:18px;font-size:28px;font-weight:700;color:#262626}
+.call-state{margin-top:8px;font-size:14px;color:#7a7a7a}
+.call-timer{margin-top:6px;font-size:32px;font-weight:300;color:#2e2e2e;letter-spacing:.5px}
+.call-video-box{margin-top:18px;width:min(72vw,280px);height:min(52vw,210px);border-radius:26px;background:linear-gradient(135deg,#f1f5f9,#ffffff);border:1px solid var(--line);display:none;align-items:center;justify-content:center;color:#8a8a8a;box-shadow:var(--shadow)}
+.call-video .call-video-box{display:flex}
+.call-actions{padding:18px 22px calc(24px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:20px}
+.call-act{width:62px;height:62px;border-radius:31px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);font-size:22px;background:#fff;color:#5f5f5f}
+.call-act.hang{background:#e14b4b;color:#fff;border-color:#e14b4b}
+.mini-call{position:fixed;right:14px;bottom:calc(92px + env(safe-area-inset-bottom));width:154px;min-height:118px;border-radius:22px;background:rgba(255,255,255,.98);border:1px solid var(--line);box-shadow:0 18px 44px rgba(0,0,0,.18);display:none;flex-direction:column;justify-content:space-between;padding:8px 8px 8px;z-index:96;touch-action:none;overflow:hidden}
+.mini-call.show{display:flex}
+.mini-call.dragging{box-shadow:0 22px 54px rgba(0,0,0,.24)}
+.mini-call-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:4px 4px 2px;cursor:grab}
+.mini-call.dragging .mini-call-top{cursor:grabbing}
+.mini-call-label{font-size:12px;color:#8a8a8a;line-height:1.3}
+.mini-call-time{margin-top:4px;font-size:20px;font-weight:300;color:#262626}
+.mini-call-preview{margin:4px 2px 8px;height:66px;border-radius:16px;background:linear-gradient(135deg,#f1f5f9,#ffffff);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#8a8a8a;font-size:12px;overflow:hidden}
+.mini-call.video .mini-call-preview{display:flex}
+.mini-call.audio .mini-call-preview{display:flex}
+.mini-call-preview-avatar{width:34px;height:34px;border-radius:50%;overflow:hidden;background:#eef3f1;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#7d8571;font-size:14px}
+.mini-call-preview-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.mini-call-actions{display:flex;justify-content:space-between;gap:8px}
+.mini-call-btn{flex:1;height:34px;border-radius:17px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:#555}
+.mini-call-btn.hang{background:#e14b4b;border-color:#e14b4b;color:#fff}
+
+
+.msg-row .bubble.image-bubble{padding:6px;overflow:hidden}
+.msg-row .bubble.image-bubble img{display:block;max-width:220px;max-height:260px;border-radius:14px}
+.msg-row .bubble.audio-bubble{display:flex;align-items:center;gap:10px;min-width:138px}
+.audio-play{width:34px;height:34px;border-radius:17px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#5c544d;flex-shrink:0}
+.audio-meta{font-size:12px;color:#7d746d}
+.phrase-modal{position:fixed;inset:0;background:rgba(18,18,18,.32);display:none;align-items:flex-end;justify-content:center;z-index:88}
+.phrase-modal.show{display:flex}
+.phrase-sheet{width:100%;max-width:480px;background:#fff;border-radius:26px 26px 0 0;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.phrase-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 14px;border-bottom:1px solid #f0e7df}
+.phrase-title{font-size:18px;font-weight:700;color:#2e2621}
+.phrase-close{border:none;background:none;font-size:28px;color:#8c8078;line-height:1;padding:0 4px;cursor:pointer}
+.phrase-body{padding:14px 16px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.phrase-add{display:flex;gap:8px}
+.phrase-add input{flex:1;border:1px solid #ded4cc;border-radius:16px;background:#fff;padding:11px 12px;font-size:14px;color:#2b2b2b}
+.phrase-add button{height:42px;padding:0 14px;border-radius:16px;background:#342d28;color:#fff}
+.phrase-list{display:grid;gap:10px}
+.phrase-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:16px;background:#faf7f4;border:1px solid #eee3db}
+.phrase-text{font-size:14px;line-height:1.6;color:#332c27;word-break:break-word;flex:1}
+.phrase-ops{display:flex;gap:8px;flex-shrink:0}
+.phrase-ops button{width:32px;height:32px;border-radius:16px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#6b615a;font-size:13px}
+.longpress-tip{font-size:12px;color:#8b7f74;margin-top:6px}
+
+@media (min-width:760px){
+  body{display:flex;justify-content:center;align-items:center;padding:18px}
+  .app{max-width:430px;height:min(900px,calc(100dvh - 36px));border-radius:28px;box-shadow:0 28px 60px rgba(0,0,0,.18)}
+  .page{border-radius:28px;overflow:hidden}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="toast" id="toast"></div>
+
+  <section class="page active" id="homePage">
+    <div class="top-safe"></div>
+    <div class="page-scroll">
+      <div class="home-wrap">
+        <button class="cover-box" id="homeCoverBtn">
+          <img id="homeCoverImg" alt="">
+          <div class="cover-main">
+            <div class="plus">+</div>
+            <div>点击上传图片</div>
+          </div>
+          <div class="cover-tip">首页封面</div>
+        </button>
+        <div class="time-block">
+          <div class="clock" id="clockText">20:48</div>
+          <div class="date" id="dateText">4月4日 星期六</div>
+        </div>
+        <div class="home-grid">
+          <button class="home-card" data-go="chatPage">
+            <div class="icon-slot" id="icon-home-chat"><img alt=""><span>设置图标</span></div>
+            <div class="label">聊天</div>
+          </button>
+          <button class="home-card" data-go="spacePage">
+            <div class="icon-slot" id="icon-home-space"><img alt=""><span>设置图标</span></div>
+            <div class="label">小空间</div>
+          </button>
+          <button class="home-card" data-go="calendarPage">
+            <div class="icon-slot" id="icon-home-calendar"><img alt=""><span>设置图标</span></div>
+            <div class="label">日历本</div>
+          </button>
+          <button class="home-card" data-go="settingsPage">
+            <div class="icon-slot" id="icon-home-settings"><img alt=""><span>设置图标</span></div>
+            <div class="label">参数区</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page chat-page" id="chatPage">
+    <div class="top-safe"></div>
+    <div class="header">
+      <button class="back" data-go="homePage">‹</button>
+      <div class="chat-header-avatar" id="chatTopAvatar"><img alt=""><span>对</span></div>
+      <div class="header-title">
+        <h2>联系人</h2>
+        <p>在线 · 测试版</p>
+      </div>
+      <div class="header-actions">
+        <button class="round-btn" id="chatDotsBtn">···</button>
+      </div>
+    </div>
+    <div class="chat-menu" id="chatMenu">
+      <button data-menu="search">查找聊天记录</button>
+      <button data-menu="date">按日期查看聊天</button>
+      <button data-menu="media">图片 / 语音 / 通话记录</button>
+      <button data-menu="info">聊天信息</button>
+    </div>
+    <div class="chat-bg" id="chatList">
+      <div class="system-line"><span>已结束通话 1:05:30</span></div>
+      <div class="msg-row other">
+        <div class="chat-avatar" id="otherAvatar1"><img alt=""><span>对</span></div>
+        <div class="bubble-wrap"><div class="bubble">这里是一条测试消息。</div><div class="meta">19:03</div></div>
+      </div>
+      <div class="msg-row me">
+        <div class="bubble-wrap"><div class="bubble">收到。</div><div class="meta"><span class="meta-line"><span class="time">19:04</span><span class="read-flag">已读</span></span></div></div>
+        <div class="chat-avatar" id="meAvatar1"><img alt=""><span>我</span></div>
+      </div>
+      <div class="msg-row other">
+        <div class="chat-avatar" id="otherAvatar2"><img alt=""><span>对</span></div>
+        <div class="bubble-wrap"><div class="bubble">这是一条自动回复示例。</div><div class="meta">19:05</div></div>
+      </div>
+    </div>
+    <div class="input-helper" id="inputHelper">
+      <button id="longTextBtn">长文本</button>
+      <button id="clipboardBtn">剪贴板</button>
+      <button id="phraseBtn">字卡</button>
+    </div>
+    <div class="more-panel" id="morePanel">
+      <div class="quick-grid">
+        <button class="quick-item"><div class="quick-icon">图片</div><div class="quick-lab">图片</div></button>
+        <button class="quick-item" id="callEntry"><div class="quick-icon">通话</div><div class="quick-lab">通话</div></button>
+        <button class="quick-item" id="patEntry"><div class="quick-icon">拍一拍</div><div class="quick-lab">拍一拍</div></button>
+        <button class="quick-item" id="spaceEntry"><div class="quick-icon">空间</div><div class="quick-lab">小空间</div></button>
+      </div>
+    </div>
+    <div class="composer">
+      <div class="composer-row">
+        <button class="poke-btn" id="pokeBtn">戳</button>
+        <div class="input-shell" id="inputShell">
+          <button class="voice-toggle" id="voiceToggleBtn">🎤</button>
+          <input class="chat-input" id="chatInput" placeholder="输入想说的话">
+          <div class="hold-to-talk">按住说话</div>
+        </div>
+        <button class="side-btn" id="emojiBtn">☺</button>
+        <button class="side-btn" id="plusBtn">＋</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="page space-page" id="spacePage">
+    <div class="top-safe"></div>
+    <div class="header">
+      <button class="back" data-go="homePage">‹</button>
+      <div class="header-title"><h2>小空间</h2><p>外面合并，里面区分全部 / 动态 / 留言</p></div>
+    </div>
+    <div class="page-scroll">
+      <div class="space-cover" id="spaceCover">
+        <img id="spaceCoverImg" alt="">
+        <div class="overlay"></div>
+        <div class="title">小空间</div>
+      </div>
+      <div class="switch-bar" id="spaceTabs">
+        <button class="active" data-space="all">全部</button>
+        <button data-space="feed">动态</button>
+        <button data-space="note">留言</button>
+      </div>
+      <div class="feed" id="spaceFeed">
+        <div class="card space-item" data-type="feed">
+          <div class="badge">动态</div>
+          <h3>小空间动态</h3>
+          <p>这里是小空间里的动态示例，用来测试评论折叠、点开后的平铺回复层，以及小空间背景图效果。</p>
+          <div class="space-comments">
+            <div class="space-comment-line"><span class="who">对方</span><span class="text">我看到了，晚一点回你。</span></div>
+            <div class="space-comment-line"><span class="who">我</span><span class="reply">回复 对方：</span><span class="text">好，那我先把它留在这里。</span></div>
+            <button class="space-more-btn" id="openRepliesBtn">共2条回复</button>
+          </div>
+        </div>
+        <div class="card space-item" data-type="note">
+          <div class="badge">留言</div>
+          <h3>一条留在这里的留言</h3>
+          <p>留言比普通聊天更慢一点，适合放“等你看到后再回我”的内容。</p>
+          <div class="comment-row">状态：按参数区设置的时间窗口回复</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="calendarPage">
+    <div class="top-safe"></div>
+    <div class="header">
+      <button class="back" data-go="homePage">‹</button>
+      <div class="header-title"><h2>日历本</h2><p>只属于自己，不参与聊天跳转，不让对方参与</p></div>
+    </div>
+    <div class="page-scroll">
+      <div class="calendar-wrap">
+        <div class="calendar-month">
+          <div class="month-head">
+            <div><h3>2026年4月</h3><p>用来回看这一天，不是用来和他互动</p></div>
+            <button class="mini-btn">仅自己可见</button>
+          </div>
+          <div class="week">
+            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+          </div>
+          <div class="days" id="calendarDays"></div>
+          <div class="panel-card calendar-card">
+            <div class="field">
+              <label>心情</label>
+              <div class="mood-row">
+                <input id="moodInput" placeholder="自己写一个心情，比如：钝钝的、空空的">
+                <div class="mood-chip hidden" id="moodChip" title="长按显示删除">
+                  <span id="moodChipText"></span>
+                  <button type="button" class="mood-chip-delete hidden" id="deleteMoodBtn">✕</button>
+                </div>
+              </div>
+              <div class="small-help">直接输入自定义心情。长按右侧心情标签，会出现小叉叉可删去这一天的心情。</div>
+            </div>
+            <div class="field">
+              <label>标记</label>
+              <select id="tagField">
+                <option value="重要的一天">重要的一天</option>
+                <option value="想记住">想记住</option>
+                <option value="不想回头看">不想回头看</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>当天摘要</label>
+              <input id="summaryField" placeholder="比如：今天通话了，或者今天被一句话戳到了">
+            </div>
+            <div class="field">
+              <label>备注</label>
+              <textarea id="noteField" placeholder="写给以后回看的自己。"></textarea>
+            </div>
+            <button class="primary" id="saveCalendarBtn">保存这一天</button>
+            <div class="saved-tip" id="calendarTip">当前选中：4月4日</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" id="settingsPage">
+    <div class="top-safe"></div>
+    <div class="header">
+      <button class="back" data-go="homePage">‹</button>
+      <div class="header-title"><h2>参数区</h2><p>顺序改成：快捷区 / 图标区 / 参数区</p></div>
+    </div>
+    <div class="settings-tabs" id="settingsTabs">
+      <button class="active" data-settings="quick">快捷区</button>
+      <button data-settings="icon">图标区</button>
+      <button data-settings="param">参数区</button>
+    </div>
+    <div class="page-scroll">
+      <div class="settings-body" id="settingsQuick">
+        <div class="panel-card">
+          <h3>快捷区只负责排顺序</h3>
+          <div class="sort-list" id="sortList">
+            <div class="sort-item" data-item="图片">
+              <div class="sort-left"><div class="handle">≡</div><div>图片</div></div>
+              <div class="sort-actions"><button class="small-pill move-up">↑</button><button class="small-pill move-down">↓</button></div>
+            </div>
+            <div class="sort-item" data-item="通话">
+              <div class="sort-left"><div class="handle">≡</div><div>通话</div></div>
+              <div class="sort-actions"><button class="small-pill move-up">↑</button><button class="small-pill move-down">↓</button></div>
+            </div>
+            <div class="sort-item" data-item="拍一拍">
+              <div class="sort-left"><div class="handle">≡</div><div>拍一拍</div></div>
+              <div class="sort-actions"><button class="small-pill move-up">↑</button><button class="small-pill move-down">↓</button></div>
+            </div>
+            <div class="sort-item" data-item="小空间">
+              <div class="sort-left"><div class="handle">≡</div><div>小空间</div></div>
+              <div class="sort-actions"><button class="small-pill move-up">↑</button><button class="small-pill move-down">↓</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3>备份与迁移</h3>
+          <div class="item-list">
+            <div class="item-row">
+              <div class="lab">总备份</div>
+              <div class="desc">聊天 / 小空间 / 日历本 / 参数区一起导出，换手机时最稳。</div>
+            </div>
+          </div>
+          <div class="two-col">
+            <button class="primary" id="backupAllBtn">导出总备份</button>
+            <button class="primary" id="restoreAnyBtn" style="background:#8aa05f">导入备份</button>
+          </div>
+          <div class="two-col" style="margin-top:12px">
+            <button class="mini-btn" id="backupChatBtn" style="height:42px;background:#fff">聊天备份</button>
+            <button class="mini-btn" id="backupSpaceBtn" style="height:42px;background:#fff">小空间备份</button>
+          </div>
+          <div class="two-col" style="margin-top:10px">
+            <button class="mini-btn" id="backupCalendarBtn" style="height:42px;background:#fff">日历本备份</button>
+            <button class="mini-btn" id="backupParamBtn" style="height:42px;background:#fff">参数区备份</button>
+          </div>
+          <p style="margin:12px 0 0;color:#867b73;font-size:12px;line-height:1.7">你说的四个备份就收成这样：一个总备份，聊天 / 小空间 / 日历本 / 参数区都能单独导出。导入时会自动识别备份类型。</p>
+        </div>
+      </div>
+
+      <div class="settings-body hidden" id="settingsIcon">
+        <div class="panel-card">
+          <h3>首页图标</h3>
+          <div class="upload-grid">
+            <div class="upload-card">
+              <div class="lab">聊天</div>
+              <div class="slot" id="slot-home-chat"><img alt=""><span>上传图标</span></div>
+              <div class="ops"><button data-upload="home-chat">上传</button><button data-clear="home-chat">清空</button></div>
+            </div>
+            <div class="upload-card">
+              <div class="lab">小空间</div>
+              <div class="slot" id="slot-home-space"><img alt=""><span>上传图标</span></div>
+              <div class="ops"><button data-upload="home-space">上传</button><button data-clear="home-space">清空</button></div>
+            </div>
+            <div class="upload-card">
+              <div class="lab">日历本</div>
+              <div class="slot" id="slot-home-calendar"><img alt=""><span>上传图标</span></div>
+              <div class="ops"><button data-upload="home-calendar">上传</button><button data-clear="home-calendar">清空</button></div>
+            </div>
+            <div class="upload-card">
+              <div class="lab">参数区</div>
+              <div class="slot" id="slot-home-settings"><img alt=""><span>上传图标</span></div>
+              <div class="ops"><button data-upload="home-settings">上传</button><button data-clear="home-settings">清空</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3>头像与封面</h3>
+          <div class="upload-grid">
+            <div class="upload-card">
+              <div class="lab">我的头像</div>
+              <div class="slot" id="slot-avatar-me"><img alt=""><span>上传头像</span></div>
+              <div class="ops"><button data-upload="avatar-me">上传</button><button data-clear="avatar-me">清空</button></div>
+            </div>
+            <div class="upload-card">
+              <div class="lab">他的头像</div>
+              <div class="slot" id="slot-avatar-other"><img alt=""><span>上传头像</span></div>
+              <div class="ops"><button data-upload="avatar-other">上传</button><button data-clear="avatar-other">清空</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3>背景图</h3>
+          <div class="upload-grid">
+            <div class="upload-card">
+              <div class="lab">聊天背景</div>
+              <div class="slot" id="slot-bg-chat"><img alt=""><span>上传背景</span></div>
+              <div class="ops"><button data-upload="bg-chat">上传</button><button data-clear="bg-chat">清空</button></div>
+            </div>
+            <div class="upload-card">
+              <div class="lab">小空间背景</div>
+              <div class="slot" id="slot-bg-space"><img alt=""><span>上传背景</span></div>
+              <div class="ops"><button data-upload="bg-space">上传</button><button data-clear="bg-space">清空</button></div>
+            </div>
+          </div>
+          <p style="margin:12px 0 0;color:#867b73;font-size:12px">你说的背景更换，直接放在图标区最后面，就按这个收。</p>
+        </div>
+      </div>
+
+      <div class="settings-body hidden" id="settingsParam">
+        <div class="panel-card">
+          <h3>回复与已读</h3>
+          <div class="two-col">
+            <div class="field">
+              <label>最快回复（秒）</label>
+              <input type="number" id="replyMinSec" min="0" step="1" placeholder="3">
+            </div>
+            <div class="field">
+              <label>最慢回复（秒）</label>
+              <input type="number" id="replyMaxSec" min="0" step="1" placeholder="12">
+            </div>
+          </div>
+          <div class="item-row">
+            <div class="lab">聊天已读显示</div>
+            <div class="seg" id="readReceiptSeg">
+              <button class="active" data-read="on">开启</button>
+              <button data-read="off">关闭</button>
+            </div>
+          </div>
+          <p style="margin:12px 0 0;color:#867b73;font-size:12px;line-height:1.7">这里控制他在聊天里最快多久回你、最慢多久回你。已读会跟着这组时间出现，用来模拟他看见消息到开口回复的节奏。</p>
+        </div>
+
+        <div class="panel-card">
+          <h3>聊天节奏</h3>
+          <div class="item-row">
+            <div class="lab">正在输入中</div>
+            <div class="seg" id="typingSeg">
+              <button class="active" data-typing="on">开启</button>
+              <button data-typing="off">关闭</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>输入中提示文案</label>
+            <input id="typingTextInput" placeholder="比如：正在输入中 / 正在思考中 / 在斟酌怎么回你">
+          </div>
+          <div class="item-row">
+            <div class="lab">离线主动发消息</div>
+            <div class="seg" id="offlineChatSeg">
+              <button class="active" data-offchat="on">保留</button>
+              <button data-offchat="off">关闭</button>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label>离线消息最快（分钟）</label>
+              <input type="number" id="offlineChatMin" min="1" step="1" placeholder="30">
+            </div>
+            <div class="field">
+              <label>离线消息最慢（分钟）</label>
+              <input type="number" id="offlineChatMax" min="1" step="1" placeholder="180">
+            </div>
+          </div>
+          <div class="item-row">
+            <div class="lab">离线主动发动态</div>
+            <div class="seg" id="offlineSpaceSeg">
+              <button class="active" data-offspace="on">保留</button>
+              <button data-offspace="off">关闭</button>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label>离线动态最快（分钟）</label>
+              <input type="number" id="offlineSpaceMin" min="1" step="1" placeholder="90">
+            </div>
+            <div class="field">
+              <label>离线动态最慢（分钟）</label>
+              <input type="number" id="offlineSpaceMax" min="1" step="1" placeholder="360">
+            </div>
+          </div>
+          <p style="margin:12px 0 0;color:#867b73;font-size:12px;line-height:1.7">这里保留你要的两个东西：在他正式回复前，聊天里可以先出现一个“正在输入中”；另外你不在线的时候，他也还能自己发消息、自己在小空间发动态，回到页面时会补算出来。</p>
+        </div>
+
+        <div class="panel-card">
+          <h3>聊天规则</h3>
+          <div class="item-list">
+            <div class="item-row">
+              <div class="lab">头像形状</div>
+              <div class="seg" id="avatarShapeSeg">
+                <button class="active" data-shape="round">圆形</button>
+                <button data-shape="square">方形</button>
+              </div>
+            </div>
+            <div class="item-row">
+              <div class="lab">气泡框形状</div>
+              <div class="seg" id="bubbleShapeSeg">
+                <button class="active" data-bubble="round">圆框</button>
+                <button data-bubble="square">方框</button>
+              </div>
+            </div>
+            <div class="item-row">
+              <div class="lab">戳一戳</div>
+              <div class="desc">静默触发一次普通聊天回复，不显示系统提示</div>
+            </div>
+            <div class="item-row">
+              <div class="lab">小空间留言回复</div>
+              <div class="desc">建议 4~16 小时随机回复，可放到真正 app 里继续细化</div>
+            </div>
+            <div class="item-row">
+              <div class="lab">输入辅助栏</div>
+              <div class="desc">点输入框时先弹长文本 / 剪贴板，再决定怎么输入</div>
+            </div>
+            <div class="item-row">
+              <div class="lab">通话入口</div>
+              <div class="desc">点击“通话”后再选语音通话或视频通话</div>
+            </div>
+            <div class="item-row">
+              <div class="lab">日历本定位</div>
+              <div class="desc">只属于自己回看，不承担聊天跳转功能</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-card">
+          <h3>聊天外观</h3>
+          <div class="field">
+            <label>我的气泡颜色</label>
+            <div class="color-pair">
+              <input type="color" id="bubbleMeColorPicker" value="#f2f5fb">
+              <input type="text" id="bubbleMeColorText" placeholder="#f2f5fb">
+            </div>
+          </div>
+          <div class="field">
+            <label>对方气泡颜色</label>
+            <div class="color-pair">
+              <input type="color" id="bubbleOtherColorPicker" value="#ffffff">
+              <input type="text" id="bubbleOtherColorText" placeholder="#ffffff">
+            </div>
+          </div>
+          <div class="field">
+            <label>氛围主题颜色</label>
+            <div class="color-pair">
+              <input type="color" id="themeColorPicker" value="#8aa05f">
+              <input type="text" id="themeColorText" placeholder="#8aa05f">
+            </div>
+          </div>
+          <div class="field">
+            <label>按钮背景颜色</label>
+            <div class="color-pair">
+              <input type="color" id="buttonBgPicker" value="#342d28">
+              <input type="text" id="buttonBgText" placeholder="#342d28">
+            </div>
+          </div>
+          <div class="field">
+            <label>按钮文字颜色</label>
+            <div class="color-pair">
+              <input type="color" id="buttonTextPicker" value="#ffffff">
+              <input type="text" id="buttonTextText" placeholder="#ffffff">
+            </div>
+            <div class="code-help">这里就是你说的外观区。氛围主题色负责整体强调感，按钮颜色单独控制所有主要按钮和选中状态。</div>
+          </div>
+          <div class="field">
+            <label>自定义 CSS</label>
+            <textarea id="customCssInput" placeholder="这里可以直接输入颜色代码或其他 CSS，比如：
+:root{ --bubble-me:#ffeef5; --bubble-other:#ffffff; }
+.bubble{ box-shadow:none; }"></textarea>
+            <div class="code-help">支持直接输入像 #ffffff 这样的颜色代码，也支持粘贴简单 CSS。保存后会立刻应用。</div>
+          </div>
+          <button class="primary" id="saveStyleBtn">保存外观设置</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <div class="call-choice" id="callChoiceModal">
+    <div class="call-choice-sheet">
+      <div class="call-choice-title">选择通话方式</div>
+      <div class="call-choice-grid">
+        <button class="call-choice-btn" data-call-type="audio">
+          <div class="ico">☎</div>
+          <div>语音通话</div>
+        </button>
+        <button class="call-choice-btn" data-call-type="video">
+          <div class="ico">📹</div>
+          <div>视频通话</div>
+        </button>
+      </div>
+      <button class="call-choice-cancel" id="callChoiceCancel">取消</button>
+    </div>
+  </div>
+
+  <div class="call-screen" id="callScreen">
+    <div class="call-head">
+      <button class="call-head-btn" id="callBackBtn">‹</button>
+      <button class="call-head-btn" id="callMinBtn">▢</button>
+    </div>
+    <div class="call-main">
+      <div class="call-avatar" id="callAvatar"><img alt=""><span>对</span></div>
+      <div class="call-name">联系人</div>
+      <div class="call-state" id="callStateText">正在连接…</div>
+      <div class="call-timer" id="callTimerText">00:00</div>
+      <div class="call-video-box" id="callVideoBox">视频通话画面预留区</div>
+    </div>
+    <div class="call-actions">
+      <button class="call-act" id="callMuteBtn">🔇</button>
+      <button class="call-act hang" id="callHangBtn">✕</button>
+    </div>
+  </div>
+
+  <div class="mini-call audio" id="miniCallWindow">
+    <div class="mini-call-top" id="miniCallDragHandle">
+      <div>
+        <div class="mini-call-label" id="miniCallLabel">语音通话中</div>
+        <div class="mini-call-time" id="miniCallTime">00:00</div>
+      </div>
+    </div>
+    <div class="mini-call-preview" id="miniCallPreview">
+      <div class="mini-call-preview-avatar" id="miniPreviewAvatar"><img alt=""><span>对</span></div>
+    </div>
+    <div class="mini-call-actions">
+      <button class="mini-call-btn" id="miniCallRestore">返回</button>
+      <button class="mini-call-btn hang" id="miniCallHang">挂断</button>
+    </div>
+  </div>
+
+
+  <div class="reply-modal" id="replyModal">
+    <div class="reply-sheet">
+      <div class="reply-sheet-head">
+        <div class="reply-sheet-title">回复</div>
+        <button class="reply-sheet-close" id="closeRepliesBtn">×</button>
+      </div>
+      <div class="reply-sheet-list">
+        <div class="space-comment-line"><span class="who">对方</span><span class="text">我看到了，晚一点回你。</span></div>
+        <div class="space-comment-line"><span class="who">我</span><span class="reply">回复 对方：</span><span class="text">好，那我先把它留在这里。</span></div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="phrase-modal" id="phraseModal">
+    <div class="phrase-sheet">
+      <div class="phrase-head">
+        <div class="phrase-title">字卡池</div>
+        <button class="phrase-close" id="phraseCloseBtn">×</button>
+      </div>
+      <div class="phrase-body">
+        <div class="phrase-add">
+          <input id="phraseInput" placeholder="新增一句字卡，比如：想听你亲口说。">
+          <button id="phraseAddBtn">添加</button>
+        </div>
+        <div class="longpress-tip">点“发”直接把这句送进输入框；点“删”移除。这里只做你自己的字卡入口，不再藏着不留口。</div>
+        <div class="phrase-list" id="phraseList"></div>
+      </div>
+    </div>
+  </div>
+
+  <input class="file-input" type="file" accept="image/*" id="chatImageUploader">
+  <input class="file-input" type="file" accept="image/*" id="hiddenUploader">
+  <input class="file-input" type="file" accept="application/json" id="backupImporter">
+</div>
+
+<script>
+const STORAGE_KEY='dual_space_app_clean_test_v1';
+const state = {
+  currentPage:'homePage',
+  icons:{'home-chat':'','home-space':'','home-calendar':'','home-settings':''},
+  media:{'avatar-me':'','avatar-other':'','bg-chat':'','bg-space':'','home-cover':''},
+  avatarShape:'round',
+  bubbleShape:'round',
+  bubbleColors:{me:'#f2f5fb', other:'#ffffff'},
+  appearanceColors:{theme:'#8aa05f', buttonBg:'#342d28', buttonText:'#ffffff'},
+  replyWindow:{min:3,max:12},
+  showReadReceipt:true,
+  customCSS:'',
+  typing:{enabled:true,text:'正在输入中'},
+  offline:{chatEnabled:true,chatMin:30,chatMax:180,spaceEnabled:true,spaceMin:90,spaceMax:360,lastHiddenAt:0,lastChatAt:0,lastSpaceAt:0},
+  call:{active:false,type:'',mini:false,startAt:0,miniPos:null},
+  quick:['图片','通话','拍一拍','小空间'],
+  activeSpace:'all',
+  selectedDay:4,
+  calendar:{},
+  cardPhrases:[
+    '我想你。',
+    '我在。',
+    '现在轮到你说。',
+    '想听你亲口说。',
+    '你继续。',
+    '我把这句留给你。'
+  ],
+  chatHistory:[
+    {id:'m1',sender:'other',type:'system',text:'已结束通话 1:05:30',time:''},
+    {id:'m2',sender:'other',type:'text',text:'这里是一条测试消息。',time:'19:03'},
+    {id:'m3',sender:'me',type:'text',text:'收到。',time:'19:04',read:true},
+    {id:'m4',sender:'other',type:'text',text:'这是一条自动回复示例。',time:'19:05'}
+  ]
+};
+try{
+  const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+  if(saved){
+    Object.assign(state,saved);
+    state.icons=Object.assign({'home-chat':'','home-space':'','home-calendar':'','home-settings':''}, saved.icons||{});
+    state.media=Object.assign({'avatar-me':'','avatar-other':'','bg-chat':'','bg-space':'','home-cover':''}, saved.media||{});
+    state.quick=Array.isArray(saved.quick)&&saved.quick.length===4?saved.quick:['图片','通话','拍一拍','小空间'];
+    state.calendar=saved.calendar||{};
+    state.bubbleShape=saved.bubbleShape||'round';
+    state.bubbleColors=Object.assign({me:'#f2f5fb', other:'#ffffff'}, saved.bubbleColors||{});
+    state.appearanceColors=Object.assign({theme:'#8aa05f', buttonBg:'#342d28', buttonText:'#ffffff'}, saved.appearanceColors||{});
+    state.replyWindow=Object.assign({min:3,max:12}, saved.replyWindow||{});
+    state.showReadReceipt = saved.showReadReceipt!==undefined ? !!saved.showReadReceipt : true;
+    state.customCSS=saved.customCSS||'';
+    state.typing=Object.assign({enabled:true,text:'正在输入中'}, saved.typing||{});
+    state.offline=Object.assign({chatEnabled:true,chatMin:30,chatMax:180,spaceEnabled:true,spaceMin:90,spaceMax:360,lastHiddenAt:0,lastChatAt:0,lastSpaceAt:0}, saved.offline||{});
+    state.call=Object.assign({active:false,type:'',mini:false,startAt:0,miniPos:null}, saved.call||{});
+    state.cardPhrases=Array.isArray(saved.cardPhrases)&&saved.cardPhrases.length?saved.cardPhrases:state.cardPhrases;
+    state.chatHistory=Array.isArray(saved.chatHistory)&&saved.chatHistory.length?saved.chatHistory:state.chatHistory;
+  }
+}catch(e){}
+
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const toastEl=$('#toast');
+let pendingUploadKey='';
+
+function save(){localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}
+function showToast(text){
+  toastEl.textContent=text;
+  toastEl.classList.add('show');
+  clearTimeout(showToast.t);
+  showToast.t=setTimeout(()=>toastEl.classList.remove('show'),1800);
+}
+function escapeHtml(str){ return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+function formatHM(date=new Date()){ return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`; }
+function metaHtml(time, read=false){ return `<span class="meta-line"><span class="time">${time}</span><span class="read-flag ${read?'':'hidden'}">已读</span></span>`; }
+function uid(prefix='m'){ return prefix+Math.random().toString(36).slice(2,10); }
+function defaultChatHistory(){
+  return [
+    {id:'m1',sender:'other',type:'system',text:'已结束通话 1:05:30',time:''},
+    {id:'m2',sender:'other',type:'text',text:'这里是一条测试消息。',time:'19:03'},
+    {id:'m3',sender:'me',type:'text',text:'收到。',time:'19:04',read:true},
+    {id:'m4',sender:'other',type:'text',text:'这是一条自动回复示例。',time:'19:05'}
+  ];
+}
+function ensureChatState(){
+  if(!Array.isArray(state.chatHistory) || !state.chatHistory.length) state.chatHistory=defaultChatHistory();
+  if(!Array.isArray(state.cardPhrases) || !state.cardPhrases.length) state.cardPhrases=['我想你。','我在。','现在轮到你说。','想听你亲口说。','你继续。','我把这句留给你。'];
+}
+function formatAudioSec(sec){ return `${Math.max(1,Math.round(sec||1))}''`; }
+function buildMessageRow(msg){
+  if(msg.type==='system'){
+    const wrap=document.createElement('div'); wrap.className='system-line'; wrap.dataset.mid=msg.id||uid(); wrap.innerHTML=`<span>${escapeHtml(msg.text||'')}</span>`; return wrap;
+  }
+  const row=document.createElement('div');
+  row.className=`msg-row ${msg.sender==='me'?'me':'other'}`;
+  row.dataset.mid=msg.id||uid();
+  let bubbleInner='';
+  if(msg.type==='image') bubbleInner=`<div class="bubble image-bubble"><img src="${msg.url}" alt="图片消息"></div>`;
+  else if(msg.type==='audio') bubbleInner=`<div class="bubble audio-bubble"><button class="audio-play" data-audio-play="${msg.id}">▶</button><div><div>语音消息</div><div class="audio-meta">${escapeHtml(msg.durationLabel||formatAudioSec(msg.durationSec||1))}</div><audio preload="metadata" src="${msg.url}" data-audio-id="${msg.id}"></audio></div></div>`;
+  else bubbleInner=`<div class="bubble">${escapeHtml(msg.text||'')}</div>`;
+  const meta = msg.sender==='me' ? metaHtml(msg.time||'刚刚', !!msg.read) : (msg.time||'');
+  if(msg.sender==='me'){
+    row.innerHTML=`<div class="bubble-wrap">${bubbleInner}<div class="meta">${meta}</div></div><div class="chat-avatar ${state.media['avatar-me']?'has-img':''}"><img src="${state.media['avatar-me']||''}" alt=""><span>我</span></div>`;
+  }else{
+    row.innerHTML=`<div class="chat-avatar ${state.media['avatar-other']?'has-img':''}"><img src="${state.media['avatar-other']||''}" alt=""><span>对</span></div><div class="bubble-wrap">${bubbleInner}<div class="meta">${meta}</div></div>`;
+  }
+  return row;
+}
+function renderChatHistory(){
+  ensureChatState();
+  const list=$('#chatList'); if(!list) return;
+  list.innerHTML='';
+  state.chatHistory.forEach(msg=>list.appendChild(buildMessageRow(msg)));
+  list.scrollTop=list.scrollHeight;
+}
+function appendChatMessage(msg, shouldSave=true){
+  ensureChatState();
+  if(!msg.id) msg.id=uid(msg.type==='audio'?'a':'m');
+  state.chatHistory.push(msg);
+  const list=$('#chatList'); if(list){ const row=buildMessageRow(msg); list.appendChild(row); row.scrollIntoView({behavior:'smooth',block:'end'}); }
+  if(shouldSave) save();
+  return msg;
+}
+function removeChatMessage(mid){
+  ensureChatState();
+  const idx=state.chatHistory.findIndex(m=>m.id===mid);
+  if(idx<0) return false;
+  state.chatHistory.splice(idx,1);
+  renderChatHistory(); save();
+  return true;
+}
+function renderPhraseList(){
+  ensureChatState();
+  const list=$('#phraseList'); if(!list) return;
+  list.innerHTML=state.cardPhrases.map((text,idx)=>`<div class="phrase-item"><div class="phrase-text">${escapeHtml(text)}</div><div class="phrase-ops"><button data-phrase-send="${idx}">发</button><button data-phrase-del="${idx}">删</button></div></div>`).join('');
+}
+function createOtherRow(text,time='刚刚'){
+  return buildMessageRow({id:uid('m'),sender:'other',type:'text',text,time});
+}
+function createTypingRow(label){
+  const row=document.createElement('div');
+  row.className='msg-row other typing-row';
+  row.innerHTML=`<div class="chat-avatar ${state.media['avatar-other']?'has-img':''}"><img src="${state.media['avatar-other']||''}" alt=""><span>对</span></div><div class="bubble-wrap"><div class="typing-bubble"><span>${escapeHtml(label||'正在输入中')}</span><span class="typing-dots"><span></span><span></span><span></span></span></div></div>`;
+  return row;
+}
+function createMeRow(text,time=formatHM()){
+  return buildMessageRow({id:uid('m'),sender:'me',type:'text',text,time,read:false});
+}
+function appendChatRow(row){
+  const list=$('#chatList');
+  if(!list) return;
+  list.appendChild(row);
+  row.scrollIntoView({behavior:'smooth',block:'end'});
+}
+function removeTypingRow(){
+  const node=$('#chatList .typing-row:last-child');
+  if(node) node.remove();
+}
+function getReplyDelayMs(){
+  let min=Number(state.replyWindow?.min ?? 3);
+  let max=Number(state.replyWindow?.max ?? 12);
+  if(!Number.isFinite(min) || min<0) min=3;
+  if(!Number.isFinite(max) || max<min) max=min;
+  return Math.round((Math.random()*(max-min)+min)*1000);
+}
+function pickReplyText(){
+  const pool=['我在。','看见了。','收到。','你继续说。','我在听。','怎么了。','知道了。','我先想一下。'];
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function triggerReply(metaEl){
+  const delay=getReplyDelayMs();
+  const typingEnabled=!!state.typing?.enabled;
+  const typingLabel=(state.typing?.text||'正在输入中').trim()||'正在输入中';
+  let typingTimer=null;
+  if(typingEnabled){
+    const showAfter=Math.max(350, Math.min(delay-280, delay*0.35));
+    if(showAfter>0){ typingTimer=setTimeout(()=>appendChatRow(createTypingRow(typingLabel)), showAfter); }
+  }
+  setTimeout(()=>{
+    if(typingTimer) clearTimeout(typingTimer);
+    removeTypingRow();
+    if(metaEl && state.showReadReceipt){
+      const flag=metaEl.querySelector('.read-flag');
+      if(flag) flag.classList.remove('hidden');
+    }
+    appendChatMessage({sender:'other',type:'text',text:pickReplyText(),time:'刚刚'});
+  }, delay);
+}
+function sendCurrentText(forceText){
+  const input=$('#chatInput');
+  const txt=(forceText!==undefined?String(forceText):String(input.value||'')).trim();
+  if(!txt) return;
+  const msg=appendChatMessage({sender:'me',type:'text',text:txt,time:formatHM(),read:false});
+  if(forceText===undefined) input.value='';
+  $('#inputHelper').classList.remove('show');
+  $('#morePanel').classList.remove('show');
+  state.offline.lastChatAt=Date.now();
+  save();
+  const list=$('#chatList');
+  const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
+  triggerReply(row?row.querySelector('.meta'):null);
+}
+function appendSpaceAutoCard(){
+  const feed=$('#spaceFeed');
+  if(!feed) return;
+  const lines=['又来这里发一句。','刚刚想到你了。','今天也想在这里留一点痕迹。','像平时一样来看看你。'];
+  const card=document.createElement('article');
+  card.className='card space-item';
+  card.dataset.type='post';
+  card.innerHTML=`<div class="badge">动态</div><h3>他自己来留了一句</h3><p>${lines[Math.floor(Math.random()*lines.length)]}</p><div class="comment-row">离线回来后补算出来的动态</div>`;
+  feed.prepend(card);
+}
+
+let wakeLock=null;
+let callTimerHandle=null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator && document.visibilityState==='visible'){
+      wakeLock = await navigator.wakeLock.request('screen');
+      if(wakeLock){
+        wakeLock.addEventListener('release',()=>{ wakeLock=null; });
+      }
+    }
+  }catch(e){}
+}
+async function releaseWakeLock(){
+  try{ if(wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){}
+}
+function formatDuration(ms){
+  const total=Math.max(0, Math.floor(ms/1000));
+  const h=Math.floor(total/3600), m=Math.floor((total%3600)/60), s=total%60;
+  if(h>0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function syncCallAvatar(){
+  const avatar=$('#callAvatar');
+  if(!avatar) return;
+  const img=avatar.querySelector('img');
+  img.src=state.media['avatar-other']||'';
+  avatar.classList.toggle('has-img',!!state.media['avatar-other']);
+}
+function syncMiniPreview(){
+  const mini=$('#miniCallWindow');
+  const wrap=$('#miniPreviewAvatar');
+  if(!mini || !wrap) return;
+  mini.classList.toggle('video',state.call.type==='video');
+  mini.classList.toggle('audio',state.call.type!=='video');
+  const img=wrap.querySelector('img');
+  img.src=state.media['avatar-other']||'';
+  wrap.classList.toggle('has-img',!!state.media['avatar-other']);
+}
+function applyMiniCallPosition(){
+  const mini=$('#miniCallWindow');
+  if(!mini) return;
+  const pos=state.call.miniPos;
+  if(pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)){
+    mini.style.left=pos.x+'px';
+    mini.style.top=pos.y+'px';
+    mini.style.right='auto';
+    mini.style.bottom='auto';
+  }else{
+    mini.style.left='';
+    mini.style.top='';
+    mini.style.right='14px';
+    mini.style.bottom='calc(92px + env(safe-area-inset-bottom))';
+  }
+}
+function clampMiniCallPosition(x,y){
+  const mini=$('#miniCallWindow');
+  if(!mini) return {x:14,y:120};
+  const vw=window.innerWidth||360, vh=window.innerHeight||640;
+  const rect=mini.getBoundingClientRect();
+  const width=rect.width||154, height=rect.height||118;
+  const maxX=Math.max(8,vw-width-8);
+  const maxY=Math.max(72,vh-height-8);
+  return {x:Math.min(Math.max(8,x),maxX), y:Math.min(Math.max(72,y),maxY)};
+}
+function updateCallTexts(){
+  const type=state.call.type==='video'?'视频通话中':'语音通话中';
+  $('#callStateText').textContent=type;
+  $('#miniCallLabel').textContent=type;
+  $('#callScreen').classList.toggle('call-video',state.call.type==='video');
+  syncCallAvatar();
+  syncMiniPreview();
+}
+function tickCallTimer(){
+  if(!state.call.active || !state.call.startAt) return;
+  const txt=formatDuration(Date.now()-state.call.startAt);
+  $('#callTimerText').textContent=txt;
+  $('#miniCallTime').textContent=txt;
+}
+function startCallTimer(){
+  clearInterval(callTimerHandle);
+  tickCallTimer();
+  callTimerHandle=setInterval(tickCallTimer,1000);
+}
+function stopCallTimer(){ clearInterval(callTimerHandle); callTimerHandle=null; }
+function openCallChoice(){ $('#callChoiceModal').classList.add('show'); }
+function closeCallChoice(){ $('#callChoiceModal').classList.remove('show'); }
+async function startCall(type){
+  closeCallChoice();
+  state.call={active:true,type:type,mini:false,startAt:Date.now()};
+  updateCallTexts();
+  $('#callScreen').classList.add('show');
+  $('#miniCallWindow').classList.remove('show');
+  startCallTimer();
+  save();
+  await requestWakeLock();
+}
+function minimizeCall(){
+  if(!state.call.active) return;
+  state.call.mini=true;
+  $('#callScreen').classList.remove('show');
+  $('#miniCallWindow').classList.add('show');
+  applyMiniCallPosition();
+  save();
+}
+async function restoreCall(){
+  if(!state.call.active) return;
+  state.call.mini=false;
+  $('#miniCallWindow').classList.remove('show');
+  $('#callScreen').classList.add('show');
+  save();
+  await requestWakeLock();
+}
+async function endCall(){
+  if(!state.call.active) return;
+  const duration=formatDuration(Date.now()-state.call.startAt);
+  stopCallTimer();
+  $('#callScreen').classList.remove('show');
+  $('#miniCallWindow').classList.remove('show');
+  appendChatRow((()=>{ const line=document.createElement('div'); line.className='system-line'; line.innerHTML=`<span>已结束通话 ${duration}</span>`; return line; })());
+  state.call={active:false,type:'',mini:false,startAt:0,miniPos:state.call.miniPos||null};
+  save();
+  await releaseWakeLock();
+}
+async function restoreCallIfNeeded(){
+  if(!state.call?.active || !state.call.startAt) return;
+  updateCallTexts();
+  startCallTimer();
+  if(state.call.mini){ $('#miniCallWindow').classList.add('show'); $('#callScreen').classList.remove('show'); applyMiniCallPosition(); }
+  else { $('#callScreen').classList.add('show'); $('#miniCallWindow').classList.remove('show'); }
+  await requestWakeLock();
+}
+
+function processOfflineCatchup(){
+  const now=Date.now();
+  const hiddenAt=Number(state.offline?.lastHiddenAt||0);
+  if(!hiddenAt) return;
+  if(state.offline?.chatEnabled){
+    const minMs=Math.max(1,Number(state.offline.chatMin||30))*60000;
+    const maxMs=Math.max(minMs,Number(state.offline.chatMax||180))*60000;
+    const base=Math.max(Number(state.offline.lastChatAt||hiddenAt),hiddenAt);
+    const passed=now-base;
+    if(passed>=minMs){
+      const count=Math.min(3, Math.max(1, Math.floor(passed/maxMs)+1));
+      for(let i=0;i<count;i++) appendChatRow(createOtherRow(pickReplyText(),'离线后'));
+      state.offline.lastChatAt=now;
+    }
+  }
+  if(state.offline?.spaceEnabled){
+    const minMs=Math.max(1,Number(state.offline.spaceMin||90))*60000;
+    const maxMs=Math.max(minMs,Number(state.offline.spaceMax||360))*60000;
+    const base=Math.max(Number(state.offline.lastSpaceAt||hiddenAt),hiddenAt);
+    const passed=now-base;
+    if(passed>=minMs){
+      const count=Math.min(2, Math.max(1, Math.floor(passed/maxMs)+1));
+      for(let i=0;i<count;i++) appendSpaceAutoCard();
+      state.offline.lastSpaceAt=now;
+    }
+  }
+  state.offline.lastHiddenAt=0;
+  save();
+}
+function initMiniCallDrag(){
+  const mini=$('#miniCallWindow');
+  const handle=$('#miniCallDragHandle');
+  if(!mini || !handle) return;
+  let dragging=false,startX=0,startY=0,originX=0,originY=0;
+  const start=(ev)=>{
+    if(!state.call.active || !state.call.mini) return;
+    const pt=ev.touches?ev.touches[0]:ev;
+    const rect=mini.getBoundingClientRect();
+    dragging=true;
+    mini.classList.add('dragging');
+    startX=pt.clientX; startY=pt.clientY; originX=rect.left; originY=rect.top;
+    ev.preventDefault();
+  };
+  const move=(ev)=>{
+    if(!dragging) return;
+    const pt=ev.touches?ev.touches[0]:ev;
+    const x=originX + (pt.clientX-startX); const y=originY + (pt.clientY-startY);
+    const next=clampMiniCallPosition(x,y);
+    mini.style.left=next.x+'px'; mini.style.top=next.y+'px'; mini.style.right='auto'; mini.style.bottom='auto';
+    ev.preventDefault();
+  };
+  const end=()=>{
+    if(!dragging) return;
+    dragging=false;
+    mini.classList.remove('dragging');
+    const rect=mini.getBoundingClientRect();
+    const next=clampMiniCallPosition(rect.left,rect.top);
+    state.call.miniPos=next;
+    applyMiniCallPosition();
+    save();
+  };
+  handle.addEventListener('mousedown',start);
+  handle.addEventListener('touchstart',start,{passive:false});
+  window.addEventListener('mousemove',move,{passive:false});
+  window.addEventListener('touchmove',move,{passive:false});
+  window.addEventListener('mouseup',end);
+  window.addEventListener('touchend',end);
+}
+function goto(id){
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  state.currentPage=id; save();
+  $('#chatMenu').classList.remove('show');
+  $('#morePanel').classList.remove('show');
+  $('#inputHelper').classList.remove('show');
+}
+$$('[data-go]').forEach(btn=>btn.addEventListener('click',()=>goto(btn.dataset.go)));
+
+function updateClock(){
+  const now=new Date();
+  $('#clockText').textContent = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const week='日一二三四五六'[now.getDay()];
+  $('#dateText').textContent = `${now.getMonth()+1}月${now.getDate()}日 星期${week}`;
+}
+updateClock(); setInterval(updateClock,1000*20);
+
+function applyImageToSlot(slotId,url){
+  const slot=document.getElementById(slotId);
+  if(!slot) return;
+  const img=slot.querySelector('img');
+  img.src=url||'';
+  slot.classList.toggle('has-img',!!url);
+}
+function applyIcon(key,url){
+  const homeMap={'home-chat':'icon-home-chat','home-space':'icon-home-space','home-calendar':'icon-home-calendar','home-settings':'icon-home-settings'};
+  const slotId='slot-'+key;
+  applyImageToSlot(slotId,url);
+  const home=document.getElementById(homeMap[key]);
+  if(home){
+    const img=home.querySelector('img');
+    img.src=url||'';
+    home.classList.toggle('has-img',!!url);
+  }
+}
+function applyAvatar(which,url){
+  const slotId = which==='avatar-me'?'slot-avatar-me':'slot-avatar-other';
+  applyImageToSlot(slotId,url);
+  const targets = which==='avatar-me'
+    ? ['meAvatar1']
+    : ['chatTopAvatar','otherAvatar1','otherAvatar2'];
+  targets.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const img=el.querySelector('img');
+    img.src=url||'';
+    el.classList.toggle('has-img',!!url);
+  });
+}
+function applyBackground(which,url){
+  const slotId=which==='bg-chat'?'slot-bg-chat':'slot-bg-space';
+  applyImageToSlot(slotId,url);
+  if(which==='bg-chat'){
+    const chat=$('#chatList');
+    if(url){
+      chat.style.backgroundImage=`linear-gradient(rgba(255,255,255,.28),rgba(255,255,255,.18)), url("${url}")`;
+      chat.style.backgroundSize='cover';
+      chat.style.backgroundPosition='center';
+    }else{
+      chat.style.backgroundImage='radial-gradient(circle at 14% 18%, rgba(255,255,255,.75) 0 2px, transparent 2.5px),radial-gradient(circle at 74% 36%, rgba(255,255,255,.65) 0 2px, transparent 2.5px),radial-gradient(circle at 40% 82%, rgba(255,255,255,.6) 0 2px, transparent 2.5px)';
+      chat.style.backgroundSize='';
+      chat.style.backgroundPosition='';
+    }
+  }else{
+    const cover=$('#spaceCover');
+    const img=$('#spaceCoverImg');
+    img.src=url||'';
+    cover.classList.toggle('has-img',!!url);
+  }
+}
+function applyHomeCover(url){
+  const box=$('#homeCoverBtn');
+  const img=$('#homeCoverImg');
+  img.src=url||'';
+  box.classList.toggle('has-img',!!url);
+}
+function normalizeHex(v){
+  const s=String(v||'').trim();
+  if(/^#([0-9a-fA-F]{6})$/.test(s)) return s.toLowerCase();
+  if(/^#([0-9a-fA-F]{3})$/.test(s)) return ('#'+s[1]*2+s[2]*2+s[3]*2).toLowerCase();
+  return '';
+}
+function syncReplyInputs(){
+  if($('#replyMinSec')) $('#replyMinSec').value = Number(state.replyWindow?.min ?? 3);
+  if($('#replyMaxSec')) $('#replyMaxSec').value = Number(state.replyWindow?.max ?? 12);
+  $$('#readReceiptSeg button').forEach(btn=>btn.classList.toggle('active', (btn.dataset.read==='on')===!!state.showReadReceipt));
+}
+function saveReplyInputs(){
+  let min = Number($('#replyMinSec').value || state.replyWindow.min || 3);
+  let max = Number($('#replyMaxSec').value || state.replyWindow.max || min);
+  if(!Number.isFinite(min) || min<0) min=0;
+  if(!Number.isFinite(max) || max<min) max=min;
+  state.replyWindow={min,max};
+  $('#replyMinSec').value=min;
+  $('#replyMaxSec').value=max;
+  save();
+}
+function syncTypingOfflineInputs(){
+  if($('#typingTextInput')) $('#typingTextInput').value = (state.typing?.text||'正在输入中');
+  $$('#typingSeg button').forEach(btn=>btn.classList.toggle('active',(btn.dataset.typing==='on')===!!state.typing?.enabled));
+  $$('#offlineChatSeg button').forEach(btn=>btn.classList.toggle('active',(btn.dataset.offchat==='on')===!!state.offline?.chatEnabled));
+  $$('#offlineSpaceSeg button').forEach(btn=>btn.classList.toggle('active',(btn.dataset.offspace==='on')===!!state.offline?.spaceEnabled));
+  if($('#offlineChatMin')) $('#offlineChatMin').value = Number(state.offline?.chatMin ?? 30);
+  if($('#offlineChatMax')) $('#offlineChatMax').value = Number(state.offline?.chatMax ?? 180);
+  if($('#offlineSpaceMin')) $('#offlineSpaceMin').value = Number(state.offline?.spaceMin ?? 90);
+  if($('#offlineSpaceMax')) $('#offlineSpaceMax').value = Number(state.offline?.spaceMax ?? 360);
+}
+function saveTypingOfflineInputs(){
+  state.typing.text = (($('#typingTextInput').value||'').trim()||'正在输入中');
+  let cmin=Number($('#offlineChatMin').value||state.offline.chatMin||30), cmax=Number($('#offlineChatMax').value||state.offline.chatMax||cmin);
+  let smin=Number($('#offlineSpaceMin').value||state.offline.spaceMin||90), smax=Number($('#offlineSpaceMax').value||state.offline.spaceMax||smin);
+  if(!Number.isFinite(cmin)||cmin<1) cmin=1; if(!Number.isFinite(cmax)||cmax<cmin) cmax=cmin;
+  if(!Number.isFinite(smin)||smin<1) smin=1; if(!Number.isFinite(smax)||smax<smin) smax=smin;
+  state.offline.chatMin=cmin; state.offline.chatMax=cmax; state.offline.spaceMin=smin; state.offline.spaceMax=smax;
+  $('#offlineChatMin').value=cmin; $('#offlineChatMax').value=cmax; $('#offlineSpaceMin').value=smin; $('#offlineSpaceMax').value=smax;
+  save();
+}
+function applyBubbleColors(){
+  const me=normalizeHex(state.bubbleColors.me)||'#f2f5fb';
+  const other=normalizeHex(state.bubbleColors.other)||'#ffffff';
+  state.bubbleColors.me=me;
+  state.bubbleColors.other=other;
+  document.documentElement.style.setProperty('--bubble-me', me);
+  document.documentElement.style.setProperty('--bubble-other', other);
+  const mePicker=$('#bubbleMeColorPicker'), meText=$('#bubbleMeColorText');
+  const otherPicker=$('#bubbleOtherColorPicker'), otherText=$('#bubbleOtherColorText');
+  if(mePicker) mePicker.value=me;
+  if(meText) meText.value=me;
+  if(otherPicker) otherPicker.value=other;
+  if(otherText) otherText.value=other;
+}
+function applyAppearanceColors(){
+  const theme=normalizeHex(state.appearanceColors?.theme)||'#8aa05f';
+  const buttonBg=normalizeHex(state.appearanceColors?.buttonBg)||'#342d28';
+  const buttonText=normalizeHex(state.appearanceColors?.buttonText)||'#ffffff';
+  state.appearanceColors={theme,buttonBg,buttonText};
+  document.documentElement.style.setProperty('--theme-color', theme);
+  document.documentElement.style.setProperty('--button-bg', buttonBg);
+  document.documentElement.style.setProperty('--button-text', buttonText);
+  const map=[['themeColorPicker',theme],['themeColorText',theme],['buttonBgPicker',buttonBg],['buttonBgText',buttonBg],['buttonTextPicker',buttonText],['buttonTextText',buttonText]];
+  map.forEach(([id,val])=>{ const el=$('#'+id); if(el) el.value=val; });
+}
+
+function applyCustomCSS(){
+  const css=(state.customCSS||'').replace(/<style[^>]*>/gi,'').replace(/<\/style>/gi,'').trim();
+  state.customCSS=css;
+  const styleEl=$('#customStyle');
+  if(styleEl) styleEl.textContent=css;
+  const input=$('#customCssInput');
+  if(input && input.value!==css) input.value=css;
+}
+function applyAvatarShape(shape){
+  document.documentElement.style.setProperty('--avatar-radius', shape==='square'?'14px':'50%');
+  $$('#avatarShapeSeg button').forEach(btn=>btn.classList.toggle('active', btn.dataset.shape===shape));
+}
+function applyBubbleShape(shape){
+  document.body.classList.toggle('bubble-square', shape==='square');
+  $$('#bubbleShapeSeg button').forEach(btn=>btn.classList.toggle('active', btn.dataset.bubble===shape));
+}
+function renderQuick(){
+  const map = {
+    '图片':'图片',
+    '通话':'通话',
+    '拍一拍':'拍一拍',
+    '小空间':'小空间'
+  };
+  const items=$$('.quick-item');
+  state.quick.forEach((name,idx)=>{
+    const item=items[idx];
+    item.querySelector('.quick-icon').textContent=map[name]||name;
+    item.querySelector('.quick-lab').textContent=name;
+    item.dataset.action=name;
+  });
+  const list=$('#sortList');
+  [...list.children].forEach(el=>list.appendChild([...list.children].find?.(x=>false)||el));
+  const current=[...list.children];
+  state.quick.forEach(name=>{
+    const item=current.find(el=>el.dataset.item===name);
+    if(item) list.appendChild(item);
+  });
+}
+function renderSpaceFilter(){
+  $$('#spaceTabs button').forEach(btn=>btn.classList.toggle('active', btn.dataset.space===state.activeSpace));
+  $$('.space-item').forEach(card=>{
+    const type=card.dataset.type;
+    card.style.display = state.activeSpace==='all' || state.activeSpace===type ? '' : 'none';
+  });
+}
+function buildCalendar(){
+  const daysEl=$('#calendarDays');
+  daysEl.innerHTML='';
+  const startBlank=2; // April 2026 starts Wednesday
+  const total=30;
+  for(let i=0;i<startBlank;i++){
+    const d=document.createElement('div'); d.className='day'; d.style.visibility='hidden'; daysEl.appendChild(d);
+  }
+  for(let day=1;day<=total;day++){
+    const d=document.createElement('button');
+    d.className='day';
+    if(day===state.selectedDay) d.classList.add('active');
+    const entry=state.calendar[day]||{};
+    if(entry.mood || entry.summary || entry.note) d.classList.add('marked');
+    const moodText=entry.mood ? `<span class="day-mood">${escapeHtml(entry.mood)}</span>` : '';
+    d.innerHTML=`<span class="day-num">${day}</span>${moodText}`;
+    d.addEventListener('click',()=>{
+      state.selectedDay=day;
+      buildCalendar();
+      loadCalendarForm();
+      save();
+    });
+    daysEl.appendChild(d);
+  }
+}
+
+function renderMoodChip(){
+  const text=($('#moodInput').value||'').trim();
+  $('#moodChipText').textContent=text;
+  $('#moodChip').classList.toggle('hidden', !text);
+  $('#deleteMoodBtn').classList.add('hidden');
+}
+function loadCalendarForm(){
+  const data=state.calendar[state.selectedDay]||{};
+  $('#moodInput').value = data.mood || '';
+  $('#tagField').value = data.tag || ''; 
+  $('#summaryField').value = data.summary || '';
+  $('#noteField').value = data.note || '';
+  $('#calendarTip').textContent = `当前选中：4月${state.selectedDay}日`;
+  renderMoodChip();
+}
+$('#moodInput').addEventListener('input',renderMoodChip);
+$('#saveCalendarBtn').addEventListener('click',()=>{
+  const mood=$('#moodInput').value.trim();
+  state.calendar[state.selectedDay]={
+    mood,
+    tag:$('#tagField').value,
+    summary:$('#summaryField').value.trim(),
+    note:$('#noteField').value.trim()
+  };
+  save(); buildCalendar(); loadCalendarForm(); showToast(`4月${state.selectedDay}日已保存`);
+});
+const moodChip=$('#moodChip');
+const deleteMoodBtn=$('#deleteMoodBtn');
+let moodPressTimer=null;
+['mousedown','touchstart'].forEach(evt=>moodChip.addEventListener(evt,()=>{
+  if(moodChip.classList.contains('hidden')) return;
+  clearTimeout(moodPressTimer);
+  moodPressTimer=setTimeout(()=>deleteMoodBtn.classList.remove('hidden'),450);
+},{passive:true}));
+['mouseup','mouseleave','touchend','touchcancel'].forEach(evt=>moodChip.addEventListener(evt,()=>clearTimeout(moodPressTimer),{passive:true}));
+deleteMoodBtn.addEventListener('click',(e)=>{
+  e.stopPropagation();
+  const dayData=state.calendar[state.selectedDay]||{};
+  dayData.mood='';
+  state.calendar[state.selectedDay]=dayData;
+  $('#moodInput').value='';
+  save(); buildCalendar(); loadCalendarForm(); showToast(`已删去4月${state.selectedDay}日的心情`);
+});
+
+$('#chatDotsBtn').addEventListener('click',()=>$('#chatMenu').classList.toggle('show'));
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#chatDotsBtn') && !e.target.closest('#chatMenu')) $('#chatMenu').classList.remove('show');
+  if(!e.target.closest('#plusBtn') && !e.target.closest('#morePanel')) $('#morePanel').classList.remove('show');
+  if(!e.target.closest('#chatInput') && !e.target.closest('#inputHelper') && !e.target.closest('#voiceToggleBtn')) $('#inputHelper').classList.remove('show');
+});
+$('#chatInput').addEventListener('focus',()=>$('#inputHelper').classList.add('show'));
+$('#chatInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    e.preventDefault();
+    sendCurrentText();
+  }
+});
+$('#voiceToggleBtn').addEventListener('click',()=>{
+  $('#inputShell').classList.toggle('voice');
+  $('#inputHelper').classList.remove('show');
+});
+$('#emojiBtn').addEventListener('click',()=>showToast('这里会弹出表情与表情包'));
+$('#plusBtn').addEventListener('click',()=>$('#morePanel').classList.toggle('show'));
+$('#longTextBtn').addEventListener('click',()=>showToast('这里会打开长文本编辑页'));
+$('#clipboardBtn').addEventListener('click',async()=>{ try{ const txt=await navigator.clipboard.readText(); if(txt){ $('#chatInput').value=txt; showToast('已贴进输入框'); } else showToast('剪贴板是空的'); }catch(e){ showToast('读取剪贴板失败'); } });
+$('#phraseBtn').addEventListener('click',openPhraseModal);
+$('#phraseCloseBtn').addEventListener('click',closePhraseModal);
+$('#phraseModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closePhraseModal(); });
+$('#phraseAddBtn').addEventListener('click',()=>{ const inp=$('#phraseInput'); const txt=String(inp.value||'').trim(); if(!txt){ showToast('字卡内容不能为空'); return; } state.cardPhrases.unshift(txt); inp.value=''; renderPhraseList(); save(); });
+$('#phraseList').addEventListener('click',e=>{ const send=e.target.closest('[data-phrase-send]'); const dele=e.target.closest('[data-phrase-del]'); if(send){ const idx=Number(send.dataset.phraseSend); const txt=state.cardPhrases[idx]; if(txt){ $('#chatInput').value=txt; closePhraseModal(); $('#chatInput').focus(); } } if(dele){ const idx=Number(dele.dataset.phraseDel); if(Number.isInteger(idx)&&idx>=0){ state.cardPhrases.splice(idx,1); renderPhraseList(); save(); } } });
+$('#spaceEntry').addEventListener('click',()=>goto('spacePage'));
+$('#callEntry').addEventListener('click',openCallChoice);
+$('#callChoiceCancel').addEventListener('click',closeCallChoice);
+$('#callChoiceModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeCallChoice(); });
+$$('[data-call-type]').forEach(btn=>btn.addEventListener('click',()=>startCall(btn.dataset.callType)));
+$('#callMinBtn').addEventListener('click',minimizeCall);
+$('#callHangBtn').addEventListener('click',endCall);
+$('#miniCallRestore').addEventListener('click',restoreCall);
+$('#miniCallHang').addEventListener('click',endCall);
+$('#callBackBtn').addEventListener('click',minimizeCall);
+$('#patEntry').addEventListener('click',()=>showToast('这里会触发拍一拍'));
+$('#morePanel').addEventListener('click',e=>{
+  const item=e.target.closest('.quick-item'); if(!item) return;
+  const action=item.dataset.action || (item.querySelector('.quick-lab')&&item.querySelector('.quick-lab').textContent);
+  if(action==='图片'){ if(chatImageUploader) chatImageUploader.click(); $('#morePanel').classList.remove('show'); }
+});
+$('#pokeBtn').addEventListener('click',()=>{
+  setTimeout(()=>{ appendChatMessage({sender:'other',type:'text',text:'我在。',time:'刚刚'}); },450);
+});
+$('#chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); sendCurrentText(); } });
+const holdTalk=$('.hold-to-talk');
+if(holdTalk){
+  holdTalk.addEventListener('touchstart',startVoiceRecord,{passive:false});
+  holdTalk.addEventListener('touchend',stopVoiceRecord,{passive:false});
+  holdTalk.addEventListener('mousedown',startVoiceRecord);
+  holdTalk.addEventListener('mouseup',stopVoiceRecord);
+  holdTalk.addEventListener('mouseleave',e=>{ if(isRecording) stopVoiceRecord(e); });
+}
+$('#chatList').addEventListener('click',e=>{ const btn=e.target.closest('[data-audio-play]'); if(!btn) return; const audio=$('#chatList').querySelector('audio[data-audio-id="'+btn.dataset.audioPlay+'"]'); if(!audio) return; const willPlay=audio.paused; $$('#chatList audio').forEach(a=>{ if(a!==audio) a.pause(); }); if(willPlay){ audio.play().catch(()=>showToast('语音播放失败')); btn.textContent='❚❚'; audio.onended=()=>{ btn.textContent='▶'; }; } else { audio.pause(); btn.textContent='▶'; } });
+let pressTimer=null;
+$('#chatList').addEventListener('pointerdown',e=>{ const row=e.target.closest('.msg-row'); if(!row||row.classList.contains('typing-row')) return; pressTimer=setTimeout(()=>{ if(confirm('删除这条消息？')){ removeChatMessage(row.dataset.mid); showToast('已删除'); } },550); });
+['pointerup','pointerleave','pointercancel'].forEach(name=>$('#chatList').addEventListener(name,()=>{ clearTimeout(pressTimer); }));
+$('#chatMenu').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  const map={
+    search:'这里会打开关键词搜索',
+    date:'这里会像微信那样：先点日期，再跳到那一天的聊天记录',
+    media:'这里会归档图片 / 语音 / 通话记录',
+    info:'这里会放聊天信息'
+  };
+  showToast(map[btn.dataset.menu]||'');
+  $('#chatMenu').classList.remove('show');
+});
+$('#spaceTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.activeSpace=btn.dataset.space; renderSpaceFilter(); save();
+});
+
+$('#settingsTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  $$('#settingsTabs button').forEach(b=>b.classList.toggle('active',b===btn));
+  ['quick','icon','param'].forEach(key=>{
+    document.getElementById('settings'+key.charAt(0).toUpperCase()+key.slice(1)).classList.toggle('hidden', key!==btn.dataset.settings);
+  });
+});
+['replyMinSec','replyMaxSec'].forEach(id=>{
+  const el=$('#'+id);
+  if(!el) return;
+  el.addEventListener('change',saveReplyInputs);
+});
+$('#readReceiptSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.showReadReceipt = btn.dataset.read==='on';
+  syncReplyInputs();
+  save();
+});
+$('#typingSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.typing.enabled = btn.dataset.typing==='on';
+  syncTypingOfflineInputs();
+  save();
+});
+$('#offlineChatSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.offline.chatEnabled = btn.dataset.offchat==='on';
+  syncTypingOfflineInputs();
+  save();
+});
+$('#offlineSpaceSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.offline.spaceEnabled = btn.dataset.offspace==='on';
+  syncTypingOfflineInputs();
+  save();
+});
+['typingTextInput','offlineChatMin','offlineChatMax','offlineSpaceMin','offlineSpaceMax'].forEach(id=>{
+  const el=$('#'+id); if(!el) return;
+  el.addEventListener('change',saveTypingOfflineInputs);
+  el.addEventListener('blur',saveTypingOfflineInputs);
+});
+$('#avatarShapeSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.avatarShape=btn.dataset.shape; applyAvatarShape(state.avatarShape); save();
+});
+$('#bubbleShapeSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  state.bubbleShape=btn.dataset.bubble; applyBubbleShape(state.bubbleShape); save();
+});
+['bubbleMeColorPicker','bubbleOtherColorPicker'].forEach(id=>{
+  const el=$('#'+id);
+  if(!el) return;
+  el.addEventListener('input',()=>{
+    if(id==='bubbleMeColorPicker') state.bubbleColors.me=el.value;
+    else state.bubbleColors.other=el.value;
+    applyBubbleColors();
+    save();
+  });
+});
+['bubbleMeColorText','bubbleOtherColorText'].forEach(id=>{
+  const el=$('#'+id);
+  if(!el) return;
+  el.addEventListener('change',()=>{
+    const hex=normalizeHex(el.value);
+    if(!hex){ applyBubbleColors(); showToast('颜色代码请写成 #ffffff 这种格式'); return; }
+    if(id==='bubbleMeColorText') state.bubbleColors.me=hex;
+    else state.bubbleColors.other=hex;
+    applyBubbleColors();
+    save();
+  });
+});
+['themeColorPicker','buttonBgPicker','buttonTextPicker'].forEach(id=>{
+  const el=$('#'+id);
+  if(!el) return;
+  el.addEventListener('input',()=>{
+    if(id==='themeColorPicker') state.appearanceColors.theme=el.value;
+    else if(id==='buttonBgPicker') state.appearanceColors.buttonBg=el.value;
+    else state.appearanceColors.buttonText=el.value;
+    applyAppearanceColors();
+    save();
+  });
+});
+['themeColorText','buttonBgText','buttonTextText'].forEach(id=>{
+  const el=$('#'+id);
+  if(!el) return;
+  el.addEventListener('change',()=>{
+    const hex=normalizeHex(el.value);
+    if(!hex){ applyAppearanceColors(); showToast('颜色代码请写成 #ffffff 这种格式'); return; }
+    if(id==='themeColorText') state.appearanceColors.theme=hex;
+    else if(id==='buttonBgText') state.appearanceColors.buttonBg=hex;
+    else state.appearanceColors.buttonText=hex;
+    applyAppearanceColors();
+    save();
+  });
+});
+$('#saveStyleBtn').addEventListener('click',()=>{
+  state.customCSS=$('#customCssInput').value||'';
+  applyCustomCSS();
+  save();
+  showToast('已保存气泡、主题颜色和 CSS');
+});
+
+$('#sortList').addEventListener('click',e=>{
+  const up=e.target.closest('.move-up');
+  const down=e.target.closest('.move-down');
+  if(!up && !down) return;
+  const item=e.target.closest('.sort-item');
+  const name=item.dataset.item;
+  const idx=state.quick.indexOf(name);
+  if(up && idx>0){
+    [state.quick[idx-1],state.quick[idx]]=[state.quick[idx],state.quick[idx-1]];
+  }
+  if(down && idx<state.quick.length-1){
+    [state.quick[idx+1],state.quick[idx]]=[state.quick[idx],state.quick[idx+1]];
+  }
+  renderQuick(); save();
+});
+
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=()=>resolve(fr.result);
+    fr.onerror=reject;
+    fr.readAsDataURL(file);
+  });
+}
+function triggerDownload(name,obj){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1200);
+}
+function buildBackup(kind){
+  const payload={kind, exportedAt:new Date().toISOString()};
+  if(kind==='all') payload.data=state;
+  if(kind==='chat') payload.data={media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']}, bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline};
+  if(kind==='space') payload.data={media:{'bg-space':state.media['bg-space']}, activeSpace:state.activeSpace};
+  if(kind==='calendar') payload.data={calendar:state.calendar, selectedDay:state.selectedDay};
+  if(kind==='param') payload.data={avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,quick:state.quick};
+  return payload;
+}
+function applyBackupPayload(payload){
+  if(!payload||!payload.kind||!payload.data){ showToast('备份文件不对'); return; }
+  const data=payload.data;
+  if(payload.kind==='all'){ Object.assign(state,data); }
+  if(payload.kind==='chat'){ state.media=Object.assign(state.media,data.media||{}); if(data.bubbleShape) state.bubbleShape=data.bubbleShape; if(data.bubbleColors) state.bubbleColors=Object.assign(state.bubbleColors,data.bubbleColors); if(data.appearanceColors) state.appearanceColors=Object.assign(state.appearanceColors,data.appearanceColors); if(data.replyWindow) state.replyWindow=Object.assign(state.replyWindow,data.replyWindow); if(data.showReadReceipt!==undefined) state.showReadReceipt=!!data.showReadReceipt; if(data.typing) state.typing=Object.assign(state.typing,data.typing); if(data.offline) state.offline=Object.assign(state.offline,data.offline); }
+  if(payload.kind==='space'){ state.media=Object.assign(state.media,data.media||{}); if(data.activeSpace) state.activeSpace=data.activeSpace; }
+  if(payload.kind==='calendar'){ if(data.calendar) state.calendar=data.calendar; if(data.selectedDay) state.selectedDay=data.selectedDay; }
+  if(payload.kind==='param'){ if(data.avatarShape) state.avatarShape=data.avatarShape; if(data.bubbleShape) state.bubbleShape=data.bubbleShape; if(data.bubbleColors) state.bubbleColors=Object.assign(state.bubbleColors,data.bubbleColors); if(data.appearanceColors) state.appearanceColors=Object.assign(state.appearanceColors,data.appearanceColors); if(data.customCSS!==undefined) state.customCSS=data.customCSS; if(data.replyWindow) state.replyWindow=Object.assign(state.replyWindow,data.replyWindow); if(data.showReadReceipt!==undefined) state.showReadReceipt=!!data.showReadReceipt; if(data.typing) state.typing=Object.assign(state.typing,data.typing); if(data.offline) state.offline=Object.assign(state.offline,data.offline); if(Array.isArray(data.quick)) state.quick=data.quick; }
+  save(); init(); showToast('备份已导入');
+}
+[['All','all'],['Chat','chat'],['Space','space'],['Calendar','calendar'],['Param','param']].forEach(([suffix,kind])=>{
+  const btn=$('#backup'+suffix+'Btn');
+  if(btn) btn.addEventListener('click',()=>triggerDownload('两个人的小系统_'+kind+'_backup.json', buildBackup(kind)));
+});
+$('#restoreAnyBtn').addEventListener('click',()=>$('#backupImporter').click());
+$('#backupImporter').addEventListener('change',e=>{
+  const file=e.target.files&&e.target.files[0]; if(!file) return;
+  const fr=new FileReader();
+  fr.onload=()=>{ try{ applyBackupPayload(JSON.parse(fr.result)); }catch(err){ showToast('备份文件读不出来'); } e.target.value=''; };
+  fr.readAsText(file);
+});
+
+const chatImageUploader=$('#chatImageUploader');
+if(chatImageUploader){
+  chatImageUploader.addEventListener('change', async e=>{
+    const file=e.target.files&&e.target.files[0];
+    if(!file) return;
+    try{
+      const url=await fileToDataURL(file);
+      const msg=appendChatMessage({sender:'me',type:'image',url,time:formatHM(),read:false});
+      state.offline.lastChatAt=Date.now();
+      save();
+      const list=$('#chatList');
+      const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
+      triggerReply(row?row.querySelector('.meta'):null);
+    }catch(err){ showToast('图片读取失败'); }
+    e.target.value='';
+  });
+}
+let mediaStream=null, mediaRecorder=null, audioChunks=[], isRecording=false, recordStartedAt=0;
+async function ensureAudioStream(){
+  if(mediaStream && mediaStream.active) return mediaStream;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no-media');
+  mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  return mediaStream;
+}
+async function startVoiceRecord(evt){
+  try{
+    if(isRecording) return;
+    if(evt&&evt.preventDefault) evt.preventDefault();
+    if(window.MediaRecorder==null){ showToast('当前环境不支持网页录音'); return; }
+    const stream=await ensureAudioStream();
+    const options={};
+    if(MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType='audio/webm;codecs=opus';
+    mediaRecorder=new MediaRecorder(stream, options);
+    audioChunks=[];
+    mediaRecorder.ondataavailable=e=>{ if(e.data&&e.data.size) audioChunks.push(e.data); };
+    mediaRecorder.start();
+    isRecording=true; recordStartedAt=Date.now();
+    const hold=$('.hold-to-talk'); if(hold) hold.textContent='松开发送';
+    showToast('开始录音');
+  }catch(err){ showToast('麦克风权限不可用'); }
+}
+async function stopVoiceRecord(evt){
+  if(evt&&evt.preventDefault) evt.preventDefault();
+  if(!isRecording || !mediaRecorder) return;
+  const durationSec=Math.max(1, Math.round((Date.now()-recordStartedAt)/1000));
+  await new Promise(resolve=>{ mediaRecorder.onstop=resolve; mediaRecorder.stop(); });
+  isRecording=false;
+  const hold=$('.hold-to-talk'); if(hold) hold.textContent='按住说话';
+  const blob=new Blob(audioChunks,{type:(mediaRecorder&&mediaRecorder.mimeType)||'audio/webm'});
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const url=reader.result;
+    const msg=appendChatMessage({sender:'me',type:'audio',url,time:formatHM(),durationSec,durationLabel:formatAudioSec(durationSec),read:false});
+    state.offline.lastChatAt=Date.now(); save();
+    const list=$('#chatList'); const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
+    triggerReply(row?row.querySelector('.meta'):null);
+  };
+  reader.readAsDataURL(blob);
+}
+function openPhraseModal(){ renderPhraseList(); $('#phraseModal')&&$('#phraseModal').classList.add('show'); }
+function closePhraseModal(){ $('#phraseModal')&&$('#phraseModal').classList.remove('show'); }
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){ state.offline.lastHiddenAt=Date.now(); save(); }
+  else { processOfflineCatchup(); if(state.call?.active) requestWakeLock(); }
+});
+window.addEventListener('focus',()=>{ processOfflineCatchup(); if(state.call?.active) requestWakeLock(); });
+window.addEventListener('resize',()=>{ if(state.call?.mini) applyMiniCallPosition(); });
+
+$('#hiddenUploader').addEventListener('change', async e=>{
+  const file=e.target.files[0];
+  if(!file || !pendingUploadKey) return;
+  const url=await fileToDataURL(file);
+  if(pendingUploadKey==='home-cover'){
+    state.media['home-cover']=url; applyHomeCover(url);
+  }else if(state.icons[pendingUploadKey]!==undefined){
+    state.icons[pendingUploadKey]=url; applyIcon(pendingUploadKey,url);
+  }else{
+    state.media[pendingUploadKey]=url;
+    if(pendingUploadKey==='avatar-me' || pendingUploadKey==='avatar-other') applyAvatar(pendingUploadKey,url);
+    if(pendingUploadKey==='bg-chat' || pendingUploadKey==='bg-space') applyBackground(pendingUploadKey,url);
+  }
+  save(); showToast('已更新');
+  pendingUploadKey='';
+  e.target.value='';
+});
+function openUpload(key){ pendingUploadKey=key; $('#hiddenUploader').click(); }
+
+$$('[data-upload]').forEach(btn=>btn.addEventListener('click',()=>openUpload(btn.dataset.upload)));
+$$('[data-clear]').forEach(btn=>btn.addEventListener('click',()=>{
+  const key=btn.dataset.clear;
+  if(state.icons[key]!==undefined){
+    state.icons[key]=''; applyIcon(key,'');
+  }else{
+    state.media[key]='';
+    if(key==='avatar-me' || key==='avatar-other') applyAvatar(key,'');
+    if(key==='bg-chat' || key==='bg-space') applyBackground(key,'');
+  }
+  save(); showToast('已清空');
+}));
+$('#homeCoverBtn').addEventListener('click',()=>openUpload('home-cover'));
+
+function init(){
+  Object.entries(state.icons).forEach(([k,v])=>applyIcon(k,v));
+  applyAvatar('avatar-me', state.media['avatar-me']);
+  applyAvatar('avatar-other', state.media['avatar-other']);
+  applyBackground('bg-chat', state.media['bg-chat']);
+  applyBackground('bg-space', state.media['bg-space']);
+  applyHomeCover(state.media['home-cover']);
+  applyAvatarShape(state.avatarShape);
+  applyBubbleShape(state.bubbleShape);
+  applyBubbleColors();
+  applyAppearanceColors();
+  applyCustomCSS();
+  syncReplyInputs();
+  syncTypingOfflineInputs();
+  ensureChatState();
+  renderQuick();
+  renderSpaceFilter();
+  renderChatHistory();
+  renderPhraseList();
+  initMiniCallDrag();
+  buildCalendar();
+  loadCalendarForm();
+  restoreCallIfNeeded();
+  if(!state.offline.lastChatAt) state.offline.lastChatAt=Date.now();
+  if(!state.offline.lastSpaceAt) state.offline.lastSpaceAt=Date.now();
+  goto(state.currentPage||'homePage');
+}
+init();
+
+const replyModal = $('#replyModal');
+const openRepliesBtn = $('#openRepliesBtn');
+const closeRepliesBtn = $('#closeRepliesBtn');
+openRepliesBtn?.addEventListener('click', ()=> replyModal?.classList.add('show'));
+closeRepliesBtn?.addEventListener('click', ()=> replyModal?.classList.remove('show'));
+replyModal?.addEventListener('click', (e)=>{ if(e.target===replyModal) replyModal.classList.remove('show'); });
+
+</script>
+</body>
+</html>
