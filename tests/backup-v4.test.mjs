@@ -22,7 +22,7 @@ const sandbox = {
   document: { addEventListener(){}, getElementById(){ return null; } },
   TextEncoder, TextDecoder, Blob,
   getCircleState(){ return {}; },
-  getCurrentMediaIds(){ return []; },
+  getCurrentMediaIds(){ return sandbox.currentMediaIds || []; },
   currentMediaIds: ['media-test-1'],
   getMediaRecord(id){ return Promise.resolve(id === 'media-test-1' ? { id, blob: mediaBlob, kind:'image', mimeType:'image/png', name:'test.png', createdAt:1 } : null); },
   console
