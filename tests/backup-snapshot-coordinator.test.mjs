@@ -95,6 +95,9 @@ test('snapshot waits for a multi-module restore operation before reading partici
       resolve();
     };
   }));
+  // trackOperation registers synchronously, then starts the callback in a microtask.
+  await Promise.resolve();
+  assert.equal(typeof finishRestore, 'function');
   assert.equal(api.getRevision('chat'), 0,
     'operation tracking alone must not claim that module data was written');
   const snapshotPromise = api.beginSnapshot(['chat']);
