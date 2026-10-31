@@ -2773,9 +2773,14 @@ qs('#clearMyAvatarBtn').onclick = ()=>{ tempAssets.myAvatar=''; tempAssets.dirty
 qs('#clearOtherAvatarBtn').onclick = ()=>{ tempAssets.otherAvatar=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
 qs('#clearCoverBtn').onclick = ()=>{ tempAssets.myCover=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
 qs('#clearOtherCoverBtn').onclick = ()=>{ tempAssets.otherCover=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
-qs('#exportBtn').onclick = ()=>{
-  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='moments_backup.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+qs('#exportBtn').onclick = async ()=>{
+  try {
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    if(!window.BackupFileService) throw new Error('统一文件保存服务尚未加载');
+    await window.BackupFileService.save('moments_backup.json', blob);
+  } catch(error) {
+    alert('朋友圈备份保存失败：' + (error && error.message ? error.message : error));
+  }
 };
 qs('#importBtn').onclick = ()=>qs('#importFile').click();
 qs('#importFile').addEventListener('change', async e=>{
@@ -5411,7 +5416,7 @@ async function applyBackupPayload(payload){
   ensureChatState();if(!allRestoreInitialized){save();init();}showToast('备份已导入');
 }
 async function downloadBackup(kind){
-  try{const blob=await buildBackup(kind);triggerDownloadBlob('双人空间_'+kind+'_backup.json',blob);showToast(kind==='all'?'总备份已导出（含朋友圈）':'备份已导出');}
+  try{const blob=await buildBackup(kind);if(!window.BackupFileService)throw new Error('统一文件保存服务尚未加载');await window.BackupFileService.save('双人空间_'+kind+'_backup.json',blob);showToast(kind==='all'?'备份文件已交给保存入口（含朋友圈）':'备份文件已交给保存入口');}
   catch(e){showToast('备份失败：'+(e.message||'读取媒体或朋友圈数据失败'));}
 }
 $('#backupAllBtn')?.addEventListener('click',()=>downloadBackup('all'));
@@ -5562,6 +5567,7 @@ migrateLegacyChatMedia();
 <script src="custom-font-manager.js"></script>
 <script src="font-panel.js"></script>
 <script src="sticker-library.js"></script>
+<script src="backup-file-service.js"></script>
 <script src="backup-v4.js"></script>
 </body>
 </html>
