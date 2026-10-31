@@ -32,6 +32,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Verify web source and V4 ZIP backup
+        run: |
+          node tools/verify-source.mjs
+          node --test tests/backup-v4.test.mjs
       - name: Build debug APK
         working-directory: android-apps
         run: gradle --no-daemon :app:assembleDebug
