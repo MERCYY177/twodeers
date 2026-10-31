@@ -4276,8 +4276,8 @@ async function deleteMediaRecord(id){
   mediaUrlCache.delete(id);mediaLoadFailed.delete(id);
 }
 async function clearMediaDatabase(){
-  const db=await openMediaDB();
-  await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体数据库清理失败'));tx.onabort=()=>reject(tx.error||new Error('媒体数据库清理中断'));});
+  const write=(async()=>{const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体数据库清理失败'));tx.onabort=()=>reject(tx.error||new Error('媒体数据库清理中断'));});})();
+  if(window.BackupSnapshotCoordinator)await window.BackupSnapshotCoordinator.trackWrite('media',write);else await write;
   mediaUrlCache.forEach(url=>{if(url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.clear();
 }
 function referencedMediaIds(){
