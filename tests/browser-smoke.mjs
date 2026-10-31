@@ -26,7 +26,14 @@ try {
   }));
   assert.equal(baseline.circleApi, true, 'Circle Shadow DOM API should be available');
   assert.equal(baseline.twoColumns, 2, 'the original two-column emoji panel must remain');
-  assert.equal(baseline.tabs, 3, 'sticker categories should be mounted');
+  const stickerPanel = await page.locator('#emojiPanel').innerText();
+  assert.match(stickerPanel, /常用 Emoji/);
+  assert.match(stickerPanel, /我的上传/);
+  assert.match(stickerPanel, /收藏/);
+  assert.doesNotMatch(stickerPanel, /内置表情/);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 0);
+  assert.equal(await page.locator('.duo-sticker-notice').count(), 0);
+  assert.equal(baseline.tabs, 2, 'only uploads and favorites tabs should be mounted');
   assert.equal(baseline.backupVersion, 4);
 
   await page.evaluate(() => {
@@ -54,20 +61,52 @@ try {
 
   await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
-  await page.locator('#stickerUploader').setInputFiles({ name: 'smoke.png', mimeType: 'image/png', buffer: png });
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 1);
-  await page.locator('#stickerList [data-duo-sticker-fav]').click();
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  await page.locator('#stickerUploader').setInputFiles([
+    { name: 'smoke.png', mimeType: 'image/png', buffer: png },
+    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
+  ]);
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
+  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
+  assert.equal(uploaded.length, 2);
+  assert.ok(uploaded.some(x => x.mimeType === 'image/png'));
+  assert.ok(uploaded.some(x => x.mimeType === 'image/gif'));
+  await page.waitForFunction(() => [...document.querySelectorAll('#stickerList img')].every(img => img.complete && img.naturalWidth > 0));
+  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show the saved upload');
+  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show only the saved upload');
   const favoritesBeforeReload = await page.evaluate(() => state.stickerFavorites.length);
   assert.equal(favoritesBeforeReload, 1);
+  await page.locator('#stickerList [data-duo-sticker-fav]').click();
+  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 0, 'unfavoriting should empty the favorites list');
+  assert.match(await page.locator('#stickerList').innerText(), /还没有收藏表情包/);
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
   await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
-  await page.locator('#stickerList [data-sticker-send]').click();
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-sticker-send]').first().click();
   await page.waitForFunction(() => state.chatHistory.some(message => message.mediaId), { timeout: 5000 });
+  const sentMediaId = await page.evaluate(() => state.chatHistory.find(message => message.mediaId).mediaId);
+  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-sticker-del]').first().click();
+  await page.waitForFunction(() => state.stickers.length === 1 && state.stickerFavorites.length === 0);
+  const protectedMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), sentMediaId);
+  assert.equal(protectedMedia, true, 'deleting an uploaded sticker must not delete media still referenced by chat history');
+  await page.locator('#stickerList [data-sticker-del]').click();
+  await page.waitForFunction(() => state.stickers.length === 0);
+  const orphanMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), uploaded[1].mediaId);
+  assert.equal(orphanMedia, false, 'unreferenced deleted sticker media should be cleaned up');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
+  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  assert.match(await page.locator('#stickerList').innerText(), /还没有表情包/);
+  assert.equal(await page.locator('[data-duo-sticker-tab="favorites"]').count(), 1);
+  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 0);
 
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;
@@ -127,6 +166,10 @@ try {
     themePersisted: true,
     twoColumnStickers: true,
     favoritePersistence: true,
+    favoriteRemoval: true,
+    pngAndGifUpload: true,
+    referencedMediaProtection: true,
+    twoTabOnly: true,
     mediaSentAndBackedUp: true,
     v4Restore: true,
     v3Import: v3Result,
