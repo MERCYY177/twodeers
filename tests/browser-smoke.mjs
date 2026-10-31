@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
-const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, acceptDownloads: true });
 const page = await context.newPage();
 const pageErrors = [];
 page.on('pageerror', error => pageErrors.push(error.message));
@@ -50,6 +50,21 @@ try {
   assert.equal(fileServiceResult.name, 'cross-frame.bin');
   assert.equal(fileServiceResult.sameRealm, true);
   assert.equal(fileServiceResult.text, 'cross-frame-backup');
+
+  const [browserDownload, browserSaveResult] = await Promise.all([
+    page.waitForEvent('download'),
+    page.evaluate(async () => window.BackupFileService.save(
+      'browser-save-roundtrip.txt',
+      new Blob(['backup-file-service-roundtrip'], { type: 'text/plain' })
+    ))
+  ]);
+  assert.equal(browserSaveResult.status, 'handed-off');
+  assert.equal(browserDownload.suggestedFilename(), 'browser-save-roundtrip.txt');
+  const downloadedStream = await browserDownload.createReadStream();
+  const downloadedParts = [];
+  for await (const part of downloadedStream) downloadedParts.push(part);
+  assert.equal(Buffer.concat(downloadedParts).toString('utf8'), 'backup-file-service-roundtrip',
+    'browser download should be readable after the unified save service completes');
 
   await page.evaluate(() => {
     const p = document.getElementById('settingsPage');
