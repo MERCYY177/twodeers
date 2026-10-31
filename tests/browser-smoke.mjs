@@ -100,7 +100,7 @@ try {
   assert.equal(protectedMedia, true, 'deleting an uploaded sticker must not delete media still referenced by chat history');
   await page.locator('#stickerList .sticker-item').first().hover();
   await page.locator('#stickerList [data-sticker-del]').click();
-  await page.waitForFunction(() => state.stickers.length === 0);
+  await page.waitForFunction(async id => state.stickers.length === 0 && !(await getMediaRecord(id)), uploaded[1].mediaId);
   const orphanMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), uploaded[1].mediaId);
   assert.equal(orphanMedia, false, 'unreferenced deleted sticker media should be cleaned up');
   await page.reload({ waitUntil: 'domcontentloaded' });
