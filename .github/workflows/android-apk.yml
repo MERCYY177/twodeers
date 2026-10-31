@@ -41,6 +41,23 @@ jobs:
         run: |
           node tools/verify-source.mjs
           node --test tests/backup-v4.test.mjs
+      - name: Install Playwright browser test
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Run browser regression tests
+        env:
+          TWODEERS_TEST_FONT: ${{ env.TWODEERS_TEST_FONT }}
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/twodeers-http.log 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
+            sleep 1
+          done
+          FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
+          TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
+          kill "$SERVER_PID" || true
       - name: Build debug APK
         working-directory: android-apps
         run: gradle --no-daemon :app:assembleDebug
