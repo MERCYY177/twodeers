@@ -4307,6 +4307,26 @@ async function getMediaRecord(id){
   const db=await openMediaDB();
   return await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readonly');const req=tx.objectStore(MEDIA_STORE_NAME).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});
 }
+async function restoreMediaRecord(id,record){
+  const write=(async()=>{
+    const db=await openMediaDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');
+      if(record)tx.objectStore(MEDIA_STORE_NAME).put(record);
+      else tx.objectStore(MEDIA_STORE_NAME).delete(id);
+      tx.oncomplete=resolve;
+      tx.onerror=()=>reject(tx.error||new Error('媒体回滚失败'));
+      tx.onabort=()=>reject(tx.error||new Error('媒体回滚事务中断'));
+    });
+  })();
+  if(window.BackupSnapshotCoordinator)await window.BackupSnapshotCoordinator.trackWrite('media',write);
+  else await write;
+  const oldUrl=mediaUrlCache.get(id);
+  if(oldUrl?.startsWith('blob:'))URL.revokeObjectURL(oldUrl);
+  mediaUrlCache.delete(id);
+  mediaLoadFailed.delete(id);
+  if(record?.blob)mediaUrlCache.set(id,URL.createObjectURL(record.blob));
+}
 async function deleteMediaRecord(id){
   if(!id) return;
   const write=(async()=>{const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体删除失败'));tx.onabort=()=>reject(tx.error||new Error('媒体删除中断'));});})();
@@ -4346,7 +4366,7 @@ async function migrateLegacyChatMedia(){
   if(changed){save();renderChatHistory(false);}
 }
 
-function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', true);}catch(e){if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', false);showToast('本地设置保存失败，可能是存储空间不足');}}
+function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', true);return true;}catch(e){if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', false);showToast('本地设置保存失败，可能是存储空间不足');return false;}}
 function showToast(text){
   toastEl.textContent=text;
   toastEl.classList.add('show');
@@ -5312,6 +5332,18 @@ function setCircleState(data){
   if(!api||typeof api.importState!=='function')throw new Error('朋友圈页面尚未初始化');
   return api.importState(data);
 }
+function restoreChatStorage(oldStorage){
+  try{
+    if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);
+    else localStorage.setItem(STORAGE_KEY,oldStorage);
+    if(localStorage.getItem(STORAGE_KEY)!==oldStorage)throw new Error('聊天存储回滚校验失败');
+    if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat',true);
+    return true;
+  }catch(err){
+    if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat',false);
+    throw err;
+  }
+}
 function getCurrentMediaIds(){return [...referencedMediaIds()];}
 async function* backupJsonParts(kind){
   const exportedAt=new Date().toISOString();
@@ -5370,6 +5402,13 @@ function triggerDownloadBlob(name,blob){
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 async function applyBackupPayload(payload){
+  const operation=Promise.resolve().then(()=>applyBackupPayloadInternal(payload));
+  const coordinator=window.BackupSnapshotCoordinator;
+  return coordinator&&typeof coordinator.trackOperation==='function'
+    ? coordinator.trackOperation(operation)
+    : operation;
+}
+async function applyBackupPayloadInternal(payload){
   cancelPendingReplies();
   // Circle's own native backup is a plain Circle state object, separate from Duo storage.
   if(payload&&Array.isArray(payload.posts)&&('dynamicCards' in payload||'replyCards' in payload)){
@@ -5410,52 +5449,74 @@ async function applyBackupPayload(payload){
       const requiredMedia=new Set();(state.chatHistory||[]).forEach(msg=>{if(msg.mediaId)requiredMedia.add(msg.mediaId);});(state.stickers||[]).forEach(sticker=>{if(sticker.mediaId)requiredMedia.add(sticker.mediaId);});
       const importedMedia=new Set(mediaItems.map(item=>item.id));
       for(const id of requiredMedia)if(!importedMedia.has(id))throw new Error('总备份缺少聊天媒体文件：'+id);
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      if(save()===false)throw new Error('聊天数据保存失败，已取消恢复');
       for(const item of mediaItems){const cached=mediaUrlCache.get(item.id);if(cached?.startsWith('blob:'))URL.revokeObjectURL(cached);mediaUrlCache.delete(item.id);mediaLoadFailed.delete(item.id);}
       stickerObjectUrls.forEach(url=>{if(url?.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
       init();renderStickerList();allRestoreInitialized=true;
     }catch(err){
       try{
-        Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));
-        if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);
-      }catch(rollbackStateError){}
+        Object.keys(state).forEach(key=>delete state[key]);
+        Object.assign(state,JSON.parse(oldState));
+        restoreChatStorage(oldStorage);
+      }catch(rollbackStateError){console.warn('V3 state rollback failed',rollbackStateError);}
       if(circleChanged){try{setCircleState(oldCircle);}catch(rollbackCircleError){}}
       for(const [id,oldRec] of oldMedia){
-        try{
-          if(oldRec){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(oldRec);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
-          else{const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
-          const oldUrl=mediaUrlCache.get(id);if(oldUrl?.startsWith('blob:'))URL.revokeObjectURL(oldUrl);mediaUrlCache.delete(id);mediaLoadFailed.delete(id);
-        }catch(rollbackMediaError){}
+        try{await restoreMediaRecord(id,oldRec);}
+        catch(rollbackMediaError){console.warn('V3 media rollback failed',rollbackMediaError);}
       }
       stickerObjectUrls.forEach(url=>{if(url?.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
       try{init();}catch(rollbackUiError){}
       throw err;
     }
-  }else if(payload.kind==='chat'){
-    if(!Array.isArray(data.chatHistory)){showToast('此旧版聊天备份不包含聊天记录，无法恢复消息');return;}
-    state.chatHistory=data.chatHistory;
-    if(Array.isArray(data.stickers))state.stickers=data.stickers;
-    if(Array.isArray(data.mediaFiles))await restoreMediaFiles(data.mediaFiles);
-    state.media=Object.assign(state.media,data.media||{});
-    if(data.bubbleShape)state.bubbleShape=data.bubbleShape;
-    if(data.bubbleColors)state.bubbleColors=Object.assign(state.bubbleColors,data.bubbleColors);
-    if(data.appearanceColors)state.appearanceColors=Object.assign(state.appearanceColors,data.appearanceColors);
-    if(data.replyWindow)state.replyWindow=Object.assign(state.replyWindow,data.replyWindow);
-    if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
-    if(data.typing)state.typing=Object.assign(state.typing,data.typing);
-    if(data.offline)state.offline=Object.assign(state.offline,data.offline);
-  }else if(payload.kind==='param'){
-    if(data.icons)state.icons=Object.assign(state.icons,data.icons);
-    if(data.media)state.media=Object.assign(state.media,data.media);
-    for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
-    for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
-    state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings||null);
-    clearIncomingSchedule(true);
-    if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
-    if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
-    if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
-    if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
-  }else{showToast('不支持的备份类型');return;}
+  }else if(payload.kind==='chat'||payload.kind==='param'){
+    if(payload.kind==='chat'&&!Array.isArray(data.chatHistory)){showToast('此旧版聊天备份不包含聊天记录，无法恢复消息');return;}
+    const oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY);
+    const mediaItems=payload.kind==='chat'&&Array.isArray(data.mediaFiles)?data.mediaFiles.filter(item=>item&&item.id&&item.dataUrl):[];
+    const oldMedia=new Map();
+    for(const item of mediaItems)if(!oldMedia.has(item.id))oldMedia.set(item.id,await getMediaRecord(item.id));
+    try{
+      if(payload.kind==='chat'){
+        state.chatHistory=data.chatHistory;
+        if(Array.isArray(data.stickers))state.stickers=data.stickers;
+        if(Array.isArray(data.mediaFiles))await restoreMediaFiles(data.mediaFiles);
+        state.media=Object.assign(state.media,data.media||{});
+        if(data.bubbleShape)state.bubbleShape=data.bubbleShape;
+        if(data.bubbleColors)state.bubbleColors=Object.assign(state.bubbleColors,data.bubbleColors);
+        if(data.appearanceColors)state.appearanceColors=Object.assign(state.appearanceColors,data.appearanceColors);
+        if(data.replyWindow)state.replyWindow=Object.assign(state.replyWindow,data.replyWindow);
+        if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
+        if(data.typing)state.typing=Object.assign(state.typing,data.typing);
+        if(data.offline)state.offline=Object.assign(state.offline,data.offline);
+      }else{
+        if(data.icons)state.icons=Object.assign(state.icons,data.icons);
+        if(data.media)state.media=Object.assign(state.media,data.media);
+        for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
+        for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
+        state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings||null);
+        clearIncomingSchedule(true);
+        if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
+        if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
+        if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
+        if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.lastSpaceAt;}
+      }
+      ensureChatState();
+      if(save()===false)throw new Error('聊天数据保存失败，已取消恢复');
+      init();
+      showToast('备份已导入');
+    }catch(err){
+      try{
+        Object.keys(state).forEach(key=>delete state[key]);
+        Object.assign(state,JSON.parse(oldState));
+        restoreChatStorage(oldStorage);
+      }catch(rollbackStateError){console.warn('V3 state rollback failed',rollbackStateError);}
+      for(const [id,oldRec] of oldMedia){
+        try{await restoreMediaRecord(id,oldRec);}
+        catch(rollbackMediaError){console.warn('V3 media rollback failed',rollbackMediaError);}
+      }
+      try{init();}catch(rollbackUiError){console.warn('V3 UI rollback failed',rollbackUiError);}
+      throw err;
+    }
+  }  }else{showToast('不支持的备份类型');return;}
   ensureChatState();if(!allRestoreInitialized){save();init();}showToast('备份已导入');
 }
 async function downloadBackup(kind){
@@ -5485,8 +5546,18 @@ async function clearChatOnly(){
 async function resetWholeDuoSpace(){
   if(!confirm('重置将删除双人空间的聊天记录、图片/视频/语音、头像、背景、首页图片、自定义外观、字卡、表情包及全部参数。朋友圈存档不会被删除。建议先导出总备份。确定继续吗？'))return;
   if(!confirm('最后确认：此操作不可撤销。将只重置双人空间，不触碰 Circle 朋友圈存储。现在重置？'))return;
-  try{cancelPendingReplies();await clearMediaDatabase();localStorage.removeItem(STORAGE_KEY);location.reload();}
-  catch(e){showToast('重置未完成：媒体数据库无法清理，双人空间数据暂未删除');}
+  try{
+    const coordinator=window.BackupSnapshotCoordinator;
+    const resetOperation=Promise.resolve().then(async()=>{
+      cancelPendingReplies();
+      await clearMediaDatabase();
+      localStorage.removeItem(STORAGE_KEY);
+      if(coordinator)coordinator.noteWrite('chat',true);
+    });
+    if(coordinator&&typeof coordinator.trackOperation==='function')await coordinator.trackOperation(resetOperation);
+    else await resetOperation;
+    location.reload();
+  }catch(e){showToast('重置未完成：媒体数据库无法清理，双人空间数据暂未删除');}
 }
 $('#clearChatBtn')?.addEventListener('click',clearChatOnly);
 $('#resetAppBtn')?.addEventListener('click',resetWholeDuoSpace);
