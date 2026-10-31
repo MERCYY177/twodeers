@@ -89,22 +89,89 @@ try {
   const persistedTheme = await page.evaluate(() => state.appearanceSettings.palette);
   assert.equal(persistedTheme, 'ocean', 'theme choice should persist after reload');
 
+  // Preserve and exercise all three existing sticker tabs; the builtin tab is an explicit
+  // placeholder until its binary assets are migrated, not a source of fabricated images.
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="uploads"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="favorites"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 1,
+    'the builtin sticker entry must remain available');
   await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('[data-duo-sticker-tab="builtin"]').click();
+  assert.match(await page.locator('#stickerList').innerText(), /内置表情资源尚未迁入/);
+  assert.match(await page.locator('#stickerList').innerText(), /没有写入伪造资源/);
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
-  await page.locator('#stickerUploader').setInputFiles({ name: 'smoke.png', mimeType: 'image/png', buffer: png });
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 1);
-  await page.locator('#stickerList [data-duo-sticker-fav]').click();
+  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  await page.locator('#stickerUploader').setInputFiles([
+    { name: 'smoke.png', mimeType: 'image/png', buffer: png },
+    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
+  ]);
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
+  const uploaded = await page.evaluate(() => state.stickers.map(s => ({
+    id: s.id, mediaId: s.mediaId, mimeType: s.mimeType
+  })));
+  assert.equal(uploaded.length, 2, 'both uploaded image files should create sticker records');
+  assert.ok(uploaded.some(item => item.mimeType === 'image/png'), 'PNG upload should retain its MIME type');
+  assert.ok(uploaded.some(item => item.mimeType === 'image/gif'), 'GIF upload should retain its MIME type');
+  await page.waitForFunction(() => [...document.querySelectorAll('#stickerList img')]
+    .every(img => img.complete && img.naturalWidth > 0), { timeout: 10000 });
+  assert.equal(await page.locator('#stickerList img').count(), 2,
+    'both PNG and GIF previews should be rendered as loaded images');
+
+  // Favorite, unfavorite, and verify the empty-state rendering.
+  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show the saved upload');
-  const favoritesBeforeReload = await page.evaluate(() => state.stickerFavorites.length);
-  assert.equal(favoritesBeforeReload, 1);
+  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1,
+    'favorites should contain only the selected uploaded sticker');
+  assert.equal(await page.evaluate(() => state.stickerFavorites.length), 1);
+  await page.locator('#stickerList [data-duo-sticker-fav]').click();
+  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 0,
+    'unfavoriting should remove the sticker from favorites');
+  assert.match(await page.locator('#stickerList').innerText(), /还没有收藏表情包/);
+
+  // Re-favorite, reload, and verify persisted state in the favorites tab.
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
   await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 1,
+    'builtin tab must remain mounted after reload');
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
-  await page.locator('#stickerList [data-sticker-send]').click();
+  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1,
+    'favorite should survive reload');
+  assert.equal(await page.evaluate(() => state.stickerFavorites.length), 1);
+
+  // Send the favorited sticker, then delete its upload entry. Chat history must retain
+  // the media record because the message still references its mediaId.
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-sticker-send]').first().click();
   await page.waitForFunction(() => state.chatHistory.some(message => message.mediaId), { timeout: 5000 });
+  const sentMediaId = await page.evaluate(() =>
+    state.chatHistory.find(message => message.mediaId).mediaId);
+  await page.evaluate(() => {
+    const panel = document.getElementById('emojiPanel');
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden', 'false');
+  });
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.locator('#stickerList [data-sticker-del]').first().click();
+  await page.waitForFunction(() => state.stickers.length === 1 && state.stickerFavorites.length === 0);
+  assert.equal(await page.evaluate(async id => !!(await getMediaRecord(id)), sentMediaId), true,
+    'deleting an uploaded sticker must preserve media still referenced by chat history');
+
+  // The other upload has no chat reference; deleting it must remove its IndexedDB record.
+  const orphanMediaId = uploaded.find(item => item.mediaId !== sentMediaId).mediaId;
+  await page.locator('#stickerList [data-sticker-del]').first().click();
+  await page.waitForFunction(async id =>
+    state.stickers.length === 0 && !(await getMediaRecord(id)), orphanMediaId);
+  assert.equal(await page.evaluate(async id => !!(await getMediaRecord(id)), orphanMediaId), false,
+    'unreferenced deleted sticker media should be cleaned up');
+
+  // The builtin entry remains usable after upload cleanup and still shows its honest placeholder.
+  await page.locator('[data-duo-sticker-tab="builtin"]').click();
+  assert.match(await page.locator('#stickerList').innerText(), /内置表情资源尚未迁入/);
 
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;
@@ -217,7 +284,13 @@ try {
     result: 'passed',
     themePersisted: true,
     twoColumnStickers: true,
+    threeStickerTabsPreserved: true,
+    builtinStickerPlaceholder: true,
+    pngAndGifUploadAndLoad: true,
+    favoriteToggleAndEmptyState: true,
     favoritePersistence: true,
+    referencedMediaProtection: true,
+    orphanMediaCleanup: true,
     mediaSentAndBackedUp: true,
     v4Restore: true,
     v3Import: v3Result,
