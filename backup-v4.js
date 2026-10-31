@@ -91,6 +91,13 @@
     return {manifest,map};
   }
   async function restoreV4(blob){
+    const operation=Promise.resolve().then(()=>restoreV4Internal(blob));
+    const coordinator=window.BackupSnapshotCoordinator;
+    return coordinator&&typeof coordinator.trackOperation==='function'
+      ? coordinator.trackOperation(operation)
+      : operation;
+  }
+  async function restoreV4Internal(blob){
     const parsed=await unzipStored(blob),{manifest,map}=parsed,kind=manifest.kind;
     const data=JSON.parse(await map.get('state.json').blob.text());if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('state.json 格式无效');
     const mediaEntries=manifest.resources.filter(x=>x.type==='media'),fontEntries=manifest.resources.filter(x=>x.type==='font');
@@ -133,15 +140,24 @@
       if(kind==='all'&&incomingState.call&&incomingState.call.phase==='ringing'){incomingState.call.active=false;}
       if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
       if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
-      ensureChatState();save();init();renderStickerList();loadMessageMedia();
+      ensureChatState();
+      if(save()===false)throw new Error('聊天数据写入失败，已取消 V4 恢复');
+      init();renderStickerList();loadMessageMedia();
       showToast('V4 备份恢复完成（资源完整性已校验）');
       return true;
     }catch(e){
-      try{Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);}catch(_){}
-      if(circleWritten){try{setCircleState(oldCircle);}catch(_){}}
-      for(const [id,record] of newMedia){try{if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}else await deleteMediaRecord(id);}catch(_){}}
-      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});}catch(_){}}
-      try{init();}catch(_){}
+      try{
+        Object.keys(state).forEach(k=>delete state[k]);
+        Object.assign(state,JSON.parse(oldState));
+        restoreChatStorage(oldStorage);
+      }catch(rollbackChatError){console.warn('V4 chat rollback failed',rollbackChatError);}
+      if(circleWritten){try{setCircleState(oldCircle);}catch(rollbackCircleError){console.warn('V4 Circle rollback failed',rollbackCircleError);}}
+      for(const [id,record] of newMedia){
+        try{await restoreMediaRecord(id,record);}
+        catch(rollbackMediaError){console.warn('V4 media rollback failed',rollbackMediaError);}
+      }
+      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});}catch(rollbackFontError){console.warn('V4 font rollback failed',rollbackFontError);}}
+      try{init();}catch(rollbackUiError){console.warn('V4 UI rollback failed',rollbackUiError);}
       throw e;
     }
   }
