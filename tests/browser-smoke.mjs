@@ -506,6 +506,22 @@ try {
       fontManager.importData = originalImportData;
     }
 
+    const archiveStateBeforeFinalReset = JSON.parse(JSON.stringify(state));
+    const archiveCircleBeforeFinalReset = circleApi.exportState();
+    const activeSnapshot = await coordinator.beginSnapshot(['chat', 'circle', 'media', 'fonts']);
+    let restoreRejectedDuringSnapshot = false;
+    try {
+      await window.__duoBackupV4.restore(archive);
+    } catch (error) {
+      restoreRejectedDuringSnapshot = /备份快照正在进行/.test(error.message);
+    }
+    activeSnapshot.assertUnchanged();
+    activeSnapshot.release();
+    afterRollback.restoreRejectedDuringSnapshot = restoreRejectedDuringSnapshot;
+    afterRollback.restoreDidNotMutateDuringSnapshot =
+      JSON.stringify(state) === JSON.stringify(archiveStateBeforeFinalReset) &&
+      JSON.stringify(circleApi.exportState()) === JSON.stringify(archiveCircleBeforeFinalReset);
+
     Object.keys(state).forEach(key => { if (!(key in originalChat)) delete state[key]; });
     Object.assign(state, originalChat);
     if (save() === false) throw new Error('test cleanup could not restore original chat');
@@ -534,6 +550,11 @@ try {
   assert.equal(v4RollbackAndBarrierResult.snapshotCapturedOnlyRestoredState, true,
     'the waiting snapshot must capture the completed V4 restore, never an intermediate state');
   assert.equal(v4RollbackAndBarrierResult.concurrentRestoreSucceeded, true);
+  assert.equal(v4RollbackAndBarrierResult.restoreRejectedDuringSnapshot, true,
+    'V4 restore entry must be rejected before it can start while a snapshot is active');
+  assert.equal(v4RollbackAndBarrierResult.restoreDidNotMutateDuringSnapshot, true,
+    'rejected V4 restore must not change chat or Circle state during a snapshot');
+
 
 
   if (fontTested) await page.evaluate(() => window.ChuanXunFontManager.restoreDefault());
