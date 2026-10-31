@@ -4326,12 +4326,12 @@ function renderParamPhraseList(){
 }
 function syncCallSettings(){
   state.callSettings=Object.assign({audioEnabled:true,videoEnabled:true},state.callSettings||{});
-  [['audioCallSeg','audioEnabled','audio-call'],['videoCallSeg','videoEnabled','video-call']].forEach(([id,key])=>{
+  [['audioCallSeg','audioEnabled','audioCall'],['videoCallSeg','videoEnabled','videoCall']].forEach(([id,key,attr])=>{
     const enabled=!!state.callSettings[key];
-    $('#'+id+' button').forEach(btn=>btn.classList.toggle('active',(btn.dataset[key.replace('Enabled','call')]||'')==='on'===enabled));
+    $$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===enabled));
   });
-  $('[data-call-type="audio"]').forEach(btn=>{btn.disabled=!state.callSettings.audioEnabled;});
-  $('[data-call-type="video"]').forEach(btn=>{btn.disabled=!state.callSettings.videoEnabled;});
+  $$('[data-call-type="audio"]').forEach(btn=>{btn.disabled=!state.callSettings.audioEnabled;});
+  $$('[data-call-type="video"]').forEach(btn=>{btn.disabled=!state.callSettings.videoEnabled;});
 }
 function createOtherRow(text,time='刚刚'){
   return buildMessageRow({id:uid('m'),sender:'other',type:'text',text,time});
