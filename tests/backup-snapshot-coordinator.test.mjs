@@ -82,3 +82,27 @@ test('unpersisted revisions prevent a backup snapshot', async () => {
   await assert.rejects(() => api.beginSnapshot(['chat']), /尚未持久化/);
   assert.equal(api.isActive(), false);
 });
+
+test('snapshot waits for a multi-module restore operation before reading participants', async () => {
+  const { api } = makeCoordinator();
+  let value = 'before';
+  api.register('chat', { snapshot: () => ({ value }) });
+  let finishRestore;
+  const restore = api.trackOperation(new Promise(resolve => {
+    finishRestore = () => {
+      value = 'restored';
+      api.noteWrite('chat', true);
+      resolve();
+    };
+  }));
+  assert.equal(api.getRevision('chat'), 0,
+    'operation tracking alone must not claim that module data was written');
+  const snapshotPromise = api.beginSnapshot(['chat']);
+  finishRestore();
+  await restore;
+  const snapshot = await snapshotPromise;
+  assert.equal(snapshot.get('chat').value, 'restored');
+  assert.equal(snapshot.revision.chat, 1);
+  assert.equal(snapshot.persistedRevision.chat, 1);
+  snapshot.release();
+});
