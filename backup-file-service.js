@@ -16,7 +16,8 @@
     // Blob.prototype.slice performs the platform brand check across realms and returns
     // a Blob in this document's realm without materializing the whole archive in memory.
     try {
-      return Blob.prototype.slice.call(value, 0, value.size, mimeType || value.type || 'application/octet-stream');
+      const foreignSlice = Blob.prototype.slice.call(value, 0, value.size, mimeType || value.type || 'application/octet-stream');
+      return new Blob([foreignSlice], { type: mimeType || value.type || 'application/octet-stream' });
     } catch (_) {
       // Retain support for trusted Blob-like wrappers used by older embedded WebViews.
       const buffer = await value.arrayBuffer();
