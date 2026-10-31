@@ -15,6 +15,7 @@ const state = {
   cardPhrases:[], callSettings:{audioEnabled:true,videoEnabled:true},
   incomingCallSettings:{enabled:true}, stickerFavorites:[], chatHistory:[], stickers:[]
 };
+const mediaBlob = new Blob(['chat-media-binary']);
 const sandbox = {
   state,
   window: {},
@@ -22,7 +23,8 @@ const sandbox = {
   TextEncoder, TextDecoder, Blob,
   getCircleState(){ return {}; },
   getCurrentMediaIds(){ return []; },
-  getMediaRecord(){ return Promise.resolve(null); },
+  currentMediaIds: ['media-test-1'],
+  getMediaRecord(id){ return Promise.resolve(id === 'media-test-1' ? { id, blob: mediaBlob, kind:'image', mimeType:'image/png', name:'test.png', createdAt:1 } : null); },
   console
 };
 vm.createContext(sandbox);
@@ -49,9 +51,26 @@ test('param v4 ZIP builds, parses, and verifies manifest resources', async () =>
   assert.equal(payload.appearanceSettings.palette, 'sage');
 });
 
-test('corrupted ZIP must fail validation', async () => {
+test('all/chat V4 ZIP include media blobs and references', async () => {
+  state.chatHistory = [{ id:'m1', type:'image', mediaId:'media-test-1' }];
+  state.stickers = [{ id:'stk1', mediaId:'media-test-1', mimeType:'image/png' }];
+  const all = await api.unzip(await api.build('all'));
+  assert.equal(all.manifest.kind, 'all');
+  assert.ok(all.map.has('circle-state.json'));
+  const media = all.manifest.resources.find(x => x.type === 'media');
+  assert.equal(media.id, 'media-test-1');
+  assert.equal(await all.map.get(media.path).blob.text(), 'chat-media-binary');
+  const chat = await api.unzip(await api.build('chat'));
+  assert.equal(chat.manifest.kind, 'chat');
+  assert.ok(chat.manifest.resources.some(x => x.type === 'media'));
+});
+
+test('corrupted ZIP resource bytes must fail SHA-256 validation', async () => {
   const archive = await api.build('param');
   const bytes = new Uint8Array(await archive.arrayBuffer());
-  bytes[bytes.length - 1] ^= 0xff;
-  await assert.rejects(() => api.unzip(new Blob([bytes])));
+  const nameLength = bytes[26] | (bytes[27] << 8);
+  const extraLength = bytes[28] | (bytes[29] << 8);
+  const dataOffset = 30 + nameLength + extraLength;
+  bytes[dataOffset + 1] ^= 0xff;
+  await assert.rejects(() => api.unzip(new Blob([bytes])), /校验失败|manifest|ZIP/);
 });
