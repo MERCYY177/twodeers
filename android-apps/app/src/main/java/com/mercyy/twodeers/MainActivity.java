@@ -2,6 +2,8 @@ package com.mercyy.twodeers;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
@@ -33,6 +35,7 @@ public class MainActivity extends Activity {
     private OutputStream saveStream;
     private long expectedBytes;
     private long writtenBytes;
+    private Uri currentSaveUri;
 
     private static final String INSTALL_NATIVE_DOWNLOAD = """
         (function(){
@@ -170,6 +173,7 @@ public class MainActivity extends Activity {
                 closeSaveStreamLocked();
                 expectedBytes = size;
                 writtenBytes = 0;
+                currentSaveUri = null;
             }
             runOnUiThread(() -> {
                 try {
@@ -207,11 +211,15 @@ public class MainActivity extends Activity {
             synchronized (saveLock) {
                 if (saveStream == null || writtenBytes != expectedBytes) return false;
                 try {
+                    long expected = expectedBytes;
                     saveStream.flush();
                     saveStream.close();
                     saveStream = null;
+                    long actual = querySavedSize(currentSaveUri);
+                    if (actual >= 0 && actual != expected) return false;
                     expectedBytes = 0;
                     writtenBytes = 0;
+                    currentSaveUri = null;
                     return true;
                 } catch (IOException e) {
                     closeSaveStreamLocked();
@@ -231,6 +239,7 @@ public class MainActivity extends Activity {
             closeSaveStreamLocked();
             expectedBytes = 0;
             writtenBytes = 0;
+            currentSaveUri = null;
         }
     }
 
@@ -239,6 +248,20 @@ public class MainActivity extends Activity {
             try { saveStream.close(); } catch (IOException ignored) {}
             saveStream = null;
         }
+    }
+
+    // Read the size back from the document provider when it exposes OpenableColumns.SIZE.
+    // Some SAF providers return -1 or omit the column; in that case finishSave still enforces
+    // the exact byte counter observed while writing each chunk.
+    private long querySavedSize(Uri uri) {
+        if (uri == null) return -1;
+        try (Cursor cursor = getContentResolver().query(uri, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int column = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (column >= 0 && !cursor.isNull(column)) return cursor.getLong(column);
+            }
+        } catch (Exception ignored) {}
+        return -1;
     }
 
     private void notifyPicker(boolean ok, String message) {
@@ -283,7 +306,7 @@ public class MainActivity extends Activity {
             try {
                 OutputStream output = getContentResolver().openOutputStream(data.getData(), "w");
                 if (output == null) throw new IOException("无法打开目标文件");
-                synchronized (saveLock) { closeSaveStreamLocked(); saveStream = output; }
+                synchronized (saveLock) { closeSaveStreamLocked(); saveStream = output; currentSaveUri = data.getData(); }
                 notifyPicker(true, "");
             } catch (Exception e) {
                 cancelSaveInternal();
