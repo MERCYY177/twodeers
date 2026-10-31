@@ -54,23 +54,39 @@ try {
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
   assert.ok(beautifyBefore.styleRules >= beautifyBefore.count * 8, 'browser must parse full preset stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
+  const exposeBeautifySettings = () => page.evaluate(() => {
+    if (typeof goto === 'function') goto('settingsPage');
+    const panel = document.getElementById('settingsParam');
+    if (panel) {
+      panel.hidden = false;
+      panel.classList.remove('hidden');
+      panel.style.setProperty('display', 'block', 'important');
+      panel.style.setProperty('visibility', 'visible', 'important');
+    }
+  });
+  await exposeBeautifySettings();
   const testRows = await page.evaluate(() => {
     const chat = document.getElementById('chatList');
+    const ids = ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker'];
     const rows = [
-      buildMessageRow({id:'beautify-smoke-own',sender:'me',type:'text',text:'自己的消息预览',time:'20:18'}),
-      buildMessageRow({id:'beautify-smoke-other',sender:'other',type:'text',text:'对方的消息预览',time:'20:19'}),
-      buildMessageRow({id:'beautify-smoke-image',sender:'me',type:'image',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}),
-      buildMessageRow({id:'beautify-smoke-sticker',sender:'other',type:'sticker',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'})
+      buildMessageRow({id:ids[0],sender:'me',type:'text',text:'自己的消息预览',time:'20:18'}),
+      buildMessageRow({id:ids[1],sender:'other',type:'text',text:'对方的消息预览',time:'20:19'}),
+      buildMessageRow({id:ids[2],sender:'me',type:'image',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}),
+      buildMessageRow({id:ids[3],sender:'other',type:'sticker',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'})
     ];
-    rows.forEach(row => chat.appendChild(row));
-    const radius = row => getComputedStyle(row.querySelector('.bubble')).borderRadius;
-    return { imageRadius:radius(rows[2]), stickerRadius:radius(rows[3]) };
+    rows.forEach((row,index) => {
+      row.dataset.beautifySmokeId = ids[index];
+      chat.appendChild(row);
+    });
+    return {
+      imageRadius:getComputedStyle(rows[2].querySelector('.bubble')).borderRadius,
+      stickerRadius:getComputedStyle(rows[3].querySelector('.bubble')).borderRadius
+    };
   });
   await page.locator('[data-beautify-apply="pixel-console"]').click();
   const visualCheck = await page.evaluate(() => {
     const chat = document.getElementById('chatList');
-    const rows = ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker']
-      .map(id => chat.querySelector('[data-mid="' + id + '"]'));
+    const find = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
     const style = row => {
       const bubble = row.querySelector('.bubble');
       const computed = getComputedStyle(bubble);
@@ -78,7 +94,10 @@ try {
     };
     const preview = document.querySelector('[data-preset-card="pixel-console"] .duo-chat-beautify-preview .msg-row.me .bubble');
     return {
-      own:style(rows[0]),other:style(rows[1]),image:style(rows[2]),sticker:style(rows[3]),
+      own:style(find('beautify-smoke-own')),
+      other:style(find('beautify-smoke-other')),
+      image:style(find('beautify-smoke-image')),
+      sticker:style(find('beautify-smoke-sticker')),
       preview:preview?{radius:getComputedStyle(preview).borderRadius,position:getComputedStyle(preview).position}:null,
       liveClass:chat.classList.contains('duo-chat-beautify--pixel-console'),
       pageClass:document.getElementById('chatPage').classList.contains('duo-chat-beautify--pixel-console')
@@ -94,6 +113,7 @@ try {
   assert.match(visualCheck.sticker.className, /sticker-bubble/);
   assert.equal(visualCheck.image.radius, testRows.imageRadius, 'image message styling must remain unchanged');
   assert.equal(visualCheck.sticker.radius, testRows.stickerRadius, 'sticker styling must remain unchanged');
+  await exposeBeautifySettings();
   await page.locator('[data-beautify-apply="glass-lilac"]').click();
   const switched = await page.evaluate(() => ({
     id:state.chatBeautifyPresetId,
@@ -108,6 +128,7 @@ try {
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => state.chatBeautifyPresetId === 'glass-lilac' &&
     document.getElementById('chatList').classList.contains('duo-chat-beautify--glass-lilac'));
+  await exposeBeautifySettings();
   await page.locator('[data-beautify-reset]').click();
   const reset = await page.evaluate(() => ({
     id:state.chatBeautifyPresetId,
@@ -123,7 +144,7 @@ try {
   await page.evaluate(id => {
     if (id) window.DuoChatBeautify.apply(id);
     ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker']
-      .forEach(mid => document.querySelector('#chatList [data-mid="' + mid + '"]')?.remove());
+      .forEach(mid => document.querySelector('#chatList [data-beautify-smoke-id="' + mid + '"]')?.remove());
   }, beautifyBefore.selectedId);
 
   await page.evaluate(() => {
