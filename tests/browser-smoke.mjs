@@ -163,9 +163,14 @@ try {
 
   // The other upload has no chat reference; deleting it must remove its IndexedDB record.
   const orphanMediaId = uploaded.find(item => item.mediaId !== sentMediaId).mediaId;
-  // Sending a sticker closes the panel. Re-open it explicitly before the second
-  // deletion, and wait for the actual visible control rather than a stale hidden node.
-  await page.locator('#emojiBtn').click();
+  // Sending a sticker closes the panel. The browser smoke test is still on the
+  // home page, so expand this app-level panel directly rather than clicking the
+  // chat-only composer button in the hidden chatPage.
+  await page.evaluate(() => {
+    const panel = document.getElementById('emojiPanel');
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden', 'false');
+  });
   await page.waitForFunction(() => {
     const panel = document.getElementById('emojiPanel');
     const button = document.querySelector('#stickerList [data-sticker-del]');
