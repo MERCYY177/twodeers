@@ -21,23 +21,60 @@
   function centralHeader(name,size,crc,offset){const n=enc.encode(name),h=new Uint8Array(46),d=new DataView(h.buffer);d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x0800,true);d.setUint16(10,0,true);d.setUint16(12,0,true);d.setUint16(14,0x21,true);d.setUint32(16,crc,true);d.setUint32(20,size,true);d.setUint32(24,size,true);d.setUint16(28,n.length,true);d.setUint16(30,0,true);d.setUint16(32,0,true);d.setUint16(34,0,true);d.setUint16(36,0,true);d.setUint32(38,0,true);d.setUint32(42,offset,true);return [h,n];}
   async function makeZip(entries){if(entries.length>65534)throw new Error('备份条目数量超过 ZIP 限制');let total=0,offset=0;const parts=[],central=[],resources=[];for(const e of entries){if(!(e.blob instanceof Blob)||!e.path||e.path.startsWith('/')||e.path.split('/').includes('..'))throw new Error('备份资源路径或内容无效');if(e.blob.size>0xffffffff)throw new Error('单项资源超过 ZIP32 限制');total+=e.blob.size;if(total>MAX_ARCHIVE)throw new Error('备份资源合计超过 1 GB 限制');const h=await inspectBlob(e.blob),name=e.path;const meta={path:name,size:e.blob.size,crc32:h.crc32,sha256:h.sha256,type:e.type||'file',mimeType:e.mimeType||e.blob.type||'application/octet-stream'};for(const k of ['id','name','kind','format','createdAt'])if(e[k]!==undefined)meta[k]=e[k];resources.push(meta);const [lh,ln]=localHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0);parts.push(lh,ln,e.blob);const [ch,cn]=centralHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0,offset);central.push(ch,cn);offset+=lh.length+ln.length+e.blob.size;if(offset>0xffffffff)throw new Error('备份总长度超过 ZIP32 4 GB 偏移范围');}const manifest={format:'twodeers-backup',formatVersion:4,kind:window.__duoBackupKind||'all',createdAt:new Date().toISOString(),resourceCount:resources.length,totalResourceBytes:total,hashAlgorithm:'SHA-256',checksumAlgorithm:'CRC-32',compression:'store',fontsCurrentId:window.__duoBackupFontCurrentId||null,resources};const mb=new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'});const mh=await inspectBlob(mb);const [lh,ln]=localHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0);parts.push(lh,ln,mb);const mo=offset;offset+=lh.length+ln.length+mb.size;const [ch,cn]=centralHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0,mo);central.push(ch,cn);const centralSize=central.reduce((n,x)=>n+x.length,0);const eocd=new Uint8Array(22),d=new DataView(eocd.buffer);d.setUint32(0,0x06054b50,true);d.setUint16(8,entries.length+1,true);d.setUint16(10,entries.length+1,true);d.setUint32(12,centralSize,true);d.setUint32(16,offset,true);d.setUint16(20,0,true);parts.push(...central,eocd);return new Blob(parts,{type:'application/zip'});}
   function jsonBlob(value){return new Blob([JSON.stringify(value)],{type:'application/json;charset=utf-8'});}
+  const snapshotCoordinator=window.BackupSnapshotCoordinator;
+  if(!snapshotCoordinator)throw new Error('备份快照协调器尚未加载');
+  snapshotCoordinator.register('chat',{snapshot:function(){return JSON.parse(JSON.stringify(state));}});
+  snapshotCoordinator.register('circle',{snapshot:function(){return JSON.parse(JSON.stringify(getCircleState()||{}));}});
+  snapshotCoordinator.register('media',{snapshot:function(){return typeof getCurrentMediaIds==='function'?getCurrentMediaIds().slice():[];}});
+  snapshotCoordinator.register('fonts',{snapshot:function(){return window.ChuanXunFontManager?window.ChuanXunFontManager.exportData():Promise.resolve({currentFontId:null,fonts:[]});}});
+  function mediaIdsFromState(source){
+    const ids=new Set();
+    (source.chatHistory||[]).forEach(function(item){if(item&&item.mediaId)ids.add(item.mediaId);});
+    (source.stickers||[]).forEach(function(item){if(item&&item.mediaId)ids.add(item.mediaId);});
+    return Array.from(ids);
+  }
   async function buildV4(kind){
     if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
-    const entries=[];let stateData={},mediaIds=[];
-    if(kind==='all'){stateData={state:JSON.parse(JSON.stringify(state))};mediaIds=typeof getCurrentMediaIds==='function'?getCurrentMediaIds():[];}
-    else if(kind==='chat'){
-      const ids=new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(state.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
-      stateData={chatHistory:state.chatHistory,stickers:state.stickers,stickerFavorites:state.stickerFavorites||[],media:{'avatar-me':state.media?.['avatar-me'],'avatar-other':state.media?.['avatar-other'],'bg-chat':state.media?.['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings};
-    }else{
-      stateData={icons:state.icons,media:state.media,avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,stickerFavorites:state.stickerFavorites||[]};
-    }
-    entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
-    if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(getCircleState()||{}),type:'circle-state'});
-    for(const id of mediaIds){const rec=await getMediaRecord(id);if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});}
-    let fontsCurrentId=null;
-    if(kind!=='chat'&&window.ChuanXunFontManager){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
-    window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
-    try{return await makeZip(entries);}finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
+    const required=kind==='all'?['chat','circle','media','fonts']:(kind==='chat'?['chat','media']:['chat','fonts']);
+    const snapshot=await snapshotCoordinator.beginSnapshot(required);
+    try{
+      const source=snapshot.get('chat');
+      const entries=[];let stateData={},mediaIds=[];
+      if(kind==='all'){stateData={state:source};mediaIds=snapshot.get('media');}
+      else if(kind==='chat'){
+        mediaIds=mediaIdsFromState(source);
+        stateData={chatHistory:source.chatHistory,stickers:source.stickers,stickerFavorites:source.stickerFavorites||[],media:{'avatar-me':source.media?.['avatar-me'],'avatar-other':source.media?.['avatar-other'],'bg-chat':source.media?.['bg-chat']},bubbleShape:source.bubbleShape,bubbleColors:source.bubbleColors,appearanceColors:source.appearanceColors,appearanceSettings:source.appearanceSettings,replyWindow:source.replyWindow,showReadReceipt:source.showReadReceipt,typing:source.typing,offline:source.offline,callSettings:source.callSettings,incomingCallSettings:source.incomingCallSettings};
+      }else{
+        stateData={icons:source.icons,media:source.media,avatarShape:source.avatarShape,bubbleShape:source.bubbleShape,bubbleColors:source.bubbleColors,appearanceColors:source.appearanceColors,appearanceSettings:source.appearanceSettings,customCSS:source.customCSS,replyWindow:source.replyWindow,showReadReceipt:source.showReadReceipt,typing:source.typing,offline:source.offline,cardPhrases:source.cardPhrases,callSettings:source.callSettings,incomingCallSettings:source.incomingCallSettings,stickerFavorites:source.stickerFavorites||[]};
+      }
+      entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
+      if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(snapshot.get('circle')),type:'circle-state'});
+      for(const id of mediaIds){
+        const rec=await getMediaRecord(id);
+        if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);
+        entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});
+      }
+      let fontsCurrentId=null;
+      if(kind!=='chat'){
+        const exported=snapshot.get('fonts');
+        fontsCurrentId=exported.currentFontId||null;
+        const fontMeta=[];
+        for(const font of exported.fonts||[]){
+          if(!font.blob)throw new Error('字体文件缺失：'+font.id);
+          const path='fonts/'+encodeURIComponent(font.id)+'.'+font.format;
+          entries.push({path:path,blob:font.blob,type:'font',id:font.id,name:font.name,format:font.format,mimeType:font.mimeType,createdAt:font.createdAt});
+          fontMeta.push({id:font.id,name:font.name,fileName:font.fileName,format:font.format,mimeType:font.mimeType,size:font.size,createdAt:font.createdAt,path:path});
+        }
+        entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});
+      }
+      snapshot.assertUnchanged();
+      window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
+      try{
+        const archive=await makeZip(entries);
+        snapshot.assertUnchanged();
+        return archive;
+      }finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
+    }finally{snapshot.release();}
   }
   function safePath(path){return typeof path==='string'&&path.length>0&&path.length<1024&&!path.startsWith('/')&&!path.includes('\\')&&!path.split('/').some(x=>x==='..'||x==='.'||x==='');}
   async function unzipStored(blob){
