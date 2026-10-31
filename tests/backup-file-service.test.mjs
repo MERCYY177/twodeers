@@ -40,6 +40,19 @@ test('cross-realm Blob-like values are rewrapped before delegation', async () =>
   assert.equal(await received.text(), 'binary');
 });
 
+test('native asynchronous save completion is awaited and its verification status is preserved', async () => {
+  const service = createService(() => Promise.resolve({ status: 'saved', method: 'android-saf', verified: true }));
+  const result = await service.save('native.zip', new Blob(['native']));
+  assert.equal(result.status, 'saved');
+  assert.equal(result.method, 'android-saf');
+  assert.equal(result.verified, true);
+});
+
+test('native picker cancellation propagates as a rejected save operation', async () => {
+  const service = createService(() => Promise.reject(new Error('用户取消保存')));
+  await assert.rejects(() => service.save('cancel.zip', new Blob(['x'])), /用户取消保存/);
+});
+
 test('non-Blob inputs and adapter failures reject instead of reporting success', async () => {
   const service = createService(() => { throw new Error('user cancelled'); });
   await assert.rejects(() => service.save('bad.bin', { size: 1 }), /必须是 Blob/);
