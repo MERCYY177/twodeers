@@ -30,6 +30,13 @@ if (!html.includes('BackupFileService.save') || !v4.includes('BackupFileService.
 for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json','beginSnapshot','assertUnchanged','BackupFileService.save']) {
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
 }
+if (/flushBeforeBackup|saveData|localforage/i.test(v4)) throw new Error('V4 只读快照不得调用旧备份写回或 localforage fallback');
+const coordinator = readFileSync(resolve(root, 'backup-snapshot-coordinator.js'), 'utf8');
+if (!coordinator.includes('persistedRevision') || !coordinator.includes('trackWrite') || !coordinator.includes('assertUnchanged')) throw new Error('快照 revision / persistedRevision / 写入排空协议缺失');
+const fontManager = readFileSync(resolve(root, 'custom-font-manager.js'), 'utf8');
+if (!fontManager.includes("transaction([FONT_STORE, META_STORE], 'readonly')") || !fontManager.includes("trackFontWrite")) throw new Error('字体库必须通过单一只读事务导出，并跟踪字体库写入');
+const indexSource = html;
+if (!indexSource.includes("noteWrite('chat', true)") || !indexSource.includes("noteWrite('circle', true)") || !indexSource.includes("trackWrite('media'")) throw new Error('Chat / Circle / 媒体数据库未接入快照 revision 追踪');
 const native = readFileSync(resolve(root, 'android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java'), 'utf8');
 for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','addWebMessageListener','isMainFrame','isTrustedOrigin','taskId','writeChunk','finishSave','MessageDigest','verifySavedFile']) {
   if (!native.includes(token)) throw new Error('Android 安全文件桥接缺失：' + token);
