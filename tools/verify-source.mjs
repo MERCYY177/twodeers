@@ -31,7 +31,8 @@ for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','fon
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
 }
 const native = readFileSync(resolve(root, 'android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java'), 'utf8');
-for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','writeChunk','finishSave']) {
-  if (!native.includes(token)) throw new Error('Android 文件桥接缺失：' + token);
+for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','addWebMessageListener','isMainFrame','isTrustedOrigin','taskId','writeChunk','finishSave','MessageDigest','verifySavedFile']) {
+  if (!native.includes(token)) throw new Error('Android 安全文件桥接缺失：' + token);
 }
+if (native.includes('addJavascriptInterface') || native.includes('JavascriptInterface')) throw new Error('Android 备份桥接不得使用无来源约束的 JavaScriptInterface');
 console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；来电/双列表情包/V4/Android 关键入口静态检查通过。');
