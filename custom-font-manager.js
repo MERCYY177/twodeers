@@ -556,7 +556,7 @@
       var observer = new global.MutationObserver(ensureSettingsEntry);
       observer.observe(global.document.documentElement, { childList: true, subtree: true });
     }
-    restoreCurrent().catch(function (e) { console.warn('[本地字体] 启动恢复失败', e); });
+    // The app's font settings panel performs the single startup restore and then syncs the Circle host.
   }
 
   function exportData() {
