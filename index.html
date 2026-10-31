@@ -5435,8 +5435,8 @@ async function downloadBackup(kind){
   try{
     if(!window.__duoBackupV4||!window.BackupFileService)throw new Error('V4 只读快照或统一文件保存服务尚未加载');
     const blob=await window.__duoBackupV4.build(kind);
-    await window.BackupFileService.save('双人空间_'+kind+'_backup_v4.zip',blob);
-    showToast('V4 备份文件已交给统一保存入口');
+    const saved=await window.BackupFileService.save('双人空间_'+kind+'_backup_v4.zip',blob);
+    showToast(saved.status==='saved'?(saved.verified?'V4 备份已保存并校验':'V4 备份已保存（目标文件未能回读）'):'V4 备份文件已交给统一保存入口');
   }catch(e){showToast('备份失败：'+(e.message||'读取快照或文件保存失败'));}
 }
 $('#backupAllBtn')?.addEventListener('click',()=>downloadBackup('all'));
