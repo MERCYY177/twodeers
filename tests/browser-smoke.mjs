@@ -22,12 +22,34 @@ try {
     circleApi: !!window.__duoCircleApi?.validateState,
     twoColumns: document.querySelectorAll('#emojiPanel .emoji-panel-columns > .emoji-column').length,
     tabs: document.querySelectorAll('#duoStickerTabs [data-duo-sticker-tab]').length,
-    backupVersion: window.__duoBackupV4.version
+    backupVersion: window.__duoBackupV4.version,
+    snapshotCoordinator: !!window.BackupSnapshotCoordinator,
+    fileService: !!window.BackupFileService
   }));
   assert.equal(baseline.circleApi, true, 'Circle Shadow DOM API should be available');
   assert.equal(baseline.twoColumns, 2, 'the original two-column emoji panel must remain');
   assert.equal(baseline.tabs, 3, 'sticker categories should be mounted');
   assert.equal(baseline.backupVersion, 4);
+  assert.equal(baseline.snapshotCoordinator, true, 'revisioned snapshot coordinator should be loaded');
+  assert.equal(baseline.fileService, true, 'unified file service should be loaded');
+
+  const fileServiceResult = await page.evaluate(async () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    try {
+      const foreignBlob = new frame.contentWindow.Blob(['cross-frame-backup'], { type: 'application/octet-stream' });
+      const original = window.triggerDownloadBlob;
+      let captured = null;
+      window.triggerDownloadBlob = (name, blob) => { captured = { name, blob }; return true; };
+      const result = await window.BackupFileService.save('cross-frame.bin', foreignBlob);
+      window.triggerDownloadBlob = original;
+      return { result, name: captured.name, sameRealm: captured.blob instanceof Blob, text: await captured.blob.text() };
+    } finally { frame.remove(); }
+  });
+  assert.equal(fileServiceResult.result.status, 'handed-off');
+  assert.equal(fileServiceResult.name, 'cross-frame.bin');
+  assert.equal(fileServiceResult.sameRealm, true);
+  assert.equal(fileServiceResult.text, 'cross-frame-backup');
 
   await page.evaluate(() => {
     const p = document.getElementById('settingsPage');
