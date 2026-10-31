@@ -27,6 +27,7 @@ if (html.indexOf('src="backup-snapshot-coordinator.js"') < 0 || html.indexOf('sr
 if (html.indexOf('src="backup-file-service.js"') < 0 || html.indexOf('src="backup-file-service.js"') > html.indexOf('src="backup-v4.js"')) throw new Error('统一文件保存服务必须在 V4 备份模块之前加载');
 const v4 = readFileSync(resolve(root, 'backup-v4.js'), 'utf8');
 if (!html.includes('BackupFileService.save') || !v4.includes('BackupFileService.save')) throw new Error('Circle / 旧 JSON / V4 备份未统一接入文件保存服务');
+if (!html.includes("__duoBackupV4.build(kind)") || !html.includes("beginSnapshot(['circle'])")) throw new Error('全部备份入口必须走只读快照和统一文件保存服务');
 for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json','beginSnapshot','assertUnchanged','BackupFileService.save']) {
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
 }
