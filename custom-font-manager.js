@@ -34,6 +34,11 @@
   var entryId = 'chuanxun-local-font-entry';
 
   function error(message) { return new Error(message); }
+  function trackFontWrite(promise) {
+    return global.BackupSnapshotCoordinator
+      ? global.BackupSnapshotCoordinator.trackWrite('fonts', promise)
+      : promise;
+  }
 
   function openDatabase() {
     if (dbPromise) return dbPromise;
@@ -89,12 +94,12 @@
   }
 
   function setCurrentId(id) {
-    return openDatabase().then(function (db) {
+    return trackFontWrite(openDatabase().then(function (db) {
       var tx = db.transaction(META_STORE, 'readwrite');
       var done = transactionDone(tx);
       tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: id || null, updatedAt: Date.now() });
       return done;
-    });
+    }));
   }
 
   function getFont(id) {
@@ -292,13 +297,13 @@
   }
 
   function saveFontRecord(record) {
-    return openDatabase().then(function (db) {
+    return trackFontWrite(openDatabase().then(function (db) {
       var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
       var done = transactionDone(tx);
       tx.objectStore(FONT_STORE).put(record);
       tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: record.id, updatedAt: Date.now() });
       return done;
-    });
+    }));
   }
 
   function importFont(file) {
@@ -560,10 +565,26 @@
   }
 
   function exportData() {
-    return Promise.all([listFonts(), getMeta(CURRENT_KEY)]).then(function (items) {
-      return { currentFontId: items[1] || null, fonts: (items[0] || []).map(function (font) {
-        return { id: font.id, name: font.name, fileName: font.fileName, format: font.format, mimeType: font.mimeType, size: font.size, createdAt: font.createdAt, blob: font.blob };
-      }) };
+    return openDatabase().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction([FONT_STORE, META_STORE], 'readonly');
+        var fontsRequest = tx.objectStore(FONT_STORE).getAll();
+        var currentRequest = tx.objectStore(META_STORE).get(CURRENT_KEY);
+        var fonts = null, current = null, failed = false;
+        function fail(reason) { if (failed) return; failed = true; reject(reason || error('读取字体库快照失败')); }
+        fontsRequest.onsuccess = function () { fonts = fontsRequest.result || []; };
+        fontsRequest.onerror = function () { fail(fontsRequest.error); };
+        currentRequest.onsuccess = function () { current = currentRequest.result ? currentRequest.result.value : null; };
+        currentRequest.onerror = function () { fail(currentRequest.error); };
+        tx.oncomplete = function () {
+          if (failed) return;
+          resolve({ currentFontId: current || null, fonts: fonts.map(function (font) {
+            return { id: font.id, name: font.name, fileName: font.fileName, format: font.format, mimeType: font.mimeType, size: font.size, createdAt: font.createdAt, blob: font.blob };
+          }) });
+        };
+        tx.onerror = function () { fail(tx.error); };
+        tx.onabort = function () { fail(tx.error || error('字体库快照事务已中断')); };
+      });
     });
   }
 
