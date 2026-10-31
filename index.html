@@ -4638,6 +4638,7 @@ function cancelRingingIncomingCall(){
   clearCallToIdle();
 }
 function initializeIncomingCallScheduler(){
+  if(state.call?.phase==='ringing'&&incomingRingTimer!==null){updateIncomingCallStatus();return;}
   if(state.call?.phase==='ringing'){
     clearIncomingRingTimer();appendCallLog('未接来电 · 页面刷新时来电仍在响铃');
     clearCallToIdle();
@@ -4649,7 +4650,10 @@ function initializeIncomingCallScheduler(){
 function checkIncomingCallOnResume(){
   if(document.hidden)return;
   if(state.call?.phase==='ringing'){
-    if(!incomingRingTimer)incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},normalizeIncomingCallSettings(state.incomingCallSettings).ringTimeoutSec*1000);
+    const timeout=normalizeIncomingCallSettings(state.incomingCallSettings).ringTimeoutSec*1000;
+    const remain=(Number(state.call.incomingAt)||Date.now())+timeout-Date.now();
+    if(remain<=0){missIncomingCall();return;}
+    if(incomingRingTimer===null)incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},remain);
     return;
   }
   if(state.call?.active)return;
@@ -5052,6 +5056,47 @@ $('#paramPhraseList').addEventListener('click',e=>{
 });
 $('#audioCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-audio-call]');if(!btn)return;state.callSettings.audioEnabled=btn.dataset.audioCall==='on';syncCallSettings();save();});
 $('#videoCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-video-call]');if(!btn)return;state.callSettings.videoEnabled=btn.dataset.videoCall==='on';syncCallSettings();save();});
+function applyIncomingCallSettingsChange(){
+  state.incomingCallSettings=normalizeIncomingCallSettings(state.incomingCallSettings);
+  const cfg=state.incomingCallSettings;
+  if(state.call?.phase==='ringing'&&(!cfg.enabled||!incomingAllowedTypes().includes(state.call.type)))cancelRingingIncomingCall();
+  syncIncomingCallSettings();save();
+  if(!cfg.enabled||!incomingAllowedTypes().length){clearIncomingSchedule(true);save();}
+  else if(!incomingCallBusy())scheduleIncomingCall({forceNew:true});
+}
+$('#incomingMasterSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-incoming-master]');if(!btn)return;
+  state.incomingCallSettings.enabled=btn.dataset.incomingMaster==='on';applyIncomingCallSettingsChange();
+});
+$('#incomingAudioSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-incoming-audio]');if(!btn)return;
+  state.incomingCallSettings.audioEnabled=btn.dataset.incomingAudio==='on';applyIncomingCallSettingsChange();
+});
+$('#incomingVideoSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-incoming-video]');if(!btn)return;
+  state.incomingCallSettings.videoEnabled=btn.dataset.incomingVideo==='on';applyIncomingCallSettingsChange();
+});
+$('#incomingVideoProbability').addEventListener('input',e=>{
+  state.incomingCallSettings.videoProbability=Number(e.target.value);applyIncomingCallSettingsChange();
+});
+['incomingMinInterval','incomingMaxInterval','incomingRingTimeout'].forEach(id=>{
+  $('#'+id).addEventListener('change',()=>{
+    const cfg=state.incomingCallSettings;
+    cfg.minIntervalSec=Number($('#incomingMinInterval').value);
+    cfg.maxIntervalSec=Number($('#incomingMaxInterval').value);
+    cfg.ringTimeoutSec=Number($('#incomingRingTimeout').value);
+    state.incomingCallSettings=normalizeIncomingCallSettings(cfg);
+    syncIncomingCallSettings();save();
+    if(state.call?.phase==='ringing'){
+      clearIncomingRingTimer();
+      const remain=Math.max(0,(state.call.incomingAt||Date.now())+state.incomingCallSettings.ringTimeoutSec*1000-Date.now());
+      incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},remain);
+    }else if(!incomingCallBusy()&&state.incomingCallSettings.enabled&&incomingAllowedTypes().length)scheduleIncomingCall({forceNew:true});
+  });
+});
+$('#incomingAnswerBtn').addEventListener('click',answerIncomingCall);
+$('#incomingRejectBtn').addEventListener('click',rejectIncomingCall);
+
 $('#phraseBtn').addEventListener('click',openPhraseModal);
 $('#phraseCloseBtn').addEventListener('click',closePhraseModal);
 $('#phraseModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePhraseModal();});
@@ -5231,7 +5276,7 @@ async function* backupJsonParts(kind){
     dataMeta={chatHistory:state.chatHistory,stickers:state.stickers,media: {'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline};
     mediaIds=[...ids];
   }else if(kind==='param'){
-    dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings};
+    dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings};
   }else throw new Error('不支持的备份类型');
   const head={kind,version:3,exportedAt,data:kind==='param'?dataMeta:{...dataMeta,mediaFiles:[]}};
   if(mediaIds.length){
@@ -5352,6 +5397,7 @@ async function applyBackupPayload(payload){
     if(data.media)state.media=Object.assign(state.media,data.media);
     for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
     for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
+    if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
     if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
     if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
@@ -5438,9 +5484,9 @@ function openPhraseModal(){ renderPhraseList(); $('#phraseModal')&&$('#phraseMod
 function closePhraseModal(){ $('#phraseModal')&&$('#phraseModal').classList.remove('show'); }
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){ state.offline.lastHiddenAt=Date.now(); save(); }
-  else { processOfflineCatchup(); if(state.call?.active) requestWakeLock(); }
+  else { processOfflineCatchup(); checkIncomingCallOnResume(); if(state.call?.active) requestWakeLock(); }
 });
-window.addEventListener('focus',()=>{ processOfflineCatchup(); if(state.call?.active) requestWakeLock(); });
+window.addEventListener('focus',()=>{ processOfflineCatchup(); checkIncomingCallOnResume(); if(state.call?.active) requestWakeLock(); });
 window.addEventListener('resize',()=>{ if(state.call?.mini) applyMiniCallPosition(); });
 
 $('#hiddenUploader').addEventListener('change', async e=>{
@@ -5490,12 +5536,14 @@ function init(){
   syncReplyInputs();
   syncTypingOfflineInputs();
   syncCallSettings();
+  syncIncomingCallSettings();
   ensureChatState();
   renderChatHistory();
   renderPhraseList();
   renderParamPhraseList();
   initMiniCallDrag();
   restoreCallIfNeeded();
+  initializeIncomingCallScheduler();
   if(!state.offline.lastChatAt) state.offline.lastChatAt=Date.now();
   goto(['homePage','chatPage','circlePage','settingsPage'].includes(state.currentPage)?state.currentPage:'homePage');
 }
