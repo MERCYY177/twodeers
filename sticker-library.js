@@ -33,6 +33,8 @@
     if(tab){e.preventDefault();e.stopImmediatePropagation();activeTab=tab.dataset.duoStickerTab;render();return;}
     const fav=e.target&&e.target.closest?e.target.closest('[data-duo-sticker-fav]'):null;
     if(fav){e.preventDefault();e.stopImmediatePropagation();const id=fav.dataset.duoStickerFav;const set=new Set(state.stickerFavorites||[]);if(set.has(id))set.delete(id);else if((state.stickers||[]).some(x=>x.id===id))set.add(id);state.stickerFavorites=[...set];save();render();return;}
+    const del=e.target&&e.target.closest?e.target.closest('[data-sticker-del]'):null;
+    if(del){const item=state.stickers[Number(del.dataset.stickerDel)];if(item&&Array.isArray(state.stickerFavorites)&&state.stickerFavorites.includes(item.id)){state.stickerFavorites=state.stickerFavorites.filter(id=>id!==item.id);save();}}
   },true);
   document.addEventListener('click',function(e){const add=e.target&&e.target.closest?e.target.closest('#addStickerBtn'):null;if(add){activeTab='uploads';setTimeout(render,0);}},true);
   ensureTabs();
