@@ -379,7 +379,7 @@
   function deleteFont(id) {
     if (!id) return Promise.reject(error('请先选择要删除的字体'));
     return getMeta(CURRENT_KEY).then(function (currentId) {
-      return openDatabase().then(function (db) {
+      return trackFontWrite(openDatabase().then(function (db) {
         var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
         var done = transactionDone(tx);
         tx.objectStore(FONT_STORE).delete(id);
@@ -397,7 +397,7 @@
           refreshUi();
           return true;
         });
-      });
+      }));
     });
   }
 
@@ -612,7 +612,7 @@
         });
       });
     }, Promise.resolve([])).then(function (records) {
-      return openDatabase().then(function (db) {
+      return trackFontWrite(openDatabase().then(function (db) {
         var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
         var done = transactionDone(tx);
         if (options.replace === true) tx.objectStore(FONT_STORE).clear();
@@ -620,7 +620,7 @@
         var wanted = payload.currentFontId && records.some(function (record) { return record.id === payload.currentFontId; }) ? payload.currentFontId : null;
         tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: wanted, updatedAt: Date.now() });
         return done.then(function () { return restoreCurrent(); });
-      });
+      }));
     });
   }
 
