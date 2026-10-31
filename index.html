@@ -1662,6 +1662,15 @@ let draftReplyCards = [];
 const DEFAULT_UI_SCALE = 1.00;
 const DEFAULT_FONT_PERCENT = 100;
 
+function normalizeIncomingCallSettings(raw){
+  const src=raw&&typeof raw==='object'?raw:{};
+  let min=Math.round(Number(src.minIntervalSec));if(!Number.isFinite(min)||min<1)min=90;min=Math.min(86400,min);
+  let max=Math.round(Number(src.maxIntervalSec));if(!Number.isFinite(max)||max<1)max=180;max=Math.min(86400,max);
+  if(min>max)max=min;
+  let probability=Number(src.videoProbability);if(!Number.isFinite(probability))probability=60;probability=Math.max(0,Math.min(100,Math.round(probability)));
+  let timeout=Math.round(Number(src.ringTimeoutSec));if(!Number.isFinite(timeout)||timeout<5)timeout=25;timeout=Math.max(5,Math.min(300,timeout));
+  return {enabled:src.enabled!==false,audioEnabled:src.audioEnabled!==false,videoEnabled:src.videoEnabled!==false,videoProbability:probability,minIntervalSec:min,maxIntervalSec:max,ringTimeoutSec:timeout};
+}
 const DEFAULT_STATE = {
   myName:'',
   otherName:'',
@@ -4512,74 +4521,203 @@ function clampMiniCallPosition(x,y){
   const maxY=Math.max(72,vh-height-8);
   return {x:Math.min(Math.max(8,x),maxX), y:Math.min(Math.max(72,y),maxY)};
 }
+let incomingScheduleTimer=null;
+let incomingRingTimer=null;
+let incomingScheduleToken=0;
+let incomingCallSchedulerStarted=false;
+function incomingCallBusy(){return !!(state.call&&(state.call.phase==='ringing'||state.call.active||state.call.phase==='active'));}
+function clearIncomingSchedule(clearPersisted=true){
+  if(incomingScheduleTimer!==null){clearTimeout(incomingScheduleTimer);incomingScheduleTimer=null;}
+  incomingScheduleToken++;
+  if(clearPersisted)state.incomingCallNextAt=0;
+  updateIncomingCallStatus();
+}
+function clearIncomingRingTimer(){if(incomingRingTimer!==null){clearTimeout(incomingRingTimer);incomingRingTimer=null;}}
+function incomingAllowedTypes(){
+  const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
+  const types=[];if(cfg.audioEnabled)types.push('audio');if(cfg.videoEnabled)types.push('video');return types;
+}
+function chooseIncomingCallType(){
+  const cfg=normalizeIncomingCallSettings(state.incomingCallSettings),types=incomingAllowedTypes();
+  if(types.length===1)return types[0];
+  if(types.length===2)return Math.random()*100<cfg.videoProbability?'video':'audio';
+  return '';
+}
+function updateIncomingCallStatus(){
+  const el=$('#incomingCallStatus');if(!el)return;
+  const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
+  let status=cfg.enabled?'主动来电已开启':'主动来电已关闭';
+  if(state.call?.phase==='ringing')status+=' · 正在响铃（'+(state.call.type==='video'?'视频':'语音')+'）';
+  else if(state.call?.active)status+=' · 正在'+(state.call.type==='video'?'视频':'语音')+'通话';
+  else if(cfg.enabled&&!incomingAllowedTypes().length)status+=' · 语音和视频类型均已关闭，当前不会安排来电';
+  else if(incomingScheduleTimer!==null&&state.incomingCallNextAt)status+=' · 下一次来电已安排，约 '+Math.max(0,Math.ceil((state.incomingCallNextAt-Date.now())/1000))+' 秒后';
+  else if(cfg.enabled&&!incomingCallBusy())status+=' · 下一次来电尚未安排';
+  el.textContent=status;
+}
+function syncIncomingCallSettings(){
+  state.incomingCallSettings=normalizeIncomingCallSettings(state.incomingCallSettings);
+  const cfg=state.incomingCallSettings;
+  const pairs=[['incomingMasterSeg','enabled','incomingMaster'],['incomingAudioSeg','audioEnabled','incomingAudio'],['incomingVideoSeg','videoEnabled','incomingVideo']];
+  pairs.forEach(([id,key,attr])=>{$$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===!!cfg[key]));});
+  const set=(id,value)=>{const el=$('#'+id);if(el)el.value=String(value);};
+  set('incomingVideoProbability',cfg.videoProbability);set('incomingMinInterval',cfg.minIntervalSec);set('incomingMaxInterval',cfg.maxIntervalSec);set('incomingRingTimeout',cfg.ringTimeoutSec);
+  const out=$('#incomingVideoProbabilityValue');if(out)out.textContent=cfg.videoProbability+'%';
+  updateIncomingCallStatus();
+}
+function updateIncomingAvatar(){
+  const avatar=$('#incomingCallAvatar');if(!avatar)return;
+  const img=avatar.querySelector('img');img.src=state.media['avatar-other']||'';
+  avatar.classList.toggle('has-img',!!state.media['avatar-other']);
+  const name=(state.otherName||'对方').trim();
+  $('#incomingCallName').textContent=name;
+  $('#incomingCallType').textContent='邀请你进行'+(state.call.type==='video'?'视频':'语音')+'通话';
+}
+function appendCallLog(text){
+  appendChatMessage({sender:'other',type:'system',text:String(text||''),time:formatHM()});
+}
+function scheduleIncomingCall(options={}){
+  const forceNew=!!options.forceNew;
+  const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
+  state.incomingCallSettings=cfg;
+  if(!cfg.enabled||!incomingAllowedTypes().length||incomingCallBusy()){
+    clearIncomingSchedule(true);save();return false;
+  }
+  if(incomingScheduleTimer!==null&&!forceNew){updateIncomingCallStatus();return true;}
+  if(incomingScheduleTimer!==null||forceNew)clearIncomingSchedule(false);
+  let nextAt=Number(state.incomingCallNextAt)||0;
+  if(forceNew||!nextAt)nextAt=Date.now()+Math.floor((cfg.minIntervalSec+Math.random()*(cfg.maxIntervalSec-cfg.minIntervalSec+1))*1000);
+  state.incomingCallNextAt=nextAt;
+  const delay=Math.max(0,nextAt-Date.now());
+  const token=++incomingScheduleToken;
+  incomingScheduleTimer=setTimeout(()=>{
+    if(token!==incomingScheduleToken)return;
+    incomingScheduleTimer=null;state.incomingCallNextAt=0;save();
+    if(document.hidden){triggerIncomingCall(chooseIncomingCallType());return;}
+    triggerIncomingCall(chooseIncomingCallType());
+  },delay);
+  save();updateIncomingCallStatus();return true;
+}
+function triggerIncomingCall(type){
+  clearIncomingSchedule(true);
+  const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
+  if(!cfg.enabled||incomingCallBusy())return false;
+  const allowed=incomingAllowedTypes();
+  const chosen=allowed.includes(type)?type:chooseIncomingCallType();
+  if(!chosen){save();updateIncomingCallStatus();return false;}
+  clearIncomingRingTimer();
+  state.call={active:false,direction:'incoming',phase:'ringing',type:chosen,mini:false,startAt:0,incomingAt:Date.now(),miniPos:state.call?.miniPos||null};
+  updateIncomingAvatar();
+  $('#incomingCallMask').classList.add('show');
+  $('#callScreen').classList.remove('show');$('#miniCallWindow').classList.remove('show');
+  incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},cfg.ringTimeoutSec*1000);
+  save();updateIncomingCallStatus();return true;
+}
+async function answerIncomingCall(){
+  if(state.call?.direction!=='incoming'||state.call.phase!=='ringing')return;
+  clearIncomingRingTimer();
+  state.call.active=true;state.call.phase='active';state.call.startAt=Date.now();state.call.mini=false;
+  $('#incomingCallMask').classList.remove('show');
+  updateCallTexts();$('#callScreen').classList.add('show');$('#miniCallWindow').classList.remove('show');
+  startCallTimer();save();updateIncomingCallStatus();await requestWakeLock();
+}
+function clearCallToIdle(){
+  const miniPos=state.call?.miniPos||null;
+  state.call={active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos};
+  $('#incomingCallMask').classList.remove('show');$('#callScreen').classList.remove('show');$('#miniCallWindow').classList.remove('show');
+  stopCallTimer();save();updateIncomingCallStatus();
+}
+function rejectIncomingCall(){
+  if(state.call?.direction!=='incoming'||state.call.phase!=='ringing')return;
+  clearIncomingRingTimer();appendCallLog('已拒绝对方的'+(state.call.type==='video'?'视频':'语音')+'来电');
+  clearCallToIdle();scheduleIncomingCall({forceNew:true});
+}
+function missIncomingCall(){
+  if(state.call?.direction!=='incoming'||state.call.phase!=='ringing')return;
+  clearIncomingRingTimer();appendCallLog('未接来电 · 对方的'+(state.call.type==='video'?'视频':'语音')+'来电');
+  clearCallToIdle();scheduleIncomingCall({forceNew:true});
+}
+function cancelRingingIncomingCall(){
+  if(state.call?.direction!=='incoming'||state.call.phase!=='ringing')return;
+  clearIncomingRingTimer();appendCallLog('主动来电已关闭，本次响铃已取消');
+  clearCallToIdle();
+}
+function initializeIncomingCallScheduler(){
+  if(state.call?.phase==='ringing'){
+    clearIncomingRingTimer();appendCallLog('未接来电 · 页面刷新时来电仍在响铃');
+    clearCallToIdle();
+  }
+  if(state.call?.active){updateIncomingCallStatus();return;}
+  scheduleIncomingCall();
+  incomingCallSchedulerStarted=true;
+}
+function checkIncomingCallOnResume(){
+  if(document.hidden)return;
+  if(state.call?.phase==='ringing'){
+    if(!incomingRingTimer)incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},normalizeIncomingCallSettings(state.incomingCallSettings).ringTimeoutSec*1000);
+    return;
+  }
+  if(state.call?.active)return;
+  if(!normalizeIncomingCallSettings(state.incomingCallSettings).enabled)return;
+  if(state.incomingCallNextAt&&state.incomingCallNextAt<=Date.now()){
+    clearIncomingSchedule(false);triggerIncomingCall(chooseIncomingCallType());
+  }else if(incomingScheduleTimer===null)scheduleIncomingCall();
+}
 function updateCallTexts(){
   const type=state.call.type==='video'?'视频通话中':'语音通话中';
   $('#callStateText').textContent=type;
   $('#miniCallLabel').textContent=type;
+  const name=$('.call-name');if(name)name.textContent=state.otherName||'联系人';
   $('#callScreen').classList.toggle('call-video',state.call.type==='video');
-  syncCallAvatar();
-  syncMiniPreview();
+  syncCallAvatar();syncMiniPreview();
 }
 function tickCallTimer(){
-  if(!state.call.active || !state.call.startAt) return;
+  if(!state.call.active||!state.call.startAt)return;
   const txt=formatDuration(Date.now()-state.call.startAt);
-  $('#callTimerText').textContent=txt;
-  $('#miniCallTime').textContent=txt;
+  $('#callTimerText').textContent=txt;$('#miniCallTime').textContent=txt;
 }
-function startCallTimer(){
-  clearInterval(callTimerHandle);
-  tickCallTimer();
-  callTimerHandle=setInterval(tickCallTimer,1000);
+function startCallTimer(){clearInterval(callTimerHandle);tickCallTimer();callTimerHandle=setInterval(tickCallTimer,1000);}
+function stopCallTimer(){clearInterval(callTimerHandle);callTimerHandle=null;}
+function openCallChoice(){
+  syncCallSettings();
+  const audio=$('[data-call-type="audio"]'),video=$('[data-call-type="video"]');
+  if(audio)audio.disabled=!state.callSettings.audioEnabled;
+  if(video)video.disabled=!state.callSettings.videoEnabled;
+  $('#callChoiceModal').classList.add('show');
 }
-function stopCallTimer(){ clearInterval(callTimerHandle); callTimerHandle=null; }
-function openCallChoice(){ $('#callChoiceModal').classList.add('show'); }
-function closeCallChoice(){ $('#callChoiceModal').classList.remove('show'); }
+function closeCallChoice(){$('#callChoiceModal').classList.remove('show');}
 async function startCall(type){
-  closeCallChoice();
-  state.call={active:true,type:type,mini:false,startAt:Date.now()};
-  updateCallTexts();
-  $('#callScreen').classList.add('show');
-  $('#miniCallWindow').classList.remove('show');
-  startCallTimer();
-  save();
-  await requestWakeLock();
+  if(type!=='audio'&&type!=='video')return;
+  if(type==='audio'&&!state.callSettings.audioEnabled||type==='video'&&!state.callSettings.videoEnabled)return;
+  if(incomingCallBusy())return;
+  clearIncomingSchedule(true);closeCallChoice();
+  state.call={active:true,direction:'outgoing',phase:'active',type,mini:false,startAt:Date.now(),incomingAt:0,miniPos:state.call?.miniPos||null};
+  updateCallTexts();$('#callScreen').classList.add('show');$('#miniCallWindow').classList.remove('show');
+  startCallTimer();save();updateIncomingCallStatus();await requestWakeLock();
 }
 function minimizeCall(){
-  if(!state.call.active) return;
-  state.call.mini=true;
-  $('#callScreen').classList.remove('show');
-  $('#miniCallWindow').classList.add('show');
-  applyMiniCallPosition();
-  save();
+  if(!state.call.active||state.call.phase!=='active')return;
+  state.call.mini=true;$('#callScreen').classList.remove('show');$('#miniCallWindow').classList.add('show');applyMiniCallPosition();save();
 }
 async function restoreCall(){
-  if(!state.call.active) return;
-  state.call.mini=false;
-  $('#miniCallWindow').classList.remove('show');
-  $('#callScreen').classList.add('show');
-  save();
-  await requestWakeLock();
+  if(!state.call.active||state.call.phase!=='active')return;
+  state.call.mini=false;$('#miniCallWindow').classList.remove('show');$('#callScreen').classList.add('show');save();await requestWakeLock();
 }
 async function endCall(){
-  if(!state.call.active) return;
+  if(!state.call.active||state.call.phase!=='active')return;
   const duration=formatDuration(Date.now()-state.call.startAt);
-  stopCallTimer();
-  $('#callScreen').classList.remove('show');
-  $('#miniCallWindow').classList.remove('show');
-  appendChatRow((()=>{ const line=document.createElement('div'); line.className='system-line'; line.innerHTML=`<span>已结束通话 ${duration}</span>`; return line; })());
-  state.call={active:false,type:'',mini:false,startAt:0,miniPos:state.call.miniPos||null};
-  save();
-  await releaseWakeLock();
+  const direction=state.call.direction;
+  stopCallTimer();$('#callScreen').classList.remove('show');$('#miniCallWindow').classList.remove('show');
+  appendCallLog('已结束'+(direction==='incoming'?'对方拨入':'主动拨出')+(state.call.type==='video'?'视频':'语音')+'通话 '+duration);
+  clearCallToIdle();await releaseWakeLock();scheduleIncomingCall({forceNew:true});
 }
 async function restoreCallIfNeeded(){
-  if(!state.call?.active || !state.call.startAt) return;
-  updateCallTexts();
-  startCallTimer();
-  if(state.call.mini){ $('#miniCallWindow').classList.add('show'); $('#callScreen').classList.remove('show'); applyMiniCallPosition(); }
-  else { $('#callScreen').classList.add('show'); $('#miniCallWindow').classList.remove('show'); }
+  if(!state.call?.active||!state.call.startAt){return;}
+  state.call.phase='active';state.call.direction=state.call.direction==='incoming'?'incoming':'outgoing';
+  updateCallTexts();startCallTimer();
+  if(state.call.mini){$('#miniCallWindow').classList.add('show');$('#callScreen').classList.remove('show');applyMiniCallPosition();}
+  else{$('#callScreen').classList.add('show');$('#miniCallWindow').classList.remove('show');}
   await requestWakeLock();
 }
-
 function processOfflineCatchup(){
   const now=Date.now();
   const hiddenAt=Number(state.offline?.lastHiddenAt||0);
