@@ -103,7 +103,30 @@ try {
   }
 
   const backupResult = await page.evaluate(async () => {
-    const archive = await window.__duoBackupV4.build('all');
+    const backupWriteAudit = { localStorage: [], indexedDB: [] };
+    const originalSetItem = Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
+    const originalTransaction = IDBDatabase.prototype.transaction;
+    Storage.prototype.setItem = function(key, value) {
+      backupWriteAudit.localStorage.push(String(key));
+      return originalSetItem.call(this, key, value);
+    };
+    Storage.prototype.removeItem = function(key) {
+      backupWriteAudit.localStorage.push('remove:' + String(key));
+      return originalRemoveItem.call(this, key);
+    };
+    IDBDatabase.prototype.transaction = function(stores, mode, options) {
+      if (mode === 'readwrite' || mode === 'versionchange') backupWriteAudit.indexedDB.push(String(mode));
+      return originalTransaction.call(this, stores, mode, options);
+    };
+    let archive;
+    try {
+      archive = await window.__duoBackupV4.build('all');
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+      Storage.prototype.removeItem = originalRemoveItem;
+      IDBDatabase.prototype.transaction = originalTransaction;
+    }
     const parsed = await window.__duoBackupV4.unzip(archive);
     const media = parsed.manifest.resources.filter(item => item.type === 'media');
     const font = parsed.manifest.resources.filter(item => item.type === 'font');
@@ -147,6 +170,7 @@ try {
       fontAfter: window.ChuanXunFontManager.getCurrentFontId(),
       fontBinaryMatches: fontBinaryMatches.every(Boolean),
       restoredFontBinaryMatches: restoredFontBinaryMatches.every(Boolean),
+      backupWriteAudit,
       messageIdsMatch: state.chatHistory.map(x => x.id).join('|') === mutated.map(x => x.id).join('|')
     };
   });
@@ -154,6 +178,7 @@ try {
   assert.ok(backupResult.media >= 1, 'all backup should contain the uploaded/sent sticker media');
   assert.ok(backupResult.after >= backupResult.before, 'V4 restore should restore the original chat');
   assert.equal(backupResult.messageIdsMatch, true);
+  assert.deepEqual(backupResult.backupWriteAudit, { localStorage: [], indexedDB: [] }, 'backup generation must not write to localStorage or any IndexedDB');
   assert.equal(fontTested, true, 'CI must exercise an actual custom font file');
   assert.ok(backupResult.fonts >= 1, 'font backup should include the imported test font');
   assert.equal(backupResult.fontAfter, backupResult.fontBefore);
