@@ -154,6 +154,8 @@ try {
   assert.ok(backupResult.media >= 1, 'all backup should contain the uploaded/sent sticker media');
   assert.ok(backupResult.after >= backupResult.before, 'V4 restore should restore the original chat');
   assert.equal(backupResult.messageIdsMatch, true);
+  assert.equal(fontTested, true, 'CI must exercise an actual custom font file');
+  assert.ok(backupResult.fonts >= 1, 'font backup should include the imported test font');
   assert.equal(backupResult.fontAfter, backupResult.fontBefore);
   assert.equal(backupResult.fontBinaryMatches, true, 'font Blob bytes should be present unchanged in the ZIP');
   assert.equal(backupResult.restoredFontBinaryMatches, true, 'font Blob bytes should survive clearing and restoring the font database');
