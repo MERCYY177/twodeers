@@ -5516,8 +5516,8 @@ async function applyBackupPayloadInternal(payload){
       try{init();}catch(rollbackUiError){console.warn('V3 UI rollback failed',rollbackUiError);}
       throw err;
     }
-  }  }else{showToast('不支持的备份类型');return;}
-  ensureChatState();if(!allRestoreInitialized){save();init();}showToast('备份已导入');
+  }else{showToast('不支持的备份类型');return;}
+  if(payload.kind==='all')showToast('备份已导入');
 }
 async function downloadBackup(kind){
   try{
