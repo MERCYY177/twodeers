@@ -18,4 +18,15 @@ for (const path of ['android-apps/app/src/main/java/com/mercyy/twodeers/MainActi
                     'android-apps/app/src/main/AndroidManifest.xml']) {
   if (!readFileSync(resolve(root, path), 'utf8').length) throw new Error('缺少 Android 文件：' + path);
 }
-console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；Android 壳工程关键文件存在。');
+const mainScript = inline.map(x => x[1]).join('\n');
+if (!mainScript.includes('initializeIncomingCallScheduler') || !mainScript.includes('triggerIncomingCall')) throw new Error('主动来电现有逻辑缺失');
+if (!html.includes('emoji-panel-columns') || !html.includes('emoji-column-stickers')) throw new Error('原有双列表情包布局被改变');
+const v4 = readFileSync(resolve(root, 'backup-v4.js'), 'utf8');
+for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json']) {
+  if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
+}
+const native = readFileSync(resolve(root, 'android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java'), 'utf8');
+for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','writeChunk','finishSave']) {
+  if (!native.includes(token)) throw new Error('Android 文件桥接缺失：' + token);
+}
+console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；来电/双列表情包/V4/Android 关键入口静态检查通过。');
