@@ -106,7 +106,7 @@
       throw e;
     }
   }
-  async function exportV4(kind){try{const blob=await buildV4(kind);triggerDownloadBlob('双人空间_'+kind+'_backup_v4.zip',blob);showToast(kind==='all'?'V4 总备份已导出':'V4 备份已导出');}catch(e){showToast('V4 备份失败：'+(e.message||e));throw e;}}
+  async function exportV4(kind){try{const blob=await buildV4(kind);if(!window.BackupFileService)throw new Error('统一文件保存服务尚未加载');await window.BackupFileService.save('双人空间_'+kind+'_backup_v4.zip',blob);showToast(kind==='all'?'V4 备份文件已交给保存入口':'V4 备份文件已交给保存入口');}catch(e){showToast('V4 备份失败：'+(e.message||e));throw e;}}
   document.addEventListener('click',function(e){const b=e.target&&e.target.closest?e.target.closest('#backupAllBtn,#backupChatBtn,#backupParamBtn'):null;if(!b)return;e.preventDefault();e.stopImmediatePropagation();exportV4(b.id==='backupAllBtn'?'all':b.id==='backupChatBtn'?'chat':'param').catch(()=>{});},true);
   document.addEventListener('change',function(e){if(!e.target||e.target.id!=='backupImporter')return;const file=e.target.files&&e.target.files[0];if(!file)return;e.stopImmediatePropagation();if(/\.zip$/i.test(file.name)||file.type==='application/zip'){restoreV4(file).catch(err=>showToast('V4 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}else{file.text().then(t=>applyBackupPayload(JSON.parse(t))).catch(err=>showToast('旧版 JSON 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}},true);
   const importer=document.getElementById('backupImporter');if(importer)importer.accept='.json,.zip,application/json,application/zip';
