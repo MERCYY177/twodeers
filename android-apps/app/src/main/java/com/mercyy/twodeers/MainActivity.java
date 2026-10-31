@@ -353,16 +353,24 @@ public class MainActivity extends Activity {
             }
         }
 
-        ReadbackResult readback = verifySavedFile(uri, expected, expectedHash);
-        if (readback.readable && !readback.valid) {
-            synchronized (saveLock) { cancelSaveLocked(); }
-            reply("finish-result", taskId, false, false, "保存文件回读后长度或 SHA-256 不匹配");
-            return;
-        }
-        synchronized (saveLock) { cancelSaveLocked(); }
-        reply("finish-result", taskId, true, readback.readable,
-                readback.readable ? "文件已写入并完成长度及 SHA-256 回读校验"
-                        : "文件已写入并完成流式 SHA-256 校验；当前文档提供器不支持回读，无法再次验证目标文件");
+        // Re-reading a large document-provider file can take seconds; do it off the UI thread.
+        new Thread(() -> {
+            ReadbackResult readback = verifySavedFile(uri, expected, expectedHash);
+            runOnUiThread(() -> {
+                synchronized (saveLock) {
+                    if (!taskMatches(taskId)) return;
+                    if (readback.readable && !readback.valid) {
+                        cancelSaveLocked();
+                        reply("finish-result", taskId, false, false, "保存文件回读后长度或 SHA-256 不匹配");
+                        return;
+                    }
+                    cancelSaveLocked();
+                }
+                reply("finish-result", taskId, true, readback.readable,
+                        readback.readable ? "文件已写入并完成长度及 SHA-256 回读校验"
+                                : "文件已写入并完成流式 SHA-256 校验；当前文档提供器不支持回读，无法再次验证目标文件");
+            });
+        }, "backup-file-readback").start();
     }
 
     private ReadbackResult verifySavedFile(Uri uri, long expectedSize, String expectedHash) {
