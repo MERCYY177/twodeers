@@ -61,6 +61,20 @@ test('snapshot acquisition failure releases the business event barrier', async (
   assert.equal((listeners.get('click') || new Set()).size, 0);
 });
 
+
+test('an asynchronous write invalidates a snapshot at write start, not completion', async () => {
+  const { api } = makeCoordinator();
+  api.register('media', { snapshot: () => ({ ids: ['m1'] }) });
+  const session = await api.beginSnapshot(['media']);
+  let finish;
+  const pending = api.trackWrite('media', new Promise(resolve => { finish = resolve; }));
+  assert.throws(() => session.assertUnchanged(), /发生变化/);
+  finish();
+  await pending;
+  assert.equal(api.getRevision('media'), api.getPersistedRevision('media'));
+  session.release();
+});
+
 test('unpersisted revisions prevent a backup snapshot', async () => {
   const { api } = makeCoordinator();
   api.register('chat', { snapshot: () => ({}) });
