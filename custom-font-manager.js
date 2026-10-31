@@ -571,19 +571,26 @@
     options = options || {};
     var source = payload && Array.isArray(payload.fonts) ? payload.fonts : [];
     if (source.length > 500) return Promise.reject(error('字体备份条目过多'));
-    return Promise.all(source.map(function (item) {
-      if (!item || typeof item.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(item.id)) throw error('字体备份 ID 无效');
-      var blob = item.blob instanceof Blob ? item.blob : null;
-      if (!blob || !blob.size || blob.size > MAX_FILE_SIZE) throw error('字体备份文件缺失或超过 50 MB');
-      return blob.slice(0, 16).arrayBuffer().then(function (head) {
-        var format = detectFormat(head, item.fileName || ('font.' + item.format));
-        var record = { id: item.id, name: String(item.name || '自定义字体').slice(0, 120), fileName: String(item.fileName || ('font.' + format)).slice(0, 180), format: format, mimeType: MIME_BY_FORMAT[format], size: blob.size, blob: blob, createdAt: Number(item.createdAt) || Date.now() };
-        return buildFontFace(record).then(function (loaded) {
-          try { global.document.fonts.delete(loaded.face); } catch (_) {}
-          return record;
+    var totalBytes = 0;
+    // Validate fonts one at a time to avoid loading a library of large FontFace objects concurrently.
+    return source.reduce(function (chain, item) {
+      return chain.then(function (records) {
+        if (!item || typeof item.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(item.id)) throw error('字体备份 ID 无效');
+        var blob = item.blob instanceof Blob ? item.blob : null;
+        if (!blob || !blob.size || blob.size > MAX_FILE_SIZE) throw error('字体备份文件缺失或超过 50 MB');
+        totalBytes += blob.size;
+        if (totalBytes > 1024 * 1024 * 1024) throw error('字体库总大小超过 1 GB');
+        return blob.slice(0, 16).arrayBuffer().then(function (head) {
+          var format = detectFormat(head, item.fileName || ('font.' + item.format));
+          var record = { id: item.id, name: String(item.name || '自定义字体').slice(0, 120), fileName: String(item.fileName || ('font.' + format)).slice(0, 180), format: format, mimeType: MIME_BY_FORMAT[format], size: blob.size, blob: blob, createdAt: Number(item.createdAt) || Date.now() };
+          return buildFontFace(record).then(function (loaded) {
+            try { global.document.fonts.delete(loaded.face); } catch (_) {}
+            records.push(record);
+            return records;
+          });
         });
       });
-    })).then(function (records) {
+    }, Promise.resolve([])).then(function (records) {
       return openDatabase().then(function (db) {
         var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
         var done = transactionDone(tx);
