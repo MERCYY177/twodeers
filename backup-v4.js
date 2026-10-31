@@ -64,9 +64,10 @@
       let incomingState;
       if(kind==='all')incomingState=data.state||data;
       const chatSource=kind==='chat'?data:(kind==='all'?incomingState:null);
-      if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id)&&!await getMediaRecord(id))throw new Error('聊天 / 表情引用的媒体不存在：'+id);}}
+      if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id))throw new Error('备份包未包含聊天 / 表情引用的媒体：'+id);}}
       for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
       if(kind==='all'){
+        if(!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
         if(!incomingState||typeof incomingState!=='object'||Array.isArray(incomingState))throw new Error('总备份状态格式无效');
         const circleData=map.has('circle-state.json')?JSON.parse(await map.get('circle-state.json').blob.text()):null;
         if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);setCircleState(circleData);circleWritten=true;}
@@ -84,6 +85,7 @@
         if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
         if(Array.isArray(data.stickerFavorites))state.stickerFavorites=data.stickerFavorites;
       }
+      if(kind!=='chat'&&window.ChuanXunFontManager&&!map.has('font-library.json'))throw new Error('参数/总备份缺少字体库清单');
       if(kind!=='chat'&&window.ChuanXunFontManager&&map.has('font-library.json')){
         const fm=JSON.parse(await map.get('font-library.json').blob.text());
         const restored=[];for(const f of fm.fonts||[]){const x=map.get(f.path);if(!x)throw new Error('字体资源缺失：'+f.id);restored.push({...f,blob:x.blob});}
