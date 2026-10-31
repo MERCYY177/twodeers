@@ -7,11 +7,12 @@ Working branch: `repair/backup-export-readonly`
 ## Recovery baseline and current refs
 
 - Original repair baseline: `18890a65a8ba75f68432444701f8a9a0ebf6b41c`
-- Main HEAD re-read on 2026-10-31: `58eb499521c5f1b9e4653b07a272082d08ddc029`
-- Repair branch code/test HEAD re-read on 2026-10-31 before this status update: `60873fb92bda2e9ca4496525e942d51d9d876a09`
-- Repair branch comparison against the original baseline at that code/test HEAD: 45 commits ahead, 0 behind.
-- Main comparison against the original baseline at the observed main HEAD: 16 commits ahead, 0 behind.
-- This is a remote-state checkpoint. A separate status-only commit will follow this code/test checkpoint.
+- Main HEAD re-read on 2026-10-31: `489a8acc09627e32c18590440c77858f25ebdc3f`
+- Repair branch code/test HEAD re-read on 2026-10-31: `513dd8fb4ae17058f5f0417b3273a6e68bed46a0`
+- Repair branch comparison against the original baseline: 62 commits ahead, 0 behind.
+- Main comparison against the original baseline at the observed main HEAD: 19 commits ahead, 0 behind.
+- Compared with task start HEAD `ce500a99a80ca11cb45376c981f90b045e976587`, this task added 16 commits and changed five paths: `backup-snapshot-coordinator.js`, `backup-v4.js`, `index.html`, `tests/backup-snapshot-coordinator.test.mjs`, and `tests/browser-smoke.mjs`.
+- This is a remote-state checkpoint. The next commit updates this status document only.
 - This record reflects GitHub remote state only. It does not claim inspection of any developer's local uncommitted working tree.
 
 ## Scope and safety rules
@@ -58,54 +59,54 @@ The repair branch comparison from the original baseline reports these 13 changed
 
 ## Latest confirmed CI evidence
 
-- Latest successful repair-branch Actions run: run `41187443752` (workflow run #73).
-- Run URL: https://github.com/MERCYY177/twodeers/actions/runs/41187443752
-- Run head SHA: `60873fb92bda2e9ca4496525e942d51d9d876a09`.
-- Job ID: `124497129025`; job and workflow conclusion: `success`.
-- Node test suite: 14 tests, 14 passed, 0 failed, 0 skipped.
-- Playwright browser regression output: `result: passed`; verified three sticker tabs remain, builtin placeholder remains honest, PNG/GIF upload and image load, favorite toggle/empty state/persistence, referenced media protection, orphan media cleanup, sent-media backup, V4 restore, V3 import, and custom-font import.
-- Android Debug APK: `BUILD SUCCESSFUL in 19s`.
-- Artifact upload succeeded: `twodeers-debug-apk`, artifact ID `13037980252`, size 1,263,914 bytes. The artifact is available from the Run #73 page.
-- The earlier sticker-port attempts were not successful and are retained as failure history: run `41186401148` failed because the second delete control was hidden; run `41187151238` failed because the test clicked `#emojiBtn` while the test was still on the home page and `chatPage` was hidden.
-- The final passing correction changes only the browser test harness: it explicitly shows the app-level emoji panel, sets `aria-hidden=false`, waits for the delete control to be rendered and visible, and retains the orphan IndexedDB cleanup assertion.
+- Latest successful repair-branch Actions run: run `41203238723` (workflow run #92).
+- Run URL: https://github.com/MERCYY177/twodeers/actions/runs/41203238723
+- Run head SHA: `513dd8fb4ae17058f5f0417b3273a6e68bed46a0`.
+- Job ID: `124543071057`; job and workflow conclusion: `success`.
+- Node test suite: 16 tests, 16 passed, 0 failed, 0 skipped.
+- Playwright browser regression output: `result: passed`. Assertions include Circle save registration exactly once, failed-save rollback, timed auto-post persistence, snapshot invalidation on write, V3 full restore success and failure rollback, V4 full restore, V4 injected failure rollback for chat/localStorage/Circle/media/fonts and selected font, a snapshot waiting for V4 restore to finish, and a V4 restore entry being rejected without mutation once a snapshot is active. Existing sticker, media, V3/V4, and custom-font browser checks also remain.
+- Android Debug APK: `BUILD SUCCESSFUL in 16s`.
+- Artifact upload succeeded: `twodeers-debug-apk`, artifact ID `13043655275`, size 1,265,332 bytes. This is a CI build artifact, not a real-device SAF test.
+- Intermediate failures on the way to this checkpoint are recorded accurately: runs `41202472563` and `41202511869` stopped at `verify-source` because the V3 branch rewrite had one extra closing brace; runs `41203089613` through `41203114528` exposed tests still using the previous `trackOperation(Promise)` interface; runs `41203141720` and `41203165496` exposed a unit-test microtask timing assumption. The branch was corrected and the final Run #92 passed all steps.
 - These CI results do not establish a successful real-device Android Storage Access Framework (SAF) save/read-back test, nor do they prove every acceptance criterion below is complete.
 
 ## Main branch changes and integration risk
 
-Main was re-read at `58eb499521c5f1b9e4653b07a272082d08ddc029` on 2026-10-31. Compared with the original baseline, main is 16 commits ahead and 0 behind. Its changed paths are:
+Main was re-read at `489a8acc09627e32c18590440c77858f25ebdc3f` on 2026-10-31. Compared with the original baseline, main is 19 commits ahead and 0 behind. Its changed paths include the Android workflow/build/manifest and launcher resources, `chat-beautify-manager.js`, `chat-beautify-presets.js`, `index.html`, `sticker-library.js`, and browser/chat-beautify tests.
 
-- `.github/workflows/android-apk.yml`
-- `android-apps/app/build.gradle.kts`
-- `android-apps/app/src/main/AndroidManifest.xml`
-- Android launcher icon/resources under `android-apps/app/src/main/res/`
-- `sticker-library.js`
-- `tests/browser-smoke.mjs`
+The repair branch and main now both modify `.github/workflows/android-apk.yml`, `index.html`, and `tests/browser-smoke.mjs`. Main's `index.html` delta is small at the baseline comparison, but it is still a same-file integration point and must be reviewed surgically before any future integration. Main's `sticker-library.js` change is not copied to repair: the repair branch deliberately retains the three-tab product behavior (uploads, favorites, builtin placeholder). Do not replace either complete workflow, index, or browser test file with main's version.
 
-The repair branch also changes `.github/workflows/android-apk.yml` and `tests/browser-smoke.mjs`, so these remain same-file integration points. Main's `sticker-library.js` is not copied to repair: the repair branch deliberately retains the three-tab product behavior (uploads, favorites, builtin placeholder). Do not replace either complete workflow or browser test file with main's version. The required main sticker regression coverage has been surgically added to the repair test file and now passes in Run #73.
+No write, merge, cherry-pick, or rebase was performed on main. All current repairs and tests were committed only to `repair/backup-export-readonly`.
 
-No write, merge, cherry-pick, or rebase was performed on main. The repaired browser test did not change `sticker-library.js` or other product implementation files.
+## Snapshot write-registration repair completed in this task
+
+- Circle `save()` override now delegates once to the original save function, preserving its sole successful `noteWrite('circle', true)` registration. A failed underlying storage write records an unpersisted Circle revision instead of silently appearing clean. Circle `importState` now checks persistence success and verifies rollback storage before reconciling the revision.
+- V3 import entry is registered as one pending operation before execution. The `all` path persists chat through the tracked `save()`, restores media rollback through a tracked helper, restores old chat localStorage through a helper that records success/failure, and rolls back Circle through its registered import path. The legacy `chat` and `param` branches now use guarded state/storage/media rollback rather than leaving partial changes.
+- V4 restore is registered for its full asynchronous lifetime. Chat localStorage rollback, Circle rollback, media put/delete restoration, and font database rollback are each routed through the relevant tracked write paths. A restore that begins before a snapshot is drained before snapshot capture; a restore requested after the snapshot barrier is active is rejected before its callback can run.
+- Whole-space reset was also placed inside the same pending-operation barrier; its chat storage removal is registered after successful removal, and media clear continues through the tracked media service.
+- Browser integration coverage exercises Circle success/failure/timer paths, V3 full success/failure rollback including localStorage and IndexedDB media, V4 injected failure rollback across chat/Circle/media/font and selected-font state, and both directions of restore/snapshot interleaving.
+- The static write-path audit covered repository web JS/HTML persistence sources: Circle and chat localStorage save paths; Circle/V3/chat rollback and reset paths; media IndexedDB put/delete/clear/rollback; and font IndexedDB set-current/import/delete paths. All data writes found are registered with the snapshot coordinator either directly or via `trackWrite`/the outer pending operation. The one remaining `localStorage.setItem('__chuanxun_font_signal__', ...)` is a cross-tab notification signal, not font-library snapshot data. No other unregistered web snapshot-data write path was found in the audited source files.
+- Modified files for this task: `index.html`, `backup-v4.js`, `backup-snapshot-coordinator.js`, `tests/backup-snapshot-coordinator.test.mjs`, and `tests/browser-smoke.mjs`.
+- Final code/test commit: `513dd8fb4ae17058f5f0417b3273a6e68bed46a0`; Run #92 is green.
 
 ## Remaining acceptance work
 
-- Complete a systematic source audit of all backup/export entry points and confirm snapshot reads do not invoke mutating save/flush/fallback paths.
-- Verify cross-module read-only snapshots, revision/persistedRevision checks, pending-write draining, and snapshot/event barrier release under success and failure.
-- Audit complete font-library import/export fidelity and selected-font restoration.
+- Complete any remaining read-only/export-entry audit beyond the storage-write registration scope, including export flows not exercised by the current browser suite.
 - Audit unified file-save routing across all relevant exports, including social-feed export.
-- Verify cross-iframe Blob handling in supported browsers.
+- Extend cross-iframe Blob verification beyond the CI Chromium environment where other supported engines are required.
 - Complete Android trusted-origin bridge review: main-frame/origin checks, task IDs, chunk sequencing/length limits, SHA-256, cancellation, file read-back verification, and provider limitations.
-- Perform a real-device Android SAF save and read-back test when a device/provider is available.
-- Verify old JSON/V3 import compatibility.
-- Re-run Android build and browser tests after subsequent integration changes.
+- Perform a real-device Android SAF save and read-back test when a device/provider is available. CI APK build success does not prove device/provider behavior.
+- Add fixtures for any older V3 JSON variants not represented by the current full/param restore browser tests.
 - Determine old APK signing identity/package/version compatibility before making any claim about in-place upgrade compatibility.
 
 ## Known risks and limitations
 
-- `.github/workflows/android-apk.yml` and `tests/browser-smoke.mjs` both differ from the common baseline on main and repair; do not overwrite either repair version wholesale.
-- CI has built and uploaded a debug APK, but no real-device SAF verification is recorded here.
+- `.github/workflows/android-apk.yml`, `index.html`, and `tests/browser-smoke.mjs` are integration points shared by main and repair relative to the common baseline; do not overwrite repair files wholesale.
+- CI built and uploaded a debug APK, but there is no real-device Android SAF save/read-back result. Provider-specific behavior remains unverified.
 - Old APK signing identity has not been established; overwrite-install compatibility is unknown.
-- Main's current branch SHA was revalidated, but its latest Actions state was not; do not infer its CI status from repair-branch runs.
-- Run #73 confirms the 14 Node tests and browser smoke test passed; this is not a claim that the entire acceptance checklist is complete.
+- Main's SHA was revalidated, but no claim is made about the current main Actions status.
+- The final CI proves web-source verification, 16 Node tests, Playwright Chromium browser behavior, Android debug compilation, and artifact upload. It does not prove real-device Android storage behavior or complete all remaining acceptance work.
 
 ## Next single task
 
-The bounded sticker-regression integration task is complete at code/test commit `60873fb92bda2e9ca4496525e942d51d9d876a09`, and Run #73 is green. Do not start a new implementation batch implicitly. On the next explicitly requested batch, first re-read both branch refs and this status file, then select one remaining acceptance item from the checklist above. Preserve the three sticker tabs and keep all writes off main.
+The Circle/V3/V4 snapshot write-registration repair is complete at code/test commit `513dd8fb4ae17058f5f0417b3273a6e68bed46a0`, with Run #92 green. Do not start a new implementation batch implicitly. On the next explicitly requested batch, re-read both branch refs and this status file, then select one remaining acceptance item above. Preserve the three sticker tabs and keep all writes off main.
