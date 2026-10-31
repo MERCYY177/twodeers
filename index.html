@@ -2774,12 +2774,24 @@ qs('#clearOtherAvatarBtn').onclick = ()=>{ tempAssets.otherAvatar=''; tempAssets
 qs('#clearCoverBtn').onclick = ()=>{ tempAssets.myCover=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
 qs('#clearOtherCoverBtn').onclick = ()=>{ tempAssets.otherCover=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
 qs('#exportBtn').onclick = async ()=>{
+  let snapshot=null;
   try {
-    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    let circleState;
+    if(window.BackupSnapshotCoordinator){
+      snapshot=await window.BackupSnapshotCoordinator.beginSnapshot(['circle']);
+      circleState=snapshot.get('circle');
+      snapshot.assertUnchanged();
+    }else{
+      circleState=JSON.parse(JSON.stringify(state));
+    }
+    const blob = new Blob([JSON.stringify(circleState,null,2)], {type:'application/json'});
     if(!window.BackupFileService) throw new Error('统一文件保存服务尚未加载');
+    if(snapshot){snapshot.release();snapshot=null;}
     await window.BackupFileService.save('moments_backup.json', blob);
   } catch(error) {
     alert('朋友圈备份保存失败：' + (error && error.message ? error.message : error));
+  } finally {
+    if(snapshot)snapshot.release();
   }
 };
 qs('#importBtn').onclick = ()=>qs('#importFile').click();
@@ -5420,8 +5432,12 @@ async function applyBackupPayload(payload){
   ensureChatState();if(!allRestoreInitialized){save();init();}showToast('备份已导入');
 }
 async function downloadBackup(kind){
-  try{const blob=await buildBackup(kind);if(!window.BackupFileService)throw new Error('统一文件保存服务尚未加载');await window.BackupFileService.save('双人空间_'+kind+'_backup.json',blob);showToast(kind==='all'?'备份文件已交给保存入口（含朋友圈）':'备份文件已交给保存入口');}
-  catch(e){showToast('备份失败：'+(e.message||'读取媒体或朋友圈数据失败'));}
+  try{
+    if(!window.__duoBackupV4||!window.BackupFileService)throw new Error('V4 只读快照或统一文件保存服务尚未加载');
+    const blob=await window.__duoBackupV4.build(kind);
+    await window.BackupFileService.save('双人空间_'+kind+'_backup_v4.zip',blob);
+    showToast('V4 备份文件已交给统一保存入口');
+  }catch(e){showToast('备份失败：'+(e.message||'读取快照或文件保存失败'));}
 }
 $('#backupAllBtn')?.addEventListener('click',()=>downloadBackup('all'));
 $('#backupChatBtn')?.addEventListener('click',()=>downloadBackup('chat'));
