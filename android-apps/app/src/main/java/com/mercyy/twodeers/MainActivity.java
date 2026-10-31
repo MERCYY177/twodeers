@@ -68,6 +68,17 @@ public class MainActivity extends Activity {
               window.__duoNativeDownloadInstalled=true;
               return;
             }
+            var pending=window.__duoNativeSavePending||(window.__duoNativeSavePending=new Map());
+            if(!window.__duoNativeBridgeHandlerInstalled){
+              bridge.onmessage=function(event){
+                var message;
+                try{message=JSON.parse(event.data);}catch(_){return;}
+                var key=message.taskId+':'+message.type+':'+(message.index===undefined?'':message.index);
+                var waiter=pending.get(key);
+                if(waiter){pending.delete(key);waiter(message);}
+              };
+              window.__duoNativeBridgeHandlerInstalled=true;
+            }
             var wrapped=function(name,blob){
               if(!blob||Object.prototype.toString.call(blob)!=='[object Blob]'||
                  typeof blob.slice!=='function'||typeof blob.arrayBuffer!=='function'){
@@ -82,17 +93,11 @@ public class MainActivity extends Activity {
                 document.body.appendChild(link);
               }
               var taskId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('backup_'+Date.now()+'_'+Math.random().toString(36).slice(2));
-              var pending=new Map();
-              bridge.onmessage=function(event){
-                var message;
-                try{message=JSON.parse(event.data);}catch(_){return;}
-                var key=message.type+':'+(message.index===undefined?'':message.index);
-                var waiter=pending.get(key);
-                if(waiter){pending.delete(key);waiter(message);}
-              };
-              function send(type,fields){
+              function send(taskId,type,fields){
                 return new Promise(function(resolve,reject){
-                  var key=type==='request'?'request-result':(type==='chunk'?'chunk-result:'+fields.index:'finish-result');
+                  var responseType=type==='request'?'request-result':(type==='chunk'?'chunk-result':'finish-result');
+                  var index=type==='chunk'?fields.index:'';
+                  var key=taskId+':'+responseType+':'+index;
                   var timeout=setTimeout(function(){pending.delete(key);reject(new Error('Android 文件桥接响应超时'));},30000);
                   pending.set(key,function(message){clearTimeout(timeout);resolve(message);});
                   try{bridge.postMessage(JSON.stringify(Object.assign({type:type,taskId:taskId},fields||{})));}
@@ -106,24 +111,24 @@ public class MainActivity extends Activity {
                 try{
                   if(!window.__duoBackupV4||typeof window.__duoBackupV4.inspect!=='function')throw new Error('缺少备份 SHA-256 校验器');
                   var integrity=await window.__duoBackupV4.inspect(blob);
-                  var picked=await send('request',{name:String(name||'双人空间备份.zip'),mimeType:String(blob.type||'application/zip'),size:Number(blob.size),sha256:integrity.sha256});
+                  var picked=await send(taskId,'request',{name:String(name||'双人空间备份.zip'),mimeType:String(blob.type||'application/zip'),size:Number(blob.size),sha256:integrity.sha256});
                   if(!picked.ok)throw new Error(picked.message||'用户取消或无法创建保存文件');
                   var offset=0,index=0,chunkSize=24576;
                   while(offset<blob.size){
                     var bytes=new Uint8Array(await blob.slice(offset,Math.min(blob.size,offset+chunkSize)).arrayBuffer());
                     var binary='';for(var i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
-                    var result=await send('chunk',{index:index,data:btoa(binary)});
+                    var result=await send(taskId,'chunk',{index:index,data:btoa(binary)});
                     if(!result.ok)throw new Error(result.message||('第 '+index+' 个文件分块写入失败'));
                     offset+=bytes.length;index++;
                   }
-                  var finished=await send('finish',{chunks:index});
+                  var finished=await send(taskId,'finish',{chunks:index});
                   if(!finished.ok)throw new Error(finished.message||'保存文件完整性验证失败');
                   delete link.dataset.saving;
                   link.textContent=finished.verified?'已保存并回读校验':'已保存（目标位置不支持完整回读校验）';
                   if(typeof window.showToast==='function')window.showToast(finished.message||'备份文件保存完成');
                 }catch(error){
                   try{bridge.postMessage(JSON.stringify({type:'cancel',taskId:taskId}));}catch(_){}
-                  pending.clear();delete link.dataset.saving;link.textContent='重新保存文件';
+                  pending.forEach(function(_,key){if(key.indexOf(taskId+':')===0)pending.delete(key);});delete link.dataset.saving;link.textContent='重新保存文件';
                   alert('备份保存失败：'+(error.message||error));
                 }
               };
