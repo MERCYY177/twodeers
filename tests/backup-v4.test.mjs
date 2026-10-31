@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { TextEncoder, TextDecoder } from 'node:util';
 
 const source = readFileSync(new URL('../backup-v4.js', import.meta.url), 'utf8');
+const coordinatorSource = readFileSync(new URL('../backup-snapshot-coordinator.js', import.meta.url), 'utf8');
 const state = {
   icons: {}, media: {}, avatarShape: 'round', bubbleShape: 'round',
   bubbleColors: { me:'#f2f5fb', other:'#fff' },
@@ -18,8 +19,8 @@ const state = {
 const mediaBlob = new Blob(['chat-media-binary']);
 const sandbox = {
   state,
-  window: {},
-  document: { addEventListener(){}, getElementById(){ return null; } },
+  window: { ChuanXunFontManager: { exportData: async () => ({ currentFontId: null, fonts: [] }) } },
+  document: { addEventListener(){}, removeEventListener(){}, getElementById(){ return null; } },
   TextEncoder, TextDecoder, Blob,
   getCircleState(){ return {}; },
   getCurrentMediaIds(){ return sandbox.currentMediaIds || []; },
@@ -28,6 +29,7 @@ const sandbox = {
   console
 };
 vm.createContext(sandbox);
+vm.runInContext(coordinatorSource, sandbox, { filename:'backup-snapshot-coordinator.js' });
 vm.runInContext(source, sandbox, { filename:'backup-v4.js' });
 const api = sandbox.window.__duoBackupV4;
 
