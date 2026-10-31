@@ -34,11 +34,16 @@
     pending.add(tracked);
     return tracked;
   }
-  function trackOperation(promise) {
+  function trackOperation(work) {
+    // Reject an operation that tries to start after a snapshot barrier is active.
+    // Accept a callback, not an already-running Promise, so the rejection happens
+    // before any restore mutation can begin.
+    if (active) throw new Error('备份快照正在进行，无法开始恢复操作');
+    if (typeof work !== 'function') throw new TypeError('恢复操作必须以延迟执行的函数提供');
     // Track a multi-module restore for its full lifetime without pretending that
     // any particular module has been persisted. Its individual writes must still
     // advance their own revisions through noteWrite/trackWrite.
-    const task = Promise.resolve(promise);
+    const task = Promise.resolve().then(work);
     let tracked;
     tracked = task.finally(function () { pending.delete(tracked); });
     pending.add(tracked);
