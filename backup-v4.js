@@ -37,9 +37,10 @@
     if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
     const required=kind==='all'?['chat','circle','media','fonts']:(kind==='chat'?['chat','media']:['chat','fonts']);
     const snapshot=await snapshotCoordinator.beginSnapshot(required);
+    let entries=[],fontsCurrentId=null;
     try{
       const source=snapshot.get('chat');
-      const entries=[];let stateData={},mediaIds=[];
+      let stateData={},mediaIds=[];
       if(kind==='all'){stateData={state:source};mediaIds=snapshot.get('media');}
       else if(kind==='chat'){
         mediaIds=mediaIdsFromState(source);
@@ -49,12 +50,12 @@
       }
       entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
       if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(snapshot.get('circle')),type:'circle-state'});
-      for(const id of mediaIds){
-        const rec=await getMediaRecord(id);
-        if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);
-        entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});
-      }
-      let fontsCurrentId=null;
+      const mediaRecords=await Promise.all(mediaIds.map(async function(id){
+        const record=await getMediaRecord(id);
+        if(!record||!record.blob)throw new Error('备份媒体缺失：'+id);
+        return record;
+      }));
+      for(const record of mediaRecords)entries.push({path:'media/'+encodeURIComponent(record.id)+'.blob',blob:record.blob,type:'media',id:record.id,kind:record.kind,name:record.name,mimeType:record.mimeType,createdAt:record.createdAt});
       if(kind!=='chat'){
         const exported=snapshot.get('fonts');
         fontsCurrentId=exported.currentFontId||null;
@@ -68,13 +69,14 @@
         entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});
       }
       snapshot.assertUnchanged();
-      window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
-      try{
-        const archive=await makeZip(entries);
-        snapshot.assertUnchanged();
-        return archive;
-      }finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
-    }finally{snapshot.release();}
+    }finally{
+      // All mutable module data and immutable Blob references are now captured.
+      // Release the business event barrier before CPU-heavy hashing and ZIP assembly.
+      snapshot.release();
+    }
+    window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
+    try{return await makeZip(entries);}
+    finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
   }
   function safePath(path){return typeof path==='string'&&path.length>0&&path.length<1024&&!path.startsWith('/')&&!path.includes('\\')&&!path.split('/').some(x=>x==='..'||x==='.'||x==='');}
   async function unzipStored(blob){
