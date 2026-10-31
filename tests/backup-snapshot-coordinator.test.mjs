@@ -88,7 +88,7 @@ test('snapshot waits for a multi-module restore operation before reading partici
   let value = 'before';
   api.register('chat', { snapshot: () => ({ value }) });
   let finishRestore;
-  const restore = api.trackOperation(new Promise(resolve => {
+  const restore = api.trackOperation(() => new Promise(resolve => {
     finishRestore = () => {
       value = 'restored';
       api.noteWrite('chat', true);
@@ -104,5 +104,23 @@ test('snapshot waits for a multi-module restore operation before reading partici
   assert.equal(snapshot.get('chat').value, 'restored');
   assert.equal(snapshot.revision.chat, 1);
   assert.equal(snapshot.persistedRevision.chat, 1);
+  snapshot.release();
+});
+
+test('restore operations cannot start after a snapshot barrier becomes active', async () => {
+  const { api } = makeCoordinator();
+  let value = 'stable';
+  let workStarted = false;
+  api.register('chat', { snapshot: () => ({ value }) });
+  const snapshot = await api.beginSnapshot(['chat']);
+  assert.throws(() => api.trackOperation(() => {
+    workStarted = true;
+    value = 'mutated';
+    api.noteWrite('chat', true);
+  }), /备份快照正在进行/);
+  await Promise.resolve();
+  assert.equal(workStarted, false, 'rejected restore callback must never execute');
+  assert.equal(value, 'stable');
+  assert.doesNotThrow(() => snapshot.assertUnchanged());
   snapshot.release();
 });
