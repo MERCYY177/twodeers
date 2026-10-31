@@ -1662,15 +1662,6 @@ let draftReplyCards = [];
 const DEFAULT_UI_SCALE = 1.00;
 const DEFAULT_FONT_PERCENT = 100;
 
-function normalizeIncomingCallSettings(raw){
-  const src=raw&&typeof raw==='object'?raw:{};
-  let min=Math.round(Number(src.minIntervalSec));if(!Number.isFinite(min)||min<1)min=90;min=Math.min(86400,min);
-  let max=Math.round(Number(src.maxIntervalSec));if(!Number.isFinite(max)||max<1)max=180;max=Math.min(86400,max);
-  if(min>max)max=min;
-  let probability=Number(src.videoProbability);if(!Number.isFinite(probability))probability=60;probability=Math.max(0,Math.min(100,Math.round(probability)));
-  let timeout=Math.round(Number(src.ringTimeoutSec));if(!Number.isFinite(timeout)||timeout<5)timeout=25;timeout=Math.max(5,Math.min(300,timeout));
-  return {enabled:src.enabled!==false,audioEnabled:src.audioEnabled!==false,videoEnabled:src.videoEnabled!==false,videoProbability:probability,minIntervalSec:min,maxIntervalSec:max,ringTimeoutSec:timeout};
-}
 const DEFAULT_STATE = {
   myName:'',
   otherName:'',
@@ -1688,11 +1679,7 @@ const DEFAULT_STATE = {
   uiFontScale:DEFAULT_UI_SCALE,
   posts:[],
   pendingEvents:[],
-  nextOtherPostAt:0,
-  call:{active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},
-  callSettings:{audioEnabled:true,videoEnabled:true},
-  incomingCallSettings:{enabled:true,audioEnabled:true,videoEnabled:true,videoProbability:60,minIntervalSec:90,maxIntervalSec:180,ringTimeoutSec:25},
-  incomingCallNextAt:0
+  nextOtherPostAt:0
 };
 const state = Object.assign({}, DEFAULT_STATE, load());
 normalizeStateShape(state);
@@ -1718,12 +1705,6 @@ function normalizeStateShape(target){
   target.posts = Array.isArray(target.posts) ? target.posts : [];
   target.pendingEvents = Array.isArray(target.pendingEvents) ? target.pendingEvents : [];
   target.nextOtherPostAt = Math.max(0, Number(target.nextOtherPostAt) || 0);
-  target.call=Object.assign({active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},target.call||{});
-  if(target.call.active){target.call.phase='active';target.call.direction=target.call.direction==='incoming'?'incoming':'outgoing';target.call.startAt=Math.max(1,Number(target.call.startAt)||Date.now());}
-  else if(target.call.phase!=='ringing'){target.call={...target.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0};}
-  target.callSettings=Object.assign({audioEnabled:true,videoEnabled:true},target.callSettings||{});
-  target.incomingCallSettings=normalizeIncomingCallSettings(target.incomingCallSettings);
-  target.incomingCallNextAt=Math.max(0,Number(target.incomingCallNextAt)||0);
   return target;
 }
 function buildSanitizedState(data){
@@ -4176,6 +4157,15 @@ window.__duoCircleApi = {
 </div>
 <script>
 const STORAGE_KEY='dual_space_app_clean_test_v1';
+function normalizeIncomingCallSettings(raw){
+  const src=raw&&typeof raw==='object'?raw:{};
+  let min=Math.round(Number(src.minIntervalSec));if(!Number.isFinite(min)||min<1)min=90;min=Math.min(86400,min);
+  let max=Math.round(Number(src.maxIntervalSec));if(!Number.isFinite(max)||max<1)max=180;max=Math.min(86400,max);
+  if(min>max)max=min;
+  let probability=Number(src.videoProbability);if(!Number.isFinite(probability))probability=60;probability=Math.max(0,Math.min(100,Math.round(probability)));
+  let timeout=Math.round(Number(src.ringTimeoutSec));if(!Number.isFinite(timeout)||timeout<5)timeout=25;timeout=Math.max(5,Math.min(300,timeout));
+  return {enabled:src.enabled!==false,audioEnabled:src.audioEnabled!==false,videoEnabled:src.videoEnabled!==false,videoProbability:probability,minIntervalSec:min,maxIntervalSec:max,ringTimeoutSec:timeout};
+}
 const state = {
   currentPage:'homePage',
   icons:{'home-chat':'','home-space':'','home-settings':''},
@@ -4189,8 +4179,10 @@ const state = {
   customCSS:'',
   typing:{enabled:true,text:'正在输入中'},
   offline:{chatEnabled:true,chatMin:30,chatMax:180,lastHiddenAt:0,lastChatAt:0},
-  call:{active:false,type:'',mini:false,startAt:0,miniPos:null},
+  call:{active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},
   callSettings:{audioEnabled:true,videoEnabled:true},
+  incomingCallSettings:{enabled:true,audioEnabled:true,videoEnabled:true,videoProbability:60,minIntervalSec:90,maxIntervalSec:180,ringTimeoutSec:25},
+  incomingCallNextAt:0,
   settingsTab:'icon',
   cardPhrases:[],
   stickers:[],
@@ -4213,8 +4205,12 @@ try{
     state.typing=Object.assign({enabled:true,text:'正在输入中'}, saved.typing||{});
     state.offline=Object.assign({chatEnabled:true,chatMin:30,chatMax:180,lastHiddenAt:0,lastChatAt:0}, saved.offline||{});
     delete state.offline.spaceEnabled; delete state.offline.spaceMin; delete state.offline.spaceMax; delete state.offline.lastSpaceAt;
-    state.call=Object.assign({active:false,type:'',mini:false,startAt:0,miniPos:null}, saved.call||{});
+    state.call=Object.assign({active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null}, saved.call||{});
+    if(state.call.active){state.call.phase='active';state.call.direction=state.call.direction==='incoming'?'incoming':'outgoing';}
+    else if(state.call.phase!=='ringing')state.call={...state.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0};
     state.callSettings=Object.assign({audioEnabled:true,videoEnabled:true}, saved.callSettings||{});
+    state.incomingCallSettings=normalizeIncomingCallSettings(saved.incomingCallSettings||state.incomingCallSettings);
+    state.incomingCallNextAt=Math.max(0,Number(saved.incomingCallNextAt)||0);
     state.settingsTab=saved.settingsTab==='param'?'param':'icon';
     state.cardPhrases=Array.isArray(saved.cardPhrases)?saved.cardPhrases.filter(v=>typeof v==='string'&&v.trim()):[];
     state.stickers=Array.isArray(saved.stickers)?saved.stickers:[];
