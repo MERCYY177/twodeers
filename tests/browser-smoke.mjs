@@ -188,6 +188,114 @@ try {
   await page.locator('[data-duo-sticker-tab="builtin"]').click();
   assert.match(await page.locator('#stickerList').innerText(), /内置表情资源尚未迁入/);
 
+  // Exercise the real Circle save closure and its snapshot registration.
+  const circleWriteResult = await page.evaluate(async () => {
+    const api = window.__duoCircleApi;
+    const coordinator = window.BackupSnapshotCoordinator;
+    const originalState = api.exportState();
+    const revisionBefore = coordinator.getRevision('circle');
+    const candidate = {
+      ...originalState,
+      myName: 'snapshot-save-integration',
+      posts: [...(originalState.posts || []), {
+        id: 'snapshot-save-integration-post', author: 'me',
+        text: 'circle-save-revision-check', ts: Date.now(), media: []
+      }]
+    };
+    api.importState(candidate);
+    const revisionAfterSave = coordinator.getRevision('circle');
+    const persistedAfterSave = coordinator.getPersistedRevision('circle');
+    const circleKey = Object.keys(localStorage).find(key => {
+      try { return Array.isArray(JSON.parse(localStorage.getItem(key) || 'null')?.posts); }
+      catch (_) { return false; }
+    });
+    const storedAfterSave = circleKey ? JSON.parse(localStorage.getItem(circleKey)) : null;
+
+    const snapshot = await coordinator.beginSnapshot(['circle']);
+    let snapshotInvalidated = false;
+    try {
+      api.importState({ ...api.exportState(), myName: 'snapshot-write-during-read' });
+      try { snapshot.assertUnchanged(); }
+      catch (error) { snapshotInvalidated = /发生变化/.test(error.message); }
+    } finally { snapshot.release(); }
+
+    const failureBaseline = api.exportState();
+    const failureRevisionBefore = coordinator.getRevision('circle');
+    const nativeSetItem = Storage.prototype.setItem;
+    let failureRejected = false;
+    try {
+      Storage.prototype.setItem = function(key, value) {
+        if (key === circleKey) throw new DOMException('simulated quota failure', 'QuotaExceededError');
+        return nativeSetItem.call(this, key, value);
+      };
+      try {
+        api.importState({ ...failureBaseline, myName: 'must-not-be-persisted' });
+      } catch (error) {
+        failureRejected = /保存失败/.test(error.message);
+      }
+    } finally { Storage.prototype.setItem = nativeSetItem; }
+    const stateAfterFailure = api.exportState();
+    const storageAfterFailure = circleKey ? JSON.parse(localStorage.getItem(circleKey)) : null;
+
+    const timerBaseline = api.exportState();
+    const timerRevisionBefore = coordinator.getRevision('circle');
+    api.importState({
+      ...timerBaseline,
+      autoPost: 'on',
+      dynamicCards: ['snapshot-timer-post'],
+      postMin: 1,
+      postMax: 1,
+      nextOtherPostAt: Date.now() - 1000,
+      pendingEvents: []
+    });
+    const timerRevisionAfterSchedule = coordinator.getRevision('circle');
+    return {
+      originalState,
+      circleKeyFound: !!circleKey,
+      revisionDelta: revisionAfterSave - revisionBefore,
+      persistedAfterSaveMatches: persistedAfterSave === revisionAfterSave,
+      persistedSnapshotMatches: storedAfterSave?.myName === candidate.myName,
+      snapshotInvalidated,
+      failureRejected,
+      failureStateRolledBack: stateAfterFailure.myName === failureBaseline.myName,
+      failureStorageRolledBack: storageAfterFailure?.myName === failureBaseline.myName,
+      failureRevisionAdvanced: coordinator.getRevision('circle') > failureRevisionBefore,
+      failureRollbackPersisted: coordinator.getRevision('circle') === coordinator.getPersistedRevision('circle'),
+      timerRevisionBefore,
+      timerRevisionAfterSchedule
+    };
+  });
+  assert.equal(circleWriteResult.circleKeyFound, true, 'Circle localStorage record should be discoverable');
+  assert.equal(circleWriteResult.revisionDelta, 1, 'one successful Circle save must create exactly one revision');
+  assert.equal(circleWriteResult.persistedAfterSaveMatches, true, 'successful Circle save must advance persistedRevision');
+  assert.equal(circleWriteResult.persistedSnapshotMatches, true, 'Circle save should persist the same state that was registered');
+  assert.equal(circleWriteResult.snapshotInvalidated, true, 'a Circle write during an active snapshot must invalidate it');
+  assert.equal(circleWriteResult.failureRejected, true, 'a failed Circle save must reject the import');
+  assert.equal(circleWriteResult.failureStateRolledBack, true, 'failed Circle save must restore in-memory state');
+  assert.equal(circleWriteResult.failureStorageRolledBack, true, 'failed Circle save must leave the old persisted state intact');
+  assert.equal(circleWriteResult.failureRevisionAdvanced, true, 'failed Circle mutation must not remain invisible to the coordinator');
+  assert.equal(circleWriteResult.failureRollbackPersisted, true, 'verified rollback should reconcile the Circle revision');
+
+  await page.waitForFunction(() =>
+    window.__duoCircleApi.exportState().posts.some(post => post.text === 'snapshot-timer-post'),
+    { timeout: 10000 }
+  );
+  const circleTimerResult = await page.evaluate(originalState => {
+    const coordinator = window.BackupSnapshotCoordinator;
+    const state = window.__duoCircleApi.exportState();
+    const revision = coordinator.getRevision('circle');
+    const persisted = coordinator.getPersistedRevision('circle');
+    window.__duoCircleApi.importState(originalState);
+    return {
+      timerPostCreated: state.posts.some(post => post.text === 'snapshot-timer-post'),
+      timerRevisionAdvanced: revision > coordinator.getRevision('circle') - 1,
+      timerPersisted: revision === persisted
+    };
+  }, circleWriteResult.originalState);
+  assert.equal(circleTimerResult.timerPostCreated, true, 'periodic Circle auto-save should persist the scheduled post');
+  assert.equal(circleTimerResult.timerPersisted, true, 'periodic Circle save should be recognized as persisted');
+  assert.equal(circleTimerResult.timerRevisionAdvanced, true, 'periodic Circle save should advance the snapshot revision');
+
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;
   if (fontPath && existsSync(fontPath)) {
