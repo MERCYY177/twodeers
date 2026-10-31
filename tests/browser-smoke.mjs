@@ -36,6 +36,96 @@ try {
   assert.equal(baseline.tabs, 2, 'only uploads and favorites tabs should be mounted');
   assert.equal(baseline.backupVersion, 4);
 
+  const beautifyBefore = await page.evaluate(() => ({
+    count: window.DuoChatBeautify.presets.length,
+    selectedId: state.chatBeautifyPresetId || '',
+    customCSS: state.customCSS || '',
+    stylePresent: !!document.getElementById('duoChatBeautifyPresetStyles'),
+    styleRules: document.getElementById('duoChatBeautifyPresetStyles')?.sheet?.cssRules?.length || 0,
+    cards: document.querySelectorAll('#duoChatBeautifyPanel [data-preset-card]').length,
+    cssPriority: (() => {
+      const ids = [...document.head.querySelectorAll('style')].map(node => node.id);
+      return ids.indexOf('duoChatBeautifyPresetStyles') >= 0 &&
+        ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
+    })()
+  }));
+  assert.equal(beautifyBefore.count, 78, '78 CSS beautification designs should be loaded');
+  assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each preset must have a live CSS preview card');
+  assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
+  assert.ok(beautifyBefore.styleRules >= beautifyBefore.count * 8, 'browser must parse full preset stylesheets');
+  assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
+  const testRows = await page.evaluate(() => {
+    const chat = document.getElementById('chatList');
+    const rows = [
+      buildMessageRow({id:'beautify-smoke-own',sender:'me',type:'text',text:'自己的消息预览',time:'20:18'}),
+      buildMessageRow({id:'beautify-smoke-other',sender:'other',type:'text',text:'对方的消息预览',time:'20:19'}),
+      buildMessageRow({id:'beautify-smoke-image',sender:'me',type:'image',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}),
+      buildMessageRow({id:'beautify-smoke-sticker',sender:'other',type:'sticker',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'})
+    ];
+    rows.forEach(row => chat.appendChild(row));
+    const radius = row => getComputedStyle(row.querySelector('.bubble')).borderRadius;
+    return { imageRadius:radius(rows[2]), stickerRadius:radius(rows[3]) };
+  });
+  await page.locator('[data-beautify-apply="pixel-console"]').click();
+  const visualCheck = await page.evaluate(() => {
+    const chat = document.getElementById('chatList');
+    const rows = ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker']
+      .map(id => chat.querySelector('[data-mid="' + id + '"]'));
+    const style = row => {
+      const bubble = row.querySelector('.bubble');
+      const computed = getComputedStyle(bubble);
+      return {radius:computed.borderRadius,position:computed.position,className:bubble.className};
+    };
+    const preview = document.querySelector('[data-preset-card="pixel-console"] .duo-chat-beautify-preview .msg-row.me .bubble');
+    return {
+      own:style(rows[0]),other:style(rows[1]),image:style(rows[2]),sticker:style(rows[3]),
+      preview:preview?{radius:getComputedStyle(preview).borderRadius,position:getComputedStyle(preview).position}:null,
+      liveClass:chat.classList.contains('duo-chat-beautify--pixel-console'),
+      pageClass:document.getElementById('chatPage').classList.contains('duo-chat-beautify--pixel-console')
+    };
+  });
+  assert.equal(visualCheck.liveClass, true, 'selected preset class must be attached to the real chat');
+  assert.equal(visualCheck.pageClass, true, 'chat page and input composer must use the selected scope');
+  assert.equal(visualCheck.own.radius, '0px');
+  assert.equal(visualCheck.other.radius, '0px');
+  assert.equal(visualCheck.own.position, 'relative');
+  assert.ok(visualCheck.preview && visualCheck.preview.radius === '0px', 'preview must use the actual preset CSS');
+  assert.match(visualCheck.image.className, /image-bubble/);
+  assert.match(visualCheck.sticker.className, /sticker-bubble/);
+  assert.equal(visualCheck.image.radius, testRows.imageRadius, 'image message styling must remain unchanged');
+  assert.equal(visualCheck.sticker.radius, testRows.stickerRadius, 'sticker styling must remain unchanged');
+  await page.locator('[data-beautify-apply="glass-lilac"]').click();
+  const switched = await page.evaluate(() => ({
+    id:state.chatBeautifyPresetId,
+    pixel:document.getElementById('chatList').classList.contains('duo-chat-beautify--pixel-console'),
+    glass:document.getElementById('chatList').classList.contains('duo-chat-beautify--glass-lilac'),
+    customCSS:state.customCSS||''
+  }));
+  assert.equal(switched.id, 'glass-lilac');
+  assert.equal(switched.pixel, false, 'switching must remove previous preset class');
+  assert.equal(switched.glass, true);
+  assert.equal(switched.customCSS, beautifyBefore.customCSS, 'preset selection must not modify user CSS');
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => state.chatBeautifyPresetId === 'glass-lilac' &&
+    document.getElementById('chatList').classList.contains('duo-chat-beautify--glass-lilac'));
+  await page.locator('[data-beautify-reset]').click();
+  const reset = await page.evaluate(() => ({
+    id:state.chatBeautifyPresetId,
+    hasPresetClass:[...document.getElementById('chatList').classList].some(name=>name.startsWith('duo-chat-beautify--')),
+    customCSS:state.customCSS||''
+  }));
+  assert.equal(reset.id, '');
+  assert.equal(reset.hasPresetClass, false);
+  assert.equal(reset.customCSS, beautifyBefore.customCSS, 'reset must not remove user custom CSS');
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => state.chatBeautifyPresetId === '' &&
+    ![...document.getElementById('chatList').classList].some(name=>name.startsWith('duo-chat-beautify--')));
+  await page.evaluate(id => {
+    if (id) window.DuoChatBeautify.apply(id);
+    ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker']
+      .forEach(mid => document.querySelector('#chatList [data-mid="' + mid + '"]')?.remove());
+  }, beautifyBefore.selectedId);
+
   await page.evaluate(() => {
     const p = document.getElementById('settingsPage');
     const card = document.getElementById('settingsParam');
@@ -164,6 +254,11 @@ try {
   console.log(JSON.stringify({
     result: 'passed',
     themePersisted: true,
+    cssBeautifyPresets: beautifyBefore.count,
+    cssBeautifyLivePreview: true,
+    cssBeautifyApplySwitchReset: true,
+    cssBeautifyPersistence: true,
+    cssBeautifyMediaSafe: true,
     twoColumnStickers: true,
     favoritePersistence: true,
     favoriteRemoval: true,

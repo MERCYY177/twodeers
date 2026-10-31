@@ -40,7 +40,7 @@ jobs:
       - name: Verify web source and V4 ZIP backup
         run: |
           node tools/verify-source.mjs
-          node --test tests/backup-v4.test.mjs
+          node --test tests/backup-v4.test.mjs tests/chat-beautify.test.mjs
       - name: Install Playwright browser test
         run: |
           npm install --no-save --no-package-lock playwright
