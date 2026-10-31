@@ -91,7 +91,7 @@ try {
   await page.locator('#stickerList [data-sticker-send]').first().click();
   await page.waitForFunction(() => state.chatHistory.some(message => message.mediaId), { timeout: 5000 });
   const sentMediaId = await page.evaluate(() => state.chatHistory.find(message => message.mediaId).mediaId);
-  await page.evaluate(() => document.getElementById('emojiBtn').click());
+  await page.evaluate(() => { const panel=document.getElementById('emojiPanel'); panel.classList.add('show'); panel.setAttribute('aria-hidden','false'); });
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.locator('#stickerList .sticker-item').first().hover();
   await page.locator('#stickerList [data-sticker-del]').first().click();
