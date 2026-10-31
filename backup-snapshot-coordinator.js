@@ -20,13 +20,15 @@
     return next;
   }
   function trackWrite(name, promise) {
+    // Advance revision before the asynchronous write begins so a write that starts
+    // during a snapshot invalidates it even if the transaction has not completed yet.
+    const writeRevision = noteWrite(name, false);
     const task = Promise.resolve(promise);
     let tracked;
     tracked = task.then(function (value) {
-      noteWrite(name, true);
+      persistedRevision.set(name, Math.max(persistedOf(name), writeRevision));
       return value;
     }, function (error) {
-      noteWrite(name, false);
       throw error;
     }).finally(function () { pending.delete(tracked); });
     pending.add(tracked);
