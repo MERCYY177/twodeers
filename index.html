@@ -4553,6 +4553,7 @@ function updateIncomingCallStatus(){
 function syncIncomingCallSettings(){
   state.incomingCallSettings=normalizeIncomingCallSettings(state.incomingCallSettings);
   const cfg=state.incomingCallSettings;
+  if(typeof incomingRingTimer!=='undefined'&&incomingRingTimer!==null&&state.call?.phase==='ringing'&&(!cfg.enabled||!incomingAllowedTypes().includes(state.call.type)))cancelRingingIncomingCall();
   const pairs=[['incomingMasterSeg','enabled','incomingMaster'],['incomingAudioSeg','audioEnabled','incomingAudio'],['incomingVideoSeg','videoEnabled','incomingVideo']];
   pairs.forEach(([id,key,attr])=>{$$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===!!cfg[key]));});
   const set=(id,value)=>{const el=$('#'+id);if(el)el.value=String(value);};
@@ -4581,7 +4582,7 @@ function scheduleIncomingCall(options={}){
   if(incomingScheduleTimer!==null&&!forceNew){updateIncomingCallStatus();return true;}
   if(incomingScheduleTimer!==null||forceNew)clearIncomingSchedule(false);
   let nextAt=Number(state.incomingCallNextAt)||0;
-  if(forceNew||!nextAt)nextAt=Date.now()+Math.floor((cfg.minIntervalSec+Math.random()*(cfg.maxIntervalSec-cfg.minIntervalSec+1))*1000);
+  if(forceNew||!nextAt)nextAt=Date.now()+(Math.floor(Math.random()*(cfg.maxIntervalSec-cfg.minIntervalSec+1))+cfg.minIntervalSec)*1000;
   state.incomingCallNextAt=nextAt;
   const delay=Math.max(0,nextAt-Date.now());
   const token=++incomingScheduleToken;
@@ -5350,6 +5351,7 @@ async function applyBackupPayload(payload){
         api.validateState(data.circleState);
         circleChanged=true;setCircleState(data.circleState);
       }
+      clearIncomingRingTimer();clearIncomingSchedule(true);
       Object.assign(state,incoming);
       delete state.quick;delete state.activeSpace;delete state.selectedDay;delete state.calendar;
       if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
@@ -5397,7 +5399,7 @@ async function applyBackupPayload(payload){
     if(data.media)state.media=Object.assign(state.media,data.media);
     for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
     for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
-    if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
+    if(data.incomingCallSettings){state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);clearIncomingSchedule(true);}
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
     if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
     if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
