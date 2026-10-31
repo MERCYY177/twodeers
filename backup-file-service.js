@@ -49,6 +49,10 @@
           global.triggerDownloadBlob !== save) {
         const accepted = global.triggerDownloadBlob(safeName, blob);
         if (accepted === false) throw new Error('文件保存入口拒绝了该文件');
+        if (accepted && typeof accepted.then === 'function') {
+          const completed = await accepted;
+          return Object.assign({ name: safeName, size: blob.size }, completed || { status: 'handed-off', method: 'platform-adapter' });
+        }
         return { status: 'handed-off', method: 'platform-adapter', name: safeName, size: blob.size };
       }
       return fallbackDownload(safeName, blob);
