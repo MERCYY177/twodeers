@@ -91,11 +91,10 @@
     return {manifest,map};
   }
   async function restoreV4(blob){
-    const operation=Promise.resolve().then(()=>restoreV4Internal(blob));
     const coordinator=window.BackupSnapshotCoordinator;
     return coordinator&&typeof coordinator.trackOperation==='function'
-      ? coordinator.trackOperation(operation)
-      : operation;
+      ? coordinator.trackOperation(()=>restoreV4Internal(blob))
+      : restoreV4Internal(blob);
   }
   async function restoreV4Internal(blob){
     const parsed=await unzipStored(blob),{manifest,map}=parsed,kind=manifest.kind;
