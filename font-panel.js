@@ -6,7 +6,7 @@
     const api=window.ChuanXunFontManager;if(!api)return;
     const host=document.getElementById('circleMount');
     const family=getComputedStyle(document.documentElement).getPropertyValue('--chuanxun-local-font-family').trim();
-    if(host&&family)host.style.setProperty('font-family',family,'important');
+    if(host){if(family)host.style.setProperty('font-family',family,'important');else host.style.removeProperty('font-family');}
     const list=document.getElementById('duoFontList');if(!list)return;
     api.listFonts().then(items=>{
       const current=api.getCurrentFontId();
