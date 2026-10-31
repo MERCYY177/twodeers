@@ -59,7 +59,7 @@ try {
   const persistedTheme = await page.evaluate(() => state.appearanceSettings.palette);
   assert.equal(persistedTheme, 'ocean', 'theme choice should persist after reload');
 
-  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('#emojiBtn').click();
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   await page.locator('#stickerUploader').setInputFiles([
@@ -84,14 +84,14 @@ try {
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
-  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('#emojiBtn').click();
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.locator('#stickerList [data-sticker-send]').first().click();
   await page.waitForFunction(() => state.chatHistory.some(message => message.mediaId), { timeout: 5000 });
   const sentMediaId = await page.evaluate(() => state.chatHistory.find(message => message.mediaId).mediaId);
-  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('#emojiBtn').click();
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.locator('#stickerList [data-sticker-del]').first().click();
   await page.waitForFunction(() => state.stickers.length === 1 && state.stickerFavorites.length === 0);
@@ -103,7 +103,7 @@ try {
   assert.equal(orphanMedia, false, 'unreferenced deleted sticker media should be cleaned up');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
-  await page.evaluate(() => document.getElementById('emojiPanel').classList.add('show'));
+  await page.locator('#emojiBtn').click();
   assert.match(await page.locator('#stickerList').innerText(), /还没有表情包/);
   assert.equal(await page.locator('[data-duo-sticker-tab="favorites"]').count(), 1);
   assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 0);
