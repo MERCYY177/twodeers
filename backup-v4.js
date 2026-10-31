@@ -24,7 +24,7 @@
   async function buildV4(kind){
     if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
     const entries=[];let stateData={},mediaIds=[];
-    if(kind==='all'){stateData={state:JSON.parse(JSON.stringify(state)),circleState:getCircleState()};mediaIds=typeof getCurrentMediaIds==='function'?getCurrentMediaIds():[];}
+    if(kind==='all'){stateData={state:JSON.parse(JSON.stringify(state))};mediaIds=typeof getCurrentMediaIds==='function'?getCurrentMediaIds():[];}
     else if(kind==='chat'){
       const ids=new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(state.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
       stateData={chatHistory:state.chatHistory,stickers:state.stickers,stickerFavorites:state.stickerFavorites||[],media:{'avatar-me':state.media?.['avatar-me'],'avatar-other':state.media?.['avatar-other'],'bg-chat':state.media?.['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings};
@@ -32,7 +32,7 @@
       stateData={icons:state.icons,media:state.media,avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,stickerFavorites:state.stickerFavorites||[]};
     }
     entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
-    if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(stateData.circleState||{}),type:'circle-state'});
+    if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(getCircleState()||{}),type:'circle-state'});
     for(const id of mediaIds){const rec=await getMediaRecord(id);if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});}
     let fontsCurrentId=null;
     if(kind!=='chat'&&window.ChuanXunFontManager){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
@@ -87,7 +87,7 @@
       if(kind!=='chat'&&window.ChuanXunFontManager&&map.has('font-library.json')){
         const fm=JSON.parse(await map.get('font-library.json').blob.text());
         const restored=[];for(const f of fm.fonts||[]){const x=map.get(f.path);if(!x)throw new Error('字体资源缺失：'+f.id);restored.push({...f,blob:x.blob});}
-        await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true});fontsWritten=true;
+        fontsWritten=true;await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true});
       }
       if(kind==='all'&&incomingState.call&&incomingState.call.phase==='ringing'){incomingState.call.active=false;}
       if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
