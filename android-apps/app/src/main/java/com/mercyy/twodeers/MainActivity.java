@@ -104,11 +104,14 @@ public class MainActivity extends Activity {
                   catch(error){clearTimeout(timeout);pending.delete(key);reject(error);}
                 });
               }
-              link.textContent='保存备份到手机…';
-              link.onclick=async function(){
-                if(link.dataset.saving==='1')return;
-                link.dataset.saving='1';link.textContent='正在校验并打开系统保存窗口…';
-                try{
+              if(window.__duoNativeSaveSettle)window.__duoNativeSaveSettle.reject(new Error('上一项备份保存任务已被新的备份替代'));
+              return new Promise(function(resolve,reject){
+                window.__duoNativeSaveSettle={taskId:taskId,resolve:resolve,reject:reject};
+                link.textContent='保存备份到手机…';
+                link.onclick=async function(){
+                  if(link.dataset.saving==='1')return;
+                  link.dataset.saving='1';link.textContent='正在校验并打开系统保存窗口…';
+                  try{
                   if(!window.__duoBackupV4||typeof window.__duoBackupV4.inspect!=='function')throw new Error('缺少备份 SHA-256 校验器');
                   var integrity=await window.__duoBackupV4.inspect(blob);
                   var picked=await send(taskId,'request',{name:String(name||'双人空间备份.zip'),mimeType:String(blob.type||'application/zip'),size:Number(blob.size),sha256:integrity.sha256});
@@ -123,16 +126,25 @@ public class MainActivity extends Activity {
                   }
                   var finished=await send(taskId,'finish',{chunks:index});
                   if(!finished.ok)throw new Error(finished.message||'保存文件完整性验证失败');
-                  delete link.dataset.saving;
-                  link.textContent=finished.verified?'已保存并回读校验':'已保存（目标位置不支持完整回读校验）';
-                  if(typeof window.showToast==='function')window.showToast(finished.message||'备份文件保存完成');
-                }catch(error){
-                  try{bridge.postMessage(JSON.stringify({type:'cancel',taskId:taskId}));}catch(_){}
-                  pending.forEach(function(_,key){if(key.indexOf(taskId+':')===0)pending.delete(key);});delete link.dataset.saving;link.textContent='重新保存文件';
-                  alert('备份保存失败：'+(error.message||error));
-                }
-              };
-              return true;
+                    delete link.dataset.saving;
+                    link.textContent=finished.verified?'已保存并回读校验':'已保存（目标位置不支持完整回读校验）';
+                    if(typeof window.showToast==='function')window.showToast(finished.message||'备份文件保存完成');
+                    if(window.__duoNativeSaveSettle&&window.__duoNativeSaveSettle.taskId===taskId){
+                      window.__duoNativeSaveSettle=null;
+                      resolve({status:'saved',method:'android-saf',verified:!!finished.verified});
+                    }
+                  }catch(error){
+                    try{bridge.postMessage(JSON.stringify({type:'cancel',taskId:taskId}));}catch(_){}
+                    pending.forEach(function(_,key){if(key.indexOf(taskId+':')===0)pending.delete(key);});
+                    delete link.dataset.saving;link.textContent='重新保存文件';
+                    if(window.__duoNativeSaveSettle&&window.__duoNativeSaveSettle.taskId===taskId){
+                      window.__duoNativeSaveSettle=null;
+                      reject(error);
+                    }
+                    alert('备份保存失败：'+(error.message||error));
+                  }
+                };
+              });
             };
             wrapped.__duoNativeWrapper=true;
             window.triggerDownloadBlob=wrapped;
