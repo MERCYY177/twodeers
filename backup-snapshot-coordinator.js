@@ -34,6 +34,17 @@
     pending.add(tracked);
     return tracked;
   }
+  function trackOperation(promise) {
+    // Track a multi-module restore for its full lifetime without pretending that
+    // any particular module has been persisted. Its individual writes must still
+    // advance their own revisions through noteWrite/trackWrite.
+    const task = Promise.resolve(promise);
+    let tracked;
+    tracked = task.finally(function () { pending.delete(tracked); });
+    pending.add(tracked);
+    return tracked;
+  }
+
   function register(name, adapter) {
     if (!name || !adapter || typeof adapter.snapshot !== 'function') throw new TypeError('快照参与模块必须提供 snapshot');
     participants.set(name, adapter);
@@ -102,6 +113,7 @@
     register: register,
     noteWrite: noteWrite,
     trackWrite: trackWrite,
+    trackOperation: trackOperation,
     beginSnapshot: beginSnapshot,
     getRevision: revisionOf,
     getPersistedRevision: persistedOf,
