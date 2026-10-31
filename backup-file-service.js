@@ -13,10 +13,15 @@
   async function toLocalBlob(value, mimeType) {
     if (!isBlobLike(value)) throw new TypeError('保存内容必须是 Blob');
     if (typeof Blob !== 'undefined' && value instanceof Blob) return value;
-    // Re-wrap cross-realm Blob instances so legacy Android bridges and browser APIs
-    // receive a Blob belonging to this document's realm.
-    const buffer = await value.arrayBuffer();
-    return new Blob([buffer], { type: mimeType || value.type || 'application/octet-stream' });
+    // Blob.prototype.slice performs the platform brand check across realms and returns
+    // a Blob in this document's realm without materializing the whole archive in memory.
+    try {
+      return Blob.prototype.slice.call(value, 0, value.size, mimeType || value.type || 'application/octet-stream');
+    } catch (_) {
+      // Retain support for trusted Blob-like wrappers used by older embedded WebViews.
+      const buffer = await value.arrayBuffer();
+      return new Blob([buffer], { type: mimeType || value.type || 'application/octet-stream' });
+    }
   }
 
   function fallbackDownload(name, blob) {
