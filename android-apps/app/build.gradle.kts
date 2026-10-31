@@ -21,7 +21,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mercyy.twodeers"
+        applicationId = "com.mercyy.beibeilu"
         minSdk = 23
         targetSdk = 35
         versionCode = 1
