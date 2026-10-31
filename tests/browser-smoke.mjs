@@ -405,6 +405,107 @@ try {
     return true;
   });
   assert.equal(v3Result, true, 'legacy v3 JSON backup import path should remain available');
+
+  const v3TransactionalResult = await page.evaluate(async () => {
+    const coordinator = window.BackupSnapshotCoordinator;
+    const circleApi = window.__duoCircleApi;
+    const originalChat = JSON.parse(JSON.stringify(state));
+    const originalCircle = circleApi.exportState();
+    const tempMediaId = 'v3-restore-' + Date.now();
+    await putMediaBlob(new Blob(['v3-restore-media'], { type: 'image/png' }), 'image', 'v3-restore.png', tempMediaId);
+    state.chatHistory = [...(state.chatHistory || []), {
+      id: 'v3-restore-message', type: 'image', mediaId: tempMediaId, mediaMime: 'image/png'
+    }];
+    if (save() === false) throw new Error('test setup could not persist V3 media reference');
+    const payload = JSON.parse(await (await buildBackup('all')).text());
+    const archiveHasMedia = payload.data.mediaFiles.some(item => item.id === tempMediaId);
+    state.chatHistory = [];
+    if (save() === false) throw new Error('test setup could not persist divergent chat state');
+    circleApi.importState({ ...originalCircle, myName: 'before-v3-restore' });
+    await deleteMediaRecord(tempMediaId);
+
+    const beforeSuccess = {
+      chat: coordinator.getRevision('chat'),
+      circle: coordinator.getRevision('circle'),
+      media: coordinator.getRevision('media')
+    };
+    await applyBackupPayload(payload);
+    const successState = {
+      chatRestored: state.chatHistory.some(item => item.id === 'v3-restore-message'),
+      circleRestored: circleApi.exportState().myName === originalCircle.myName,
+      mediaRestored: !!(await getMediaRecord(tempMediaId)),
+      chatRevision: coordinator.getRevision('chat'),
+      circleRevision: coordinator.getRevision('circle'),
+      mediaRevision: coordinator.getRevision('media'),
+      chatPersisted: coordinator.getPersistedRevision('chat'),
+      circlePersisted: coordinator.getPersistedRevision('circle'),
+      mediaPersisted: coordinator.getPersistedRevision('media')
+    };
+
+    Object.keys(state).forEach(key => { if (!(key in originalChat)) delete state[key]; });
+    Object.assign(state, originalChat);
+    if (save() === false) throw new Error('test setup could not restore original chat state');
+    circleApi.importState(originalCircle);
+    await deleteMediaRecord(tempMediaId);
+
+    const rollbackChat = JSON.stringify(state);
+    const rollbackCircle = JSON.stringify(circleApi.exportState());
+    const rollbackStorage = localStorage.getItem(STORAGE_KEY);
+    const invalidPayload = JSON.parse(JSON.stringify(payload));
+    invalidPayload.data.state.chatHistory.push({
+      id: 'v3-invalid-reference', type: 'image', mediaId: 'v3-media-that-is-not-in-the-archive'
+    });
+    let restoreRejected = false;
+    try { await applyBackupPayload(invalidPayload); }
+    catch (error) { restoreRejected = /缺少聊天媒体文件/.test(error.message); }
+    const mediaAfterFailure = await getMediaRecord(tempMediaId);
+    const chatAfterFailure = JSON.stringify(state);
+    const circleAfterFailure = JSON.stringify(circleApi.exportState());
+    const storageAfterFailure = localStorage.getItem(STORAGE_KEY);
+    const failureRevisions = {
+      chat: coordinator.getRevision('chat'),
+      circle: coordinator.getRevision('circle'),
+      media: coordinator.getRevision('media'),
+      chatPersisted: coordinator.getPersistedRevision('chat'),
+      circlePersisted: coordinator.getPersistedRevision('circle'),
+      mediaPersisted: coordinator.getPersistedRevision('media')
+    };
+    const snapshot = await coordinator.beginSnapshot(['chat', 'circle', 'media']);
+    snapshot.release();
+    return {
+      archiveHasMedia,
+      ...successState,
+      successChatRevisionAdvanced: successState.chatRevision > beforeSuccess.chat,
+      successCircleRevisionAdvanced: successState.circleRevision > beforeSuccess.circle,
+      successMediaRevisionAdvanced: successState.mediaRevision > beforeSuccess.media,
+      successAllPersisted: successState.chatRevision === successState.chatPersisted &&
+        successState.circleRevision === successState.circlePersisted &&
+        successState.mediaRevision === successState.mediaPersisted,
+      restoreRejected,
+      failureChatRestored: chatAfterFailure === rollbackChat,
+      failureCircleRestored: circleAfterFailure === rollbackCircle,
+      failureStorageRestored: storageAfterFailure === rollbackStorage,
+      failureMediaRestored: mediaAfterFailure === null,
+      failureAllPersisted: failureRevisions.chat === failureRevisions.chatPersisted &&
+        failureRevisions.circle === failureRevisions.circlePersisted &&
+        failureRevisions.media === failureRevisions.mediaPersisted
+    };
+  });
+  assert.equal(v3TransactionalResult.archiveHasMedia, true, 'V3 full backup should include the fixture media');
+  assert.equal(v3TransactionalResult.chatRestored, true, 'V3 full restore should replace the divergent chat state');
+  assert.equal(v3TransactionalResult.circleRestored, true, 'V3 full restore should restore the Circle state');
+  assert.equal(v3TransactionalResult.mediaRestored, true, 'V3 full restore should restore referenced media bytes');
+  assert.equal(v3TransactionalResult.successChatRevisionAdvanced, true);
+  assert.equal(v3TransactionalResult.successCircleRevisionAdvanced, true);
+  assert.equal(v3TransactionalResult.successMediaRevisionAdvanced, true);
+  assert.equal(v3TransactionalResult.successAllPersisted, true, 'successful V3 restore must reconcile all participating revisions');
+  assert.equal(v3TransactionalResult.restoreRejected, true, 'V3 restore with a missing referenced media item must fail');
+  assert.equal(v3TransactionalResult.failureChatRestored, true, 'V3 failure must roll back in-memory chat state');
+  assert.equal(v3TransactionalResult.failureCircleRestored, true, 'V3 failure must roll back Circle state');
+  assert.equal(v3TransactionalResult.failureStorageRestored, true, 'V3 failure must restore the exact chat localStorage value');
+  assert.equal(v3TransactionalResult.failureMediaRestored, true, 'V3 failure must remove media introduced by the failed restore');
+  assert.equal(v3TransactionalResult.failureAllPersisted, true, 'V3 rollback must leave every module revision persisted');
+
   assert.deepEqual(pageErrors, [], 'page should not emit uncaught JavaScript errors');
 
   console.log(JSON.stringify({
