@@ -109,10 +109,33 @@ try {
     const font = parsed.manifest.resources.filter(item => item.type === 'font');
     const before = state.chatHistory.length;
     const beforeCurrentFont = window.ChuanXunFontManager.getCurrentFontId();
+    const originalFontData = await window.ChuanXunFontManager.exportData();
+    const fontBinaryMatches = await Promise.all(originalFontData.fonts.map(async item => {
+      const entry = font.find(resource => resource.id === item.id);
+      if (!entry) return false;
+      const archived = parsed.map.get(entry.path)?.blob;
+      if (!archived || archived.size !== item.blob.size) return false;
+      const [sourceHash, archivedHash] = await Promise.all([
+        window.__duoBackupV4.inspect(item.blob),
+        window.__duoBackupV4.inspect(archived)
+      ]);
+      return sourceHash.sha256 === archivedHash.sha256;
+    }));
     const mutated = JSON.parse(JSON.stringify(state.chatHistory));
     state.chatHistory = [];
     save();
+    if (originalFontData.fonts.length) await window.ChuanXunFontManager.importData({ currentFontId: null, fonts: [] }, { replace: true });
     await window.__duoBackupV4.restore(archive);
+    const restoredFontData = await window.ChuanXunFontManager.exportData();
+    const restoredFontBinaryMatches = await Promise.all(originalFontData.fonts.map(async item => {
+      const restored = restoredFontData.fonts.find(candidate => candidate.id === item.id);
+      if (!restored || restored.blob.size !== item.blob.size) return false;
+      const [sourceHash, restoredHash] = await Promise.all([
+        window.__duoBackupV4.inspect(item.blob),
+        window.__duoBackupV4.inspect(restored.blob)
+      ]);
+      return sourceHash.sha256 === restoredHash.sha256;
+    }));
     return {
       size: archive.size,
       resources: parsed.manifest.resources.length,
@@ -122,6 +145,8 @@ try {
       after: state.chatHistory.length,
       fontBefore: beforeCurrentFont,
       fontAfter: window.ChuanXunFontManager.getCurrentFontId(),
+      fontBinaryMatches: fontBinaryMatches.every(Boolean),
+      restoredFontBinaryMatches: restoredFontBinaryMatches.every(Boolean),
       messageIdsMatch: state.chatHistory.map(x => x.id).join('|') === mutated.map(x => x.id).join('|')
     };
   });
@@ -130,6 +155,8 @@ try {
   assert.ok(backupResult.after >= backupResult.before, 'V4 restore should restore the original chat');
   assert.equal(backupResult.messageIdsMatch, true);
   assert.equal(backupResult.fontAfter, backupResult.fontBefore);
+  assert.equal(backupResult.fontBinaryMatches, true, 'font Blob bytes should be present unchanged in the ZIP');
+  assert.equal(backupResult.restoredFontBinaryMatches, true, 'font Blob bytes should survive clearing and restoring the font database');
 
   if (fontTested) await page.evaluate(() => window.ChuanXunFontManager.restoreDefault());
 
