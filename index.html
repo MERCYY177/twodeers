@@ -214,6 +214,24 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .call-choice-btn{height:92px;border-radius:22px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#4b4b4b}
 .call-choice-btn .ico{width:44px;height:44px;border-radius:22px;background:#f7f7f7;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--theme-color)}
 .call-choice-cancel{width:100%;height:46px;border-radius:23px;background:#f7f7f7;border:1px solid var(--line);margin-top:14px;color:#5e5e5e}
+.incoming-call-mask{position:fixed;inset:0;z-index:110;background:linear-gradient(180deg,#202b39,#101722);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;padding:calc(28px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));text-align:center}
+.incoming-call-mask.show{display:flex}
+.incoming-call-avatar{width:116px;height:116px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:42px;margin-bottom:24px}
+.incoming-call-avatar img{width:100%;height:100%;object-fit:cover;display:none}
+.incoming-call-avatar.has-img img{display:block}
+.incoming-call-avatar.has-img span{display:none}
+.incoming-call-name{font-size:28px;font-weight:700}
+.incoming-call-type{font-size:15px;color:rgba(255,255,255,.78);margin-top:10px}
+.incoming-call-hint{font-size:13px;color:rgba(255,255,255,.6);margin-top:10px}
+.incoming-call-actions{display:flex;gap:54px;margin-top:68px}
+.incoming-call-action{width:68px;height:68px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-size:25px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.incoming-call-action span{font-size:11px;margin-top:2px}
+.incoming-call-action.answer{background:#21b46b}
+.incoming-call-action.reject{background:#e34c54}
+.incoming-settings-range{display:flex;align-items:center;gap:12px}
+.incoming-settings-range input{flex:1}
+.incoming-settings-range output{min-width:44px;text-align:right;font-size:13px;color:var(--theme-color)}
+.incoming-status{padding:12px;border-radius:12px;background:#f7f5f2;color:#625851;font-size:13px;line-height:1.6;margin-top:10px}
 .call-screen{position:fixed;inset:0;background:linear-gradient(180deg,#fcfcfc,#f3f4f6);display:none;flex-direction:column;z-index:95}
 .call-screen.show{display:flex}
 .call-head{padding:calc(16px + env(safe-area-inset-top)) 18px 12px;display:flex;justify-content:space-between;align-items:center}
@@ -1661,7 +1679,11 @@ const DEFAULT_STATE = {
   uiFontScale:DEFAULT_UI_SCALE,
   posts:[],
   pendingEvents:[],
-  nextOtherPostAt:0
+  nextOtherPostAt:0,
+  call:{active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},
+  callSettings:{audioEnabled:true,videoEnabled:true},
+  incomingCallSettings:{enabled:true,audioEnabled:true,videoEnabled:true,videoProbability:60,minIntervalSec:90,maxIntervalSec:180,ringTimeoutSec:25},
+  incomingCallNextAt:0
 };
 const state = Object.assign({}, DEFAULT_STATE, load());
 normalizeStateShape(state);
@@ -1687,6 +1709,12 @@ function normalizeStateShape(target){
   target.posts = Array.isArray(target.posts) ? target.posts : [];
   target.pendingEvents = Array.isArray(target.pendingEvents) ? target.pendingEvents : [];
   target.nextOtherPostAt = Math.max(0, Number(target.nextOtherPostAt) || 0);
+  target.call=Object.assign({active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},target.call||{});
+  if(target.call.active){target.call.phase='active';target.call.direction=target.call.direction==='incoming'?'incoming':'outgoing';target.call.startAt=Math.max(1,Number(target.call.startAt)||Date.now());}
+  else if(target.call.phase!=='ringing'){target.call={...target.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0};}
+  target.callSettings=Object.assign({audioEnabled:true,videoEnabled:true},target.callSettings||{});
+  target.incomingCallSettings=normalizeIncomingCallSettings(target.incomingCallSettings);
+  target.incomingCallNextAt=Math.max(0,Number(target.incomingCallNextAt)||0);
   return target;
 }
 function buildSanitizedState(data){
@@ -3951,7 +3979,17 @@ window.__duoCircleApi = {
 <div><div class="lab">视频通话</div><div class="desc">允许从聊天顶部通话菜单发起视频通话</div></div>
 <div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div>
 </div>
-<div class="call-settings-note">来电设置：当前基准版本没有自动来电、接听或拒接流程，因此没有可配置的来电行为；此处不提供虚假的来电开关。</div>
+<div class="incoming-call-settings">
+<h4>他主动给我打电话</h4>
+<div class="item-row"><div><div class="lab">允许他主动给我打电话</div><div class="desc">开启后按随机时间安排对方来电</div></div><div class="seg" id="incomingMasterSeg"><button type="button" data-incoming-master="on">开启</button><button type="button" data-incoming-master="off">关闭</button></div></div>
+<div class="item-row"><div><div class="lab">允许主动语音来电</div></div><div class="seg" id="incomingAudioSeg"><button type="button" data-incoming-audio="on">开启</button><button type="button" data-incoming-audio="off">关闭</button></div></div>
+<div class="item-row"><div><div class="lab">允许主动视频来电</div></div><div class="seg" id="incomingVideoSeg"><button type="button" data-incoming-video="on">开启</button><button type="button" data-incoming-video="off">关闭</button></div></div>
+<div class="field"><label>视频来电概率（两种类型都开启时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
+<div class="two-col"><div class="field"><label>最短来电间隔（秒）</label><input id="incomingMinInterval" type="number" min="1" max="86400" step="1"/></div><div class="field"><label>最长来电间隔（秒）</label><input id="incomingMaxInterval" type="number" min="1" max="86400" step="1"/></div></div>
+<div class="field"><label>无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
+<div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
+<p class="call-settings-note">主动来电为本页面运行期间的模拟来电；页面彻底关闭或系统强制停止时，网页无法保证唤醒。这里的来电不会建立真实电话或 WebRTC 音视频连接。</p>
+</div>
 </div>
 <div class="panel-card">
 <h3>聊天规则</h3>
@@ -4067,6 +4105,13 @@ window.__duoCircleApi = {
 </div>
 <button class="call-choice-cancel" id="callChoiceCancel">取消</button>
 </div>
+</div>
+<div class="incoming-call-mask" id="incomingCallMask" role="dialog" aria-modal="true" aria-label="来电">
+<div class="incoming-call-avatar" id="incomingCallAvatar"><img alt=""/><span>对</span></div>
+<div class="incoming-call-name" id="incomingCallName">对方</div>
+<div class="incoming-call-type" id="incomingCallType">邀请你进行语音通话</div>
+<div class="incoming-call-hint">正在呼叫…</div>
+<div class="incoming-call-actions"><button class="incoming-call-action reject" id="incomingRejectBtn" type="button">✕<span>拒绝</span></button><button class="incoming-call-action answer" id="incomingAnswerBtn" type="button">☎<span>接听</span></button></div>
 </div>
 <div class="call-screen" id="callScreen">
 <div class="call-head">
