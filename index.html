@@ -4595,14 +4595,14 @@ function initMiniCallDrag(){
 function setSettingsTab(key){
   const activeKey=key==='param'?'param':'icon';
   state.settingsTab=activeKey;
-  $('#settingsTabs button').forEach(btn=>btn.classList.toggle('active',btn.dataset.settings===activeKey));
+  $$('#settingsTabs button').forEach(btn=>btn.classList.toggle('active',btn.dataset.settings===activeKey));
   const iconPanel=$('#settingsIcon'),paramPanel=$('#settingsParam');
   if(iconPanel)iconPanel.classList.toggle('hidden',activeKey!=='icon');
   if(paramPanel)paramPanel.classList.toggle('hidden',activeKey!=='param');
   save();
 }
 function goto(id){
-  $('.page').forEach(p=>p.classList.remove('active'));
+  $$('.page').forEach(p=>p.classList.remove('active'));
   const page=document.getElementById(id); if(!page) return;
   page.classList.add('active');
   state.currentPage=id; save();
