@@ -278,9 +278,10 @@ try {
 
   await page.waitForFunction(() =>
     window.__duoCircleApi.exportState().posts.some(post => post.text === 'snapshot-timer-post'),
+    null,
     { timeout: 10000 }
   );
-  const circleTimerResult = await page.evaluate(originalState => {
+  const circleTimerResult = await page.evaluate(({ originalState, timerRevisionAfterSchedule }) => {
     const coordinator = window.BackupSnapshotCoordinator;
     const state = window.__duoCircleApi.exportState();
     const revision = coordinator.getRevision('circle');
@@ -288,10 +289,13 @@ try {
     window.__duoCircleApi.importState(originalState);
     return {
       timerPostCreated: state.posts.some(post => post.text === 'snapshot-timer-post'),
-      timerRevisionAdvanced: revision > coordinator.getRevision('circle') - 1,
+      timerRevisionAdvanced: revision > timerRevisionAfterSchedule,
       timerPersisted: revision === persisted
     };
-  }, circleWriteResult.originalState);
+  }, {
+    originalState: circleWriteResult.originalState,
+    timerRevisionAfterSchedule: circleWriteResult.timerRevisionAfterSchedule
+  });
   assert.equal(circleTimerResult.timerPostCreated, true, 'periodic Circle auto-save should persist the scheduled post');
   assert.equal(circleTimerResult.timerPersisted, true, 'periodic Circle save should be recognized as persisted');
   assert.equal(circleTimerResult.timerRevisionAdvanced, true, 'periodic Circle save should advance the snapshot revision');
