@@ -46,7 +46,8 @@ test('param v4 ZIP builds, parses, and verifies manifest resources', async () =>
   assert.equal(parsed.manifest.format, 'twodeers-backup');
   assert.equal(parsed.manifest.formatVersion, 4);
   assert.equal(parsed.manifest.kind, 'param');
-  assert.equal(parsed.manifest.resources.length, 1);
+  assert.equal(parsed.manifest.resources.length, 2);
+  assert.ok(parsed.map.has('font-library.json'), 'param backup should include an explicit font-library manifest even when empty');
   const stateFile = parsed.map.get('state.json');
   assert.ok(stateFile);
   const payload = JSON.parse(await stateFile.blob.text());
