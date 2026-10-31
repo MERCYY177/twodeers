@@ -5353,6 +5353,8 @@ async function applyBackupPayload(payload){
       }
       clearIncomingRingTimer();clearIncomingSchedule(true);
       Object.assign(state,incoming);
+      state.incomingCallSettings=normalizeIncomingCallSettings(incoming.incomingCallSettings||null);
+      state.incomingCallNextAt=incoming.incomingCallSettings?Math.max(0,Number(incoming.incomingCallNextAt)||0):0;
       delete state.quick;delete state.activeSpace;delete state.selectedDay;delete state.calendar;
       if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
       if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
@@ -5399,7 +5401,8 @@ async function applyBackupPayload(payload){
     if(data.media)state.media=Object.assign(state.media,data.media);
     for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
     for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
-    if(data.incomingCallSettings){state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);clearIncomingSchedule(true);}
+    state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings||null);
+    clearIncomingSchedule(true);
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
     if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
     if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
