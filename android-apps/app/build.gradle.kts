@@ -28,6 +28,29 @@ android {
         versionName = "1.0.0"
     }
 
+    flavorDimensions += "instance"
+    productFlavors {
+        create("beibeilu") {
+            dimension = "instance"
+            resValue("string", "app_name", "贝贝鹿")
+        }
+        create("lu1") {
+            dimension = "instance"
+            applicationIdSuffix = ".lu1"
+            resValue("string", "app_name", "鹿1")
+        }
+        create("lu2") {
+            dimension = "instance"
+            applicationIdSuffix = ".lu2"
+            resValue("string", "app_name", "鹿2")
+        }
+        create("lu3") {
+            dimension = "instance"
+            applicationIdSuffix = ".lu3"
+            resValue("string", "app_name", "鹿3")
+        }
+    }
+
     sourceSets.getByName("main").assets.srcDir(stagedAssets)
     buildTypes {
         debug { isDebuggable = true }
