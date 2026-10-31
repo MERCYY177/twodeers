@@ -1,4 +1,4 @@
-name: Android debug APK
+name: Android debug APKs
 
 on:
   push:
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  build-debug-apk:
+  build-debug-apks:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,8 +46,6 @@ jobs:
           npm install --no-save --no-package-lock playwright
           npx playwright install --with-deps chromium
       - name: Run browser regression tests
-        env:
-          TWODEERS_TEST_FONT: ${{ env.TWODEERS_TEST_FONT }}
         run: |
           python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/twodeers-http.log 2>&1 &
           SERVER_PID=$!
@@ -58,13 +56,20 @@ jobs:
           FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
           TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
           kill "$SERVER_PID" || true
-      - name: Build debug APK
+      - name: Build all four debug APKs
         working-directory: android-apps
         run: gradle --no-daemon :app:assembleDebug
-      - name: Upload APK
+      - name: Verify four APK outputs
+        working-directory: android-apps
+        run: |
+          count=$(find app/build/outputs/apk -type f -name '*.apk' | wc -l)
+          echo "APK count: $count"
+          test "$count" -eq 4
+          find app/build/outputs/apk -type f -name '*.apk' -print
+      - name: Upload four APKs
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-debug-apk
-          path: android-apps/app/build/outputs/apk/debug/app-debug.apk
+          name: beibeilu-four-apks
+          path: android-apps/app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
           retention-days: 14
