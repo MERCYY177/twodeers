@@ -4,37 +4,39 @@
   if (global.BackupSnapshotCoordinator) return;
 
   const participants = new Map();
-  const revisions = new Map();
-  const persisted = new Map();
+  const revision = new Map();
+  const persistedRevision = new Map();
   const pending = new Set();
   let active = false;
   let generation = 0;
   const guardedEvents = ['click', 'change', 'input', 'submit', 'keydown', 'pointerdown', 'touchstart', 'compositionstart'];
 
-  function revisionOf(name) { return revisions.get(name) || 0; }
-  function persistedOf(name) { return persisted.get(name) || 0; }
+  function revisionOf(name) { return revision.get(name) || 0; }
+  function persistedOf(name) { return persistedRevision.get(name) || 0; }
   function noteWrite(name, isPersisted) {
     const next = revisionOf(name) + 1;
-    revisions.set(name, next);
-    if (isPersisted === true) persisted.set(name, next);
+    revision.set(name, next);
+    if (isPersisted === true) persistedRevision.set(name, next);
     return next;
   }
   function trackWrite(name, promise) {
     const task = Promise.resolve(promise);
-    pending.add(task);
-    return task.then(function (value) {
+    let tracked;
+    tracked = task.then(function (value) {
       noteWrite(name, true);
       return value;
     }, function (error) {
       noteWrite(name, false);
       throw error;
-    }).finally(function () { pending.delete(task); });
+    }).finally(function () { pending.delete(tracked); });
+    pending.add(tracked);
+    return tracked;
   }
   function register(name, adapter) {
     if (!name || !adapter || typeof adapter.snapshot !== 'function') throw new TypeError('快照参与模块必须提供 snapshot');
     participants.set(name, adapter);
-    if (!revisions.has(name)) revisions.set(name, 0);
-    if (!persisted.has(name)) persisted.set(name, 0);
+    if (!revision.has(name)) revision.set(name, 0);
+    if (!persistedRevision.has(name)) persistedRevision.set(name, 0);
   }
   function guardEvent(event) {
     if (!active) return;
@@ -79,6 +81,8 @@
       assertUnchanged();
       return {
         generation: token,
+        revision: Object.fromEntries(baseline),
+        persistedRevision: Object.fromEntries(baseline),
         get: function (name) {
           if (!snapshots.has(name)) throw new Error('快照未包含模块：' + name);
           return snapshots.get(name);
