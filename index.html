@@ -1719,7 +1719,7 @@ function applyImportedState(data){
   Object.assign(state, DEFAULT_STATE, nextState);
   return state;
 }
-function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('circle', true); }
 function rand(min,max){ min=Number(min)||0; max=Number(max)||min; if(max<min){const t=max;max=min;min=t;} return Math.floor(Math.random()*(max-min+1))+min; }
 function pick(arr,fallback=''){ arr=(arr||[]).filter(Boolean); if(!arr.length) return fallback; return arr[Math.floor(Math.random()*arr.length)]; }
 function normLines(text){ return String(text||'').split('\n').map(s=>s.trim()).filter(Boolean); }
@@ -4252,14 +4252,17 @@ function openMediaDB(){
   return mediaDbPromise;
 }
 async function putMediaBlob(blob,kind,name='',id=uid('media')){
-  const db=await openMediaDB();
-  await new Promise((resolve,reject)=>{
-    const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');
-    tx.objectStore(MEDIA_STORE_NAME).put({id,blob,kind,mimeType:blob.type||'application/octet-stream',name:name||'',size:blob.size||0,createdAt:Date.now()});
-    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体保存失败'));tx.onabort=()=>reject(tx.error||new Error('媒体保存中断'));
-  });
-  mediaLoadFailed.delete(id);
-  return id;
+  const write=(async()=>{
+    const db=await openMediaDB();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');
+      tx.objectStore(MEDIA_STORE_NAME).put({id,blob,kind,mimeType:blob.type||'application/octet-stream',name:name||'',size:blob.size||0,createdAt:Date.now()});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体保存失败'));tx.onabort=()=>reject(tx.error||new Error('媒体保存中断'));
+    });
+    mediaLoadFailed.delete(id);
+    return id;
+  })();
+  return window.BackupSnapshotCoordinator?window.BackupSnapshotCoordinator.trackWrite('media',write):write;
 }
 async function getMediaRecord(id){
   const db=await openMediaDB();
@@ -4267,7 +4270,8 @@ async function getMediaRecord(id){
 }
 async function deleteMediaRecord(id){
   if(!id) return;
-  try{const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(e){}
+  const write=(async()=>{const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体删除失败'));tx.onabort=()=>reject(tx.error||new Error('媒体删除中断'));});})();
+  try{if(window.BackupSnapshotCoordinator)await window.BackupSnapshotCoordinator.trackWrite('media',write);else await write;}catch(e){}
   const url=mediaUrlCache.get(id);if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);
   mediaUrlCache.delete(id);mediaLoadFailed.delete(id);
 }
@@ -4303,7 +4307,7 @@ async function migrateLegacyChatMedia(){
   if(changed){save();renderChatHistory(false);}
 }
 
-function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}catch(e){showToast('本地设置保存失败，可能是存储空间不足');}}
+function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', true);}catch(e){if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('chat', false);showToast('本地设置保存失败，可能是存储空间不足');}}
 function showToast(text){
   toastEl.textContent=text;
   toastEl.classList.add('show');
@@ -5567,6 +5571,7 @@ migrateLegacyChatMedia();
 <script src="custom-font-manager.js"></script>
 <script src="font-panel.js"></script>
 <script src="sticker-library.js"></script>
+<script src="backup-snapshot-coordinator.js"></script>
 <script src="backup-file-service.js"></script>
 <script src="backup-v4.js"></script>
 </body>
