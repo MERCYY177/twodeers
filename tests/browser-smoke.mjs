@@ -394,6 +394,148 @@ try {
   assert.equal(backupResult.fontBinaryMatches, true, 'font Blob bytes should be present unchanged in the ZIP');
   assert.equal(backupResult.restoredFontBinaryMatches, true, 'font Blob bytes should survive clearing and restoring the font database');
 
+  const v4RollbackAndBarrierResult = await page.evaluate(async () => {
+    const coordinator = window.BackupSnapshotCoordinator;
+    const circleApi = window.__duoCircleApi;
+    const fontManager = window.ChuanXunFontManager;
+    const originalChat = JSON.parse(JSON.stringify(state));
+    const originalCircle = circleApi.exportState();
+    const tempMediaId = 'v4-restore-' + Date.now();
+    await putMediaBlob(new Blob(['v4-restore-media'], { type: 'image/png' }), 'image', 'v4-restore.png', tempMediaId);
+    state.chatHistory = [...(state.chatHistory || []), {
+      id: 'v4-restore-message', type: 'image', mediaId: tempMediaId, mediaMime: 'image/png'
+    }];
+    if (save() === false) throw new Error('test setup could not persist V4 media reference');
+    circleApi.importState({ ...originalCircle, myName: 'v4-archive-circle-state' });
+    const archive = await window.__duoBackupV4.build('all');
+    const parsedArchive = await window.__duoBackupV4.unzip(archive);
+    const archiveHasMedia = parsedArchive.manifest.resources.some(item => item.type === 'media' && item.id === tempMediaId);
+    const archiveChatHasFixture = JSON.parse(await parsedArchive.map.get('state.json').blob.text())
+      .state.chatHistory.some(item => item.id === 'v4-restore-message');
+
+    Object.keys(state).forEach(key => { if (!(key in originalChat)) delete state[key]; });
+    Object.assign(state, originalChat);
+    if (save() === false) throw new Error('test setup could not restore V4 baseline chat');
+    circleApi.importState(originalCircle);
+    await deleteMediaRecord(tempMediaId);
+    const rollbackChat = JSON.stringify(state);
+    const rollbackCircle = JSON.stringify(circleApi.exportState());
+    const rollbackStorage = localStorage.getItem(STORAGE_KEY);
+    const rollbackFonts = await fontManager.exportData();
+    const originalImportData = fontManager.importData;
+    let injectedFailure = false;
+    let restoreRejected = false;
+    fontManager.importData = async function(payload, options) {
+      const result = await originalImportData.call(this, payload, options);
+      if (!injectedFailure) {
+        injectedFailure = true;
+        throw new Error('injected V4 failure after font database write');
+      }
+      return result;
+    };
+    try {
+      await window.__duoBackupV4.restore(archive);
+    } catch (error) {
+      restoreRejected = /injected V4 failure/.test(error.message);
+    } finally {
+      fontManager.importData = originalImportData;
+    }
+    const fontsAfterRollback = await fontManager.exportData();
+    const fontIdsBefore = rollbackFonts.fonts.map(item => item.id).sort().join('|');
+    const fontIdsAfter = fontsAfterRollback.fonts.map(item => item.id).sort().join('|');
+    const fontHashesMatch = await Promise.all(rollbackFonts.fonts.map(async item => {
+      const restored = fontsAfterRollback.fonts.find(candidate => candidate.id === item.id);
+      if (!restored || restored.blob.size !== item.blob.size) return false;
+      const [a, b] = await Promise.all([
+        window.__duoBackupV4.inspect(item.blob),
+        window.__duoBackupV4.inspect(restored.blob)
+      ]);
+      return a.sha256 === b.sha256;
+    }));
+    const afterRollback = {
+      chatRestored: JSON.stringify(state) === rollbackChat,
+      circleRestored: JSON.stringify(circleApi.exportState()) === rollbackCircle,
+      storageRestored: localStorage.getItem(STORAGE_KEY) === rollbackStorage,
+      mediaRestored: await getMediaRecord(tempMediaId) === null,
+      fontsRestored: fontIdsBefore === fontIdsAfter && fontHashesMatch.every(Boolean) &&
+        rollbackFonts.currentFontId === fontsAfterRollback.currentFontId,
+      revisionsPersisted: ['chat', 'circle', 'media', 'fonts'].every(name =>
+        coordinator.getRevision(name) === coordinator.getPersistedRevision(name))
+    };
+    const failureSnapshot = await coordinator.beginSnapshot(['chat', 'circle', 'media', 'fonts']);
+    failureSnapshot.release();
+
+    let releaseFontImport;
+    let notifyFontImportStarted;
+    const fontImportStarted = new Promise(resolve => { notifyFontImportStarted = resolve; });
+    const fontImportGate = new Promise(resolve => { releaseFontImport = resolve; });
+    let importBlocked = false;
+    let snapshotResolved = false;
+    let restoreSucceeded = false;
+    fontManager.importData = async function(payload, options) {
+      notifyFontImportStarted();
+      await fontImportGate;
+      return originalImportData.call(this, payload, options);
+    };
+    try {
+      const restorePromise = window.__duoBackupV4.restore(archive);
+      await fontImportStarted;
+      const snapshotPromise = coordinator.beginSnapshot(['chat', 'circle', 'media', 'fonts']).then(snapshot => {
+        snapshotResolved = true;
+        return snapshot;
+      });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      importBlocked = !snapshotResolved;
+      releaseFontImport();
+      restoreSucceeded = await restorePromise;
+      const snapshot = await snapshotPromise;
+      const snapshotChat = snapshot.get('chat');
+      const snapshotCircle = snapshot.get('circle');
+      const snapshotMedia = snapshot.get('media');
+      snapshot.assertUnchanged();
+      const snapshotMatchesRestoredState =
+        snapshotChat.chatHistory.some(item => item.id === 'v4-restore-message') &&
+        snapshotCircle.myName === 'v4-archive-circle-state' &&
+        snapshotMedia.includes(tempMediaId);
+      snapshot.release();
+      afterRollback.snapshotBarrierBlockedDuringRestore = importBlocked;
+      afterRollback.snapshotCapturedOnlyRestoredState = snapshotMatchesRestoredState;
+      afterRollback.concurrentRestoreSucceeded = restoreSucceeded;
+    } finally {
+      releaseFontImport?.();
+      fontManager.importData = originalImportData;
+    }
+
+    Object.keys(state).forEach(key => { if (!(key in originalChat)) delete state[key]; });
+    Object.assign(state, originalChat);
+    if (save() === false) throw new Error('test cleanup could not restore original chat');
+    circleApi.importState(originalCircle);
+    await deleteMediaRecord(tempMediaId);
+    return {
+      archiveHasMedia,
+      archiveChatHasFixture,
+      restoreRejected,
+      injectedFailure,
+      ...afterRollback
+    };
+  });
+  assert.equal(v4RollbackAndBarrierResult.archiveHasMedia, true, 'V4 fixture archive should contain the temporary media resource');
+  assert.equal(v4RollbackAndBarrierResult.archiveChatHasFixture, true, 'V4 fixture archive should contain the media reference');
+  assert.equal(v4RollbackAndBarrierResult.restoreRejected, true, 'injected V4 restore failure should be surfaced');
+  assert.equal(v4RollbackAndBarrierResult.injectedFailure, true, 'failure must occur after the font database write');
+  assert.equal(v4RollbackAndBarrierResult.chatRestored, true, 'V4 failure must restore in-memory chat state');
+  assert.equal(v4RollbackAndBarrierResult.circleRestored, true, 'V4 failure must restore Circle state');
+  assert.equal(v4RollbackAndBarrierResult.storageRestored, true, 'V4 failure must restore exact chat localStorage');
+  assert.equal(v4RollbackAndBarrierResult.mediaRestored, true, 'V4 failure must delete media introduced by the failed restore');
+  assert.equal(v4RollbackAndBarrierResult.fontsRestored, true, 'V4 failure must restore font records and selected font');
+  assert.equal(v4RollbackAndBarrierResult.revisionsPersisted, true, 'V4 rollback must reconcile chat, Circle, media, and font revisions');
+  assert.equal(v4RollbackAndBarrierResult.snapshotBarrierBlockedDuringRestore, true,
+    'a snapshot started during V4 restore must wait for the entire restore operation');
+  assert.equal(v4RollbackAndBarrierResult.snapshotCapturedOnlyRestoredState, true,
+    'the waiting snapshot must capture the completed V4 restore, never an intermediate state');
+  assert.equal(v4RollbackAndBarrierResult.concurrentRestoreSucceeded, true);
+
+
   if (fontTested) await page.evaluate(() => window.ChuanXunFontManager.restoreDefault());
 
   const v3Result = await page.evaluate(async () => {
