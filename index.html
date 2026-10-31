@@ -5402,11 +5402,10 @@ function triggerDownloadBlob(name,blob){
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 async function applyBackupPayload(payload){
-  const operation=Promise.resolve().then(()=>applyBackupPayloadInternal(payload));
   const coordinator=window.BackupSnapshotCoordinator;
   return coordinator&&typeof coordinator.trackOperation==='function'
-    ? coordinator.trackOperation(operation)
-    : operation;
+    ? coordinator.trackOperation(()=>applyBackupPayloadInternal(payload))
+    : applyBackupPayloadInternal(payload);
 }
 async function applyBackupPayloadInternal(payload){
   cancelPendingReplies();
@@ -5548,14 +5547,14 @@ async function resetWholeDuoSpace(){
   if(!confirm('最后确认：此操作不可撤销。将只重置双人空间，不触碰 Circle 朋友圈存储。现在重置？'))return;
   try{
     const coordinator=window.BackupSnapshotCoordinator;
-    const resetOperation=Promise.resolve().then(async()=>{
+    const resetOperation=async()=>{
       cancelPendingReplies();
       await clearMediaDatabase();
       localStorage.removeItem(STORAGE_KEY);
       if(coordinator)coordinator.noteWrite('chat',true);
-    });
+    };
     if(coordinator&&typeof coordinator.trackOperation==='function')await coordinator.trackOperation(resetOperation);
-    else await resetOperation;
+    else await resetOperation();
     location.reload();
   }catch(e){showToast('重置未完成：媒体数据库无法清理，双人空间数据暂未删除');}
 }
