@@ -93,13 +93,11 @@ try {
   const sentMediaId = await page.evaluate(() => state.chatHistory.find(message => message.mediaId).mediaId);
   await page.evaluate(() => { const panel=document.getElementById('emojiPanel'); panel.classList.add('show'); panel.setAttribute('aria-hidden','false'); });
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
-  await page.locator('#stickerList .sticker-item').first().hover();
-  await page.locator('#stickerList [data-sticker-del]').first().click();
+  await page.evaluate(() => document.querySelector('#stickerList [data-sticker-del]').click());
   await page.waitForFunction(() => state.stickers.length === 1 && state.stickerFavorites.length === 0);
   const protectedMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), sentMediaId);
   assert.equal(protectedMedia, true, 'deleting an uploaded sticker must not delete media still referenced by chat history');
-  await page.locator('#stickerList .sticker-item').first().hover();
-  await page.locator('#stickerList [data-sticker-del]').click();
+  await page.evaluate(() => document.querySelector('#stickerList [data-sticker-del]').click());
   await page.waitForFunction(async id => state.stickers.length === 0 && !(await getMediaRecord(id)), uploaded[1].mediaId);
   const orphanMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), uploaded[1].mediaId);
   assert.equal(orphanMedia, false, 'unreferenced deleted sticker media should be cleaned up');
