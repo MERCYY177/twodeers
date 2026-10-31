@@ -3209,10 +3209,15 @@ setInterval(processPending, 4000);
   const originalSave = save;
   save = function(){
     try{
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      // Keep the original single write path: it persists Circle state and records
+      // the successful snapshot revision exactly once.
+      originalSave();
       return true;
     }catch(err){
       console.warn('save failed', err);
+      // The in-memory Circle state may already have changed. Mark it dirty so
+      // a backup cannot mistake the previous persisted revision for current data.
+      if(window.BackupSnapshotCoordinator)window.BackupSnapshotCoordinator.noteWrite('circle', false);
       showStorageWarning();
       return false;
     }
@@ -3824,14 +3829,36 @@ window.__duoCircleApi = {
   importState(data){
     const next = this.validateState(data);
     const oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORE_KEY);
+    const coordinator=window.BackupSnapshotCoordinator;
+    const revisionBefore=coordinator?coordinator.getRevision('circle'):0;
+    let storageCommitted=false;
     try{
       Object.keys(state).forEach(key=>{ if(!(key in next)) delete state[key]; });
       Object.assign(state, next);
-      save();
+      if(save()===false)throw new Error('朋友圈保存失败，已取消本次恢复');
+      storageCommitted=true;
       applyHeader();
       return true;
     }catch(err){
-      try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldStorage);applyHeader();}catch(rollbackError){}
+      let rollbackPersisted=false;
+      try{
+        Object.keys(state).forEach(key=>delete state[key]);
+        Object.assign(state,JSON.parse(oldState));
+        if(storageCommitted){
+          if(oldStorage===null)localStorage.removeItem(STORE_KEY);
+          else localStorage.setItem(STORE_KEY,oldStorage);
+        }
+        if(localStorage.getItem(STORE_KEY)!==oldStorage)throw new Error('朋友圈存储回滚校验失败');
+        rollbackPersisted=true;
+        applyHeader();
+      }catch(rollbackError){
+        console.warn('Circle state rollback failed',rollbackError);
+      }
+      if(coordinator&&(coordinator.getRevision('circle')!==revisionBefore||!rollbackPersisted)){
+        // A successful rollback reconciles the revision with the unchanged old
+        // storage; a failed rollback deliberately leaves an unpersisted revision.
+        coordinator.noteWrite('circle',rollbackPersisted);
+      }
       throw err;
     }
   }
