@@ -163,6 +163,16 @@ try {
 
   // The other upload has no chat reference; deleting it must remove its IndexedDB record.
   const orphanMediaId = uploaded.find(item => item.mediaId !== sentMediaId).mediaId;
+  // Sending a sticker closes the panel. Re-open it explicitly before the second
+  // deletion, and wait for the actual visible control rather than a stale hidden node.
+  await page.locator('#emojiBtn').click();
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('emojiPanel');
+    const button = document.querySelector('#stickerList [data-sticker-del]');
+    return panel?.classList.contains('show') && button &&
+      button.getClientRects().length > 0 &&
+      getComputedStyle(button).visibility !== 'hidden';
+  });
   await page.locator('#stickerList [data-sticker-del]').first().click();
   await page.waitForFunction(async id =>
     state.stickers.length === 0 && !(await getMediaRecord(id)), orphanMediaId);
