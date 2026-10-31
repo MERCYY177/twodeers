@@ -20,6 +20,10 @@ const normalize = css => css
   .replace(/content\s*:\s*(['"])[\s\S]*?\1/gi, 'content:""')
   .replace(/\s+/g, '');
 
+test('chat beautification manager is valid executable JavaScript', () => {
+  assert.doesNotThrow(() => new vm.Script(manager, { filename: 'chat-beautify-manager.js' }));
+});
+
 test('registers 78 independently identified CSS chat designs', () => {
   assert.equal(presets.length, 78);
   assert.equal(new Set(presets.map(item => item.id)).size, presets.length);

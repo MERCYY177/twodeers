@@ -162,7 +162,7 @@
     if ($('#duoChatBeautifyManagerStyle')) return;
     const style = document.createElement('style');
     style.id = 'duoChatBeautifyManagerStyle';
-    style.textContent = \`
+    style.textContent = `
       .duo-chat-beautify-manager{margin-top:16px}
       .duo-chat-beautify-manager .duo-chat-beautify-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
       .duo-chat-beautify-manager .duo-chat-beautify-head h3{margin:0 0 6px}
@@ -191,7 +191,7 @@
       .duo-chat-beautify-manager .duo-chat-beautify-empty{grid-column:1/-1;padding:20px;text-align:center;color:#877f74;font-size:13px}
       .duo-chat-beautify-manager .duo-chat-beautify-footnote{margin-top:12px}
       @media(max-width:390px){.duo-chat-beautify-manager .duo-chat-beautify-grid{grid-template-columns:1fr}.duo-chat-beautify-manager .duo-chat-beautify-preview{height:164px}}
-    \`;
+    `;
     document.head.appendChild(style);
   }
 
