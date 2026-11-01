@@ -261,8 +261,10 @@ try {
       if (id === 'rabbit-milk' || id === 'line-kitty') {
         assert.equal(audit.voicePadding,'0px',id + ' must retain its source voice-bubble treatment');
         assert.equal(audit.media.card.paddingTop,'0px',id + ' must apply its source card-specific reset');
-        assert.equal(audit.media.card.beforeDisplay,'none',id + ' card must not receive a generic bubble pseudo-element');
-        assert.equal(audit.media.card.afterDisplay,'none',id + ' card must not receive a generic bubble pseudo-element');
+        assert.ok(['none','normal'].includes(audit.media.card.beforeContent) && audit.media.card.beforeBackgroundImage === 'none',
+          id + ' card must not receive a generic before decoration');
+        assert.ok(['none','normal'].includes(audit.media.card.afterContent) && audit.media.card.afterBackgroundImage === 'none',
+          id + ' card must not receive a generic after decoration');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
       }
