@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
 const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
 const page = await context.newPage();
 const pageErrors = [];
+const consoleErrors = [];
+page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 page.on('pageerror', error => pageErrors.push(error.message));
 
 try {
@@ -36,6 +38,17 @@ try {
   assert.equal(baseline.tabs, 2, 'only uploads and favorites tabs should be mounted');
   assert.equal(baseline.backupVersion, 4);
 
+  const exposeBeautifySettings = () => page.evaluate(() => {
+    if (typeof goto === 'function') goto('settingsPage');
+    const panel = document.getElementById('settingsParam');
+    if (panel) {
+      panel.hidden = false;
+      panel.classList.remove('hidden');
+      panel.style.setProperty('display', 'block', 'important');
+      panel.style.setProperty('visibility', 'visible', 'important');
+    }
+  });
+  await exposeBeautifySettings();
   const beautifyBefore = await page.evaluate(() => ({
     count: window.DuoChatBeautify.presets.length,
     selectedId: state.chatBeautifyPresetId || '',
@@ -49,104 +62,301 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.equal(beautifyBefore.count, 78, '78 CSS beautification designs should be loaded');
-  assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each preset must have a live CSS preview card');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"]);
+  assert.equal(beautifyBefore.count, 21, 'exactly 21 approved CSS designs should be loaded');
+  assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
-  assert.ok(beautifyBefore.styleRules >= beautifyBefore.count * 8, 'browser must parse full preset stylesheets');
+  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 21 source stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
-  const exposeBeautifySettings = () => page.evaluate(() => {
-    if (typeof goto === 'function') goto('settingsPage');
-    const panel = document.getElementById('settingsParam');
-    if (panel) {
-      panel.hidden = false;
-      panel.classList.remove('hidden');
-      panel.style.setProperty('display', 'block', 'important');
-      panel.style.setProperty('visibility', 'visible', 'important');
-    }
-  });
-  await exposeBeautifySettings();
-  const testRows = await page.evaluate(() => {
-    const chat = document.getElementById('chatList');
-    const ids = ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker'];
-    const rows = [
-      buildMessageRow({id:ids[0],sender:'me',type:'text',text:'自己的消息预览',time:'20:18'}),
-      buildMessageRow({id:ids[1],sender:'other',type:'text',text:'对方的消息预览',time:'20:19'}),
-      buildMessageRow({id:ids[2],sender:'me',type:'image',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'}),
-      buildMessageRow({id:ids[3],sender:'other',type:'sticker',url:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'})
-    ];
-    rows.forEach((row,index) => {
-      row.dataset.beautifySmokeId = ids[index];
-      chat.appendChild(row);
-    });
-    return {
-      imageRadius:getComputedStyle(rows[2].querySelector('.bubble')).borderRadius,
-      stickerRadius:getComputedStyle(rows[3].querySelector('.bubble')).borderRadius
-    };
-  });
-  await page.locator('[data-beautify-apply="pixel-console"]').click();
-  const visualCheck = await page.evaluate(() => {
-    const chat = document.getElementById('chatList');
-    const find = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
-    const style = row => {
-      const bubble = row.querySelector('.bubble');
-      const computed = getComputedStyle(bubble);
-      return {radius:computed.borderRadius,position:computed.position,className:bubble.className};
-    };
-    const preview = document.querySelector('[data-preset-card="pixel-console"] .duo-chat-beautify-preview .msg-row.me .bubble');
-    return {
-      own:style(find('beautify-smoke-own')),
-      other:style(find('beautify-smoke-other')),
-      image:style(find('beautify-smoke-image')),
-      sticker:style(find('beautify-smoke-sticker')),
-      preview:preview?{radius:getComputedStyle(preview).borderRadius,position:getComputedStyle(preview).position}:null,
-      liveClass:chat.classList.contains('duo-chat-beautify--pixel-console'),
-      pageClass:document.getElementById('chatPage').classList.contains('duo-chat-beautify--pixel-console')
-    };
-  });
-  assert.equal(visualCheck.liveClass, true, 'selected preset class must be attached to the real chat');
-  assert.equal(visualCheck.pageClass, true, 'chat page and input composer must use the selected scope');
-  assert.equal(visualCheck.own.radius, '0px');
-  assert.equal(visualCheck.other.radius, '0px');
-  assert.equal(visualCheck.own.position, 'relative');
-  assert.ok(visualCheck.preview && visualCheck.preview.radius === '0px', 'preview must use the actual preset CSS');
-  assert.match(visualCheck.image.className, /image-bubble/);
-  assert.match(visualCheck.sticker.className, /sticker-bubble/);
-  assert.equal(visualCheck.image.radius, testRows.imageRadius, 'image message styling must remain unchanged');
-  assert.equal(visualCheck.sticker.radius, testRows.stickerRadius, 'sticker styling must remain unchanged');
-  await exposeBeautifySettings();
-  await page.locator('[data-beautify-apply="glass-lilac"]').click();
-  const switched = await page.evaluate(() => ({
-    id:state.chatBeautifyPresetId,
-    pixel:document.getElementById('chatList').classList.contains('duo-chat-beautify--pixel-console'),
-    glass:document.getElementById('chatList').classList.contains('duo-chat-beautify--glass-lilac'),
-    customCSS:state.customCSS||''
-  }));
-  assert.equal(switched.id, 'glass-lilac');
-  assert.equal(switched.pixel, false, 'switching must remove previous preset class');
-  assert.equal(switched.glass, true);
-  assert.equal(switched.customCSS, beautifyBefore.customCSS, 'preset selection must not modify user CSS');
-  await page.reload({waitUntil:'domcontentloaded'});
-  await page.waitForFunction(() => state.chatBeautifyPresetId === 'glass-lilac' &&
-    document.getElementById('chatList').classList.contains('duo-chat-beautify--glass-lilac'));
-  await exposeBeautifySettings();
-  await page.locator('[data-beautify-reset]').click();
-  const reset = await page.evaluate(() => ({
-    id:state.chatBeautifyPresetId,
-    hasPresetClass:[...document.getElementById('chatList').classList].some(name=>name.startsWith('duo-chat-beautify--')),
-    customCSS:state.customCSS||''
-  }));
-  assert.equal(reset.id, '');
-  assert.equal(reset.hasPresetClass, false);
-  assert.equal(reset.customCSS, beautifyBefore.customCSS, 'reset must not remove user custom CSS');
-  await page.reload({waitUntil:'domcontentloaded'});
-  await page.waitForFunction(() => state.chatBeautifyPresetId === '' &&
-    ![...document.getElementById('chatList').classList].some(name=>name.startsWith('duo-chat-beautify--')));
-  await page.evaluate(id => {
-    if (id) window.DuoChatBeautify.apply(id);
-    ['beautify-smoke-own','beautify-smoke-other','beautify-smoke-image','beautify-smoke-sticker']
-      .forEach(mid => document.querySelector('#chatList [data-beautify-smoke-id="' + mid + '"]')?.remove());
-  }, beautifyBefore.selectedId);
 
+  await page.evaluate(() => window.DuoChatBeautify.reset());
+  await page.evaluate(() => goto('chatPage'));
+  const baselineMedia = await page.evaluate(() => {
+    const chat = document.getElementById('chatList');
+    const gif = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const add = (id, message) => {
+      const row = buildMessageRow(Object.assign({id, sender:'me', time:'20:18'}, message));
+      row.dataset.beautifySmokeId = id;
+      chat.appendChild(row);
+      return row;
+    };
+    add('beautify-smoke-own', {type:'text',text:'发送方普通文字：今晚一起散步吧。'});
+    add('beautify-smoke-other', {sender:'other',type:'text',text:'接收方普通文字：当然可以。'});
+    add('beautify-smoke-image', {type:'image',url:gif});
+    const videoRow = add('beautify-smoke-video', {type:'video'});
+    const videoBubble = videoRow.querySelector('.bubble');
+    videoBubble.className = 'bubble video-bubble';
+    videoBubble.innerHTML = '<video class="message-video" controls playsinline preload="none"></video>';
+    const audioRow = add('beautify-smoke-audio', {type:'audio'});
+    const audioBubble = audioRow.querySelector('.bubble');
+    audioBubble.className = 'bubble audio-bubble';
+    audioBubble.innerHTML = '<div class="audio-message"><span>语音消息 · 1 秒</span><audio controls preload="none"></audio></div>';
+    add('beautify-smoke-sticker', {sender:'other',type:'sticker',url:gif});
+    add('beautify-smoke-pending', {sender:'other',type:'image'});
+    const system = buildMessageRow({id:'beautify-smoke-system',type:'system',text:'系统消息：测试开始'});
+    system.dataset.beautifySmokeId = 'beautify-smoke-system';
+    chat.appendChild(system);
+    const metric = bubble => {
+      const style = getComputedStyle(bubble);
+      return {
+        backgroundColor:style.backgroundColor,
+        borderTopColor:style.borderTopColor,
+        borderTopStyle:style.borderTopStyle,
+        borderTopWidth:style.borderTopWidth,
+        boxShadow:style.boxShadow,
+        borderRadius:style.borderRadius,
+        paddingTop:style.paddingTop,
+        paddingRight:style.paddingRight,
+        paddingBottom:style.paddingBottom,
+        paddingLeft:style.paddingLeft,
+        beforeContent:getComputedStyle(bubble,'::before').content,
+        beforeDisplay:getComputedStyle(bubble,'::before').display,
+        afterContent:getComputedStyle(bubble,'::after').content,
+        afterDisplay:getComputedStyle(bubble,'::after').display
+      };
+    };
+    const get = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
+    return {
+      media:{
+        video:metric(get('beautify-smoke-video').querySelector('.bubble')),
+        audio:metric(get('beautify-smoke-audio').querySelector('.bubble')),
+        sticker:metric(get('beautify-smoke-sticker').querySelector('.bubble')),
+        pending:metric(get('beautify-smoke-pending').querySelector('.bubble'))
+      },
+      imageRect:(() => {const r=get('beautify-smoke-image').querySelector('img').getBoundingClientRect();return {width:r.width,height:r.height};})(),
+      text:{own:metric(get('beautify-smoke-own').querySelector('.bubble')),other:metric(get('beautify-smoke-other').querySelector('.bubble'))},
+      rows:chat.querySelectorAll('[data-beautify-smoke-id]').length
+    };
+  });
+  assert.equal(baselineMedia.rows, 8, 'all seven message types plus the system row must be constructed');
+  await page.waitForFunction(() => {
+    const image = document.querySelector('[data-beautify-smoke-id="beautify-smoke-image"] img');
+    return image && image.complete && image.naturalWidth > 0;
+  });
+
+  mkdirSync('artifacts/chat-beautify', {recursive:true});
+  const presetRunResults = [];
+  const viewports = [
+    {name:'desktop',width:1365,height:900},
+    {name:'mobile',width:390,height:844}
+  ];
+  for (const viewport of viewports) {
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await exposeBeautifySettings();
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"]) {
+      await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
+      const audit = await page.evaluate(({id,baselineMedia}) => {
+        const chat = document.getElementById('chatList');
+        const card = document.querySelector('[data-preset-card="' + id + '"]');
+        const preview = card?.querySelector('.duo-chat-beautify-preview');
+        const row = name => chat.querySelector('[data-beautify-smoke-id="beautify-smoke-' + name + '"]');
+        const bubble = name => row(name)?.querySelector('.bubble');
+        const style = element => {
+          const s = getComputedStyle(element);
+          return {
+            backgroundColor:s.backgroundColor,borderTopColor:s.borderTopColor,
+            borderTopStyle:s.borderTopStyle,borderTopWidth:s.borderTopWidth,
+            boxShadow:s.boxShadow,borderRadius:s.borderRadius,
+            paddingTop:s.paddingTop,paddingRight:s.paddingRight,
+            paddingBottom:s.paddingBottom,paddingLeft:s.paddingLeft,
+            beforeContent:getComputedStyle(element,'::before').content,
+            beforeDisplay:getComputedStyle(element,'::before').display,
+            afterContent:getComputedStyle(element,'::after').content,
+            afterDisplay:getComputedStyle(element,'::after').display
+          };
+        };
+        const own = bubble('own'), other = bubble('other');
+        const previewOwn = preview?.querySelector('.msg-row.me .bubble');
+        const previewOther = preview?.querySelector('.msg-row.other .bubble');
+        const changed = (a,b) => Object.keys(a).some(key => a[key] !== b[key]);
+        const media = {
+          video:style(bubble('video')),audio:style(bubble('audio')),
+          sticker:style(bubble('sticker')),pending:style(bubble('pending'))
+        };
+        const image = row('image')?.querySelector('img');
+        const imageRect = image ? image.getBoundingClientRect() : {width:-1,height:-1};
+        const system = row('system');
+        const specialVoice = id === 'rabbit-milk' || id === 'line-kitty';
+        const specialVideo = specialVoice;
+        const isolation = {};
+        for (const type of ['video','sticker','pending','audio']) {
+          if ((type === 'video' && specialVideo) || (type === 'audio' && specialVoice)) continue;
+          isolation[type] = JSON.stringify(media[type]) === JSON.stringify(baselineMedia.media[type]);
+        }
+        return {
+          id,
+          liveClass:chat.classList.contains('duo-chat-beautify--' + id),
+          pageClass:document.getElementById('chatPage').classList.contains('duo-chat-beautify--' + id),
+          previewClass:preview?.classList.contains('duo-chat-beautify--' + id) || false,
+          selectedClasses:[...chat.classList].filter(name=>name.startsWith('duo-chat-beautify--')),
+          ownChanged:changed(own,baselineMedia.text.own),
+          otherChanged:changed(other,baselineMedia.text.other),
+          own,other,
+          previewOwn:previewOwn ? style(previewOwn) : null,
+          previewOther:previewOther ? style(previewOther) : null,
+          isolation,
+          imageRect,
+          systemHasBubble:!!system?.querySelector('.bubble'),
+          systemClass:system?.className || '',
+          voicePadding:media.audio.paddingTop,
+          videoPseudo:media.video.beforeContent + '|' + media.video.afterContent
+        };
+      }, {id,baselineMedia});
+      assert.equal(audit.liveClass,true,id + ' must scope the live chat list');
+      assert.equal(audit.pageClass,true,id + ' must scope the live chat page');
+      assert.equal(audit.previewClass,true,id + ' must scope its preview');
+      assert.deepEqual(audit.selectedClasses,['duo-chat-beautify--' + id],id + ' must not leave another preset scope active');
+      assert.ok(audit.ownChanged,id + ' own text bubble must receive its selected CSS');
+      assert.ok(audit.otherChanged,id + ' peer text bubble must receive its selected CSS');
+      assert.ok(audit.previewOwn && audit.previewOther,id + ' must render both preview directions');
+      assert.equal(audit.systemHasBubble,false,id + ' must not turn system messages into bubbles');
+      for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type);
+      assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width');
+      assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
+      if (id === 'rabbit-milk' || id === 'line-kitty') {
+        assert.equal(audit.voicePadding,'0px',id + ' must retain its source voice-bubble treatment');
+        const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
+        assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
+      }
+      await page.locator('[data-preset-card="' + id + '"] .duo-chat-beautify-preview').screenshot({
+        path:'artifacts/chat-beautify/' + viewport.name + '-preview-' + id + '.png'
+      });
+      await page.evaluate(() => goto('chatPage'));
+      await page.locator('#chatList').screenshot({
+        path:'artifacts/chat-beautify/' + viewport.name + '-chat-' + id + '.png'
+      });
+      if (['pink-gray-stars','picture-frame','soft-double-frame','line-cat-milk'].includes(id)) {
+        await page.locator('#chatList').screenshot({
+          path:'artifacts/chat-beautify/' + viewport.name + '-decorative-' + id + '.png'
+        });
+      }
+      if (id === 'rabbit-milk' || id === 'line-kitty') {
+        await page.locator('#chatList').screenshot({
+          path:'artifacts/chat-beautify/' + viewport.name + '-media-special-' + id + '.png'
+        });
+      }
+      await page.evaluate(() => goto('settingsPage'));
+      await exposeBeautifySettings();
+      presetRunResults.push({viewport:viewport.name,...audit});
+    }
+  }
+
+  await page.evaluate(() => window.DuoChatBeautify.apply('rabbit-milk'));
+  for (const viewport of viewports) {
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.evaluate(() => goto('chatPage'));
+    await page.locator('#chatList').screenshot({
+      path:'artifacts/chat-beautify/' + viewport.name + '-media-isolation.png'
+    });
+  }
+
+  const cssomAudit = await page.evaluate(() => {
+    return window.DuoChatBeautify.presets.map(item => {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(item.css);
+      const rules = [...sheet.cssRules];
+      const invalidSelectors = [];
+      const split = value => {
+        const out=[];let start=0,depth=0,quote='',escaped=false;
+        for(let i=0;i<value.length;i++){const c=value[i];if(escaped){escaped=false;continue;}if(c==='\\'){escaped=true;continue;}if(quote){if(c===quote)quote='';continue;}if(c==='"'||c==="'"){quote=c;continue;}if(c==='('||c==='[')depth++;else if(c===')'||c===']')depth--;else if(c===','&&depth===0){out.push(value.slice(start,i));start=i+1;}}
+        out.push(value.slice(start));return out;
+      };
+      for (const rule of rules) {
+        if (!rule.selectorText) continue;
+        for (const selector of split(rule.selectorText)) {
+          const query = selector.replace(/::[a-z-]+/gi,'');
+          try { document.querySelectorAll(query); }
+          catch (error) { invalidSelectors.push({selector,error:error.message}); }
+        }
+      }
+      return {id:item.id,ruleCount:rules.length,sourceRuleCount:(item.css.match(/\{/g)||[]).length,invalidSelectors};
+    });
+  });
+  for (const item of cssomAudit) {
+    assert.equal(item.ruleCount,item.sourceRuleCount,item.id + ' CSSOM must parse every source rule');
+    assert.deepEqual(item.invalidSelectors,[],item.id + ' selectors must be accepted by Chromium');
+  }
+
+  const resourceAudit = await page.evaluate(async (assets) => {
+    const loadImage = url => new Promise(resolve => {
+      const image = new Image();
+      const timer = setTimeout(() => resolve({loaded:false,naturalWidth:0,error:'timeout'}),12000);
+      image.onload = () => {clearTimeout(timer);resolve({loaded:image.naturalWidth>0,naturalWidth:image.naturalWidth});};
+      image.onerror = () => {clearTimeout(timer);resolve({loaded:false,naturalWidth:0,error:'image-error'});};
+      image.src = url;
+    });
+    const results=[];
+    for (const asset of assets) {
+      const image = await loadImage(asset.url);
+      results.push({...asset,browser:image});
+    }
+    return results;
+  }, await page.evaluate(() => {
+    const urls = new Set();
+    for (const item of window.DuoChatBeautify.presets) {
+      for (const match of item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)) urls.add(match[2]);
+    }
+    return [...urls].filter(url => /^https?:|^\/\//i.test(url)).map(url => ({url,kind:'remote'}));
+  }).then(async remote => {
+    const local = await page.evaluate(() => {
+      const urls = new Set();
+      for (const item of window.DuoChatBeautify.presets) {
+        for (const match of item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)) {
+          if (!/^https?:|^data:|^\/\//i.test(match[2])) urls.add(match[2]);
+        }
+      }
+      return [...urls].map(url => ({url:'/' + url,kind:'local',path:url}));
+    });
+    return [...remote,...local];
+  }));
+  assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,9,'all nine remote image URLs must be audited');
+  assert.equal(resourceAudit.filter(item=>item.kind==='local').length,11,'all eleven local image assets must be audited');
+  const resourceHttpAudit = [];
+  for (const asset of resourceAudit) {
+    const url = asset.kind === 'local' ? 'http://127.0.0.1:8080' + asset.url : asset.url;
+    try {
+      const response = await page.request.get(url,{timeout:20000});
+      resourceHttpAudit.push({...asset,status:response.status(),contentType:response.headers()['content-type'] || ''});
+    } catch (error) {
+      resourceHttpAudit.push({...asset,status:null,contentType:'',error:error.message});
+    }
+  }
+  writeFileSync('artifacts/chat-beautify/resource-audit.json',JSON.stringify({browser:resourceAudit,http:resourceHttpAudit},null,2));
+  writeFileSync('artifacts/chat-beautify/preset-browser-audit.json',JSON.stringify({cssomAudit,presetRunResults},null,2));
+
+  await page.evaluate(() => window.DuoChatBeautify.apply('line-kitty'));
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => state.chatBeautifyPresetId === 'line-kitty' && document.getElementById('chatList').classList.contains('duo-chat-beautify--line-kitty'));
+  const validPersistence = await page.evaluate(() => ({id:state.chatBeautifyPresetId,customCSS:state.customCSS || ''}));
+  assert.equal(validPersistence.id,'line-kitty','a valid selected preset must persist after reload');
+  await page.evaluate(() => window.DuoChatBeautify.reset());
+  const resetAudit = await page.evaluate(() => ({id:state.chatBeautifyPresetId || '',hasPresetClass:[...document.getElementById('chatList').classList].some(name=>name.startsWith('duo-chat-beautify--')),customCSS:state.customCSS || ''}));
+  assert.equal(resetAudit.id,'');
+  assert.equal(resetAudit.hasPresetClass,false,'reset must remove the selected preset class');
+  assert.equal(resetAudit.customCSS,validPersistence.customCSS,'reset must preserve custom CSS');
+
+  const stateBeforeStale = await page.evaluate(() => ({
+    customCSS:state.customCSS || '',
+    chatHistory:JSON.stringify(state.chatHistory || []),
+    stickers:JSON.stringify(state.stickers || []),
+    currentPage:state.currentPage
+  }));
+  await page.evaluate(() => {state.chatBeautifyPresetId='native-style-removed';save();});
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => !!window.DuoChatBeautify && !!document.getElementById('duoChatBeautifyPanel'));
+  const staleCleanup = await page.evaluate(() => ({
+    hasPresetId:Object.prototype.hasOwnProperty.call(state,'chatBeautifyPresetId'),
+    selectedId:window.DuoChatBeautify.getCurrent(),
+    customCSS:state.customCSS || '',
+    chatHistory:JSON.stringify(state.chatHistory || []),
+    stickers:JSON.stringify(state.stickers || [])
+  }));
+  assert.equal(staleCleanup.hasPresetId,false,'stale selected ID must be removed from persisted state');
+  assert.equal(staleCleanup.selectedId,'');
+  assert.equal(staleCleanup.customCSS,stateBeforeStale.customCSS,'stale cleanup must preserve custom CSS');
+  assert.equal(staleCleanup.chatHistory,stateBeforeStale.chatHistory,'stale cleanup must preserve chat history');
+  assert.equal(staleCleanup.stickers,stateBeforeStale.stickers,'stale cleanup must preserve sticker data');
+  if (beautifyBefore.selectedId) await page.evaluate(id => window.DuoChatBeautify.apply(id),beautifyBefore.selectedId);
   await page.evaluate(() => {
     const p = document.getElementById('settingsPage');
     const card = document.getElementById('settingsParam');
@@ -276,9 +486,14 @@ try {
     result: 'passed',
     themePersisted: true,
     cssBeautifyPresets: beautifyBefore.count,
+    cssBeautifyBrowserViews: presetRunResults.length,
+    cssBeautifyScreenshots: 98,
+    cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
+    resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
+    consoleErrors,
     cssBeautifyLivePreview: true,
-    cssBeautifyApplySwitchReset: true,
-    cssBeautifyPersistence: true,
+    cssBeautifyApplySwitchReset: resetAudit.id === '' && !resetAudit.hasPresetClass,
+    cssBeautifyPersistence: validPersistence.id === 'line-kitty',
     cssBeautifyMediaSafe: true,
     twoColumnStickers: true,
     favoritePersistence: true,

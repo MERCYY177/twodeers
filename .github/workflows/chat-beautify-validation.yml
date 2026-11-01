@@ -1,0 +1,53 @@
+name: Chat beautification validation
+
+on:
+  push:
+    branches:
+      - feat/faithful-bubble-css-migration
+    paths:
+      - "chat-beautify-presets.js"
+      - "chat-beautify-manager.js"
+      - "tests/**"
+      - "index.html"
+      - ".github/workflows/chat-beautify-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify source and run Node tests
+        run: |
+          node tools/verify-source.mjs
+          node --test tests/chat-beautify.test.mjs tests/backup-v4.test.mjs
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
+      - name: Run real-browser smoke and visual checks
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/twodeers-http.log 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
+            sleep 1
+          done
+          node tests/browser-smoke.mjs
+          kill "$SERVER_PID" || true
+      - name: Upload desktop/mobile screenshots and audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-beautification-browser-evidence
+          path: artifacts/chat-beautify/
+          if-no-files-found: warn
+          retention-days: 14
