@@ -174,7 +174,19 @@ try {
         beforeContent:before.content,beforeDisplay:before.display,beforeBackgroundImage:before.backgroundImage,
         beforeWidth:before.width,beforeHeight:before.height,
         afterContent:after.content,afterDisplay:after.display,afterBackgroundImage:after.backgroundImage,
-        afterWidth:after.width,afterHeight:after.height
+        afterWidth:after.width,afterHeight:after.height,
+        beforeVisibility:before.visibility,beforeOpacity:before.opacity,beforeBackgroundColor:before.backgroundColor,
+        beforeBorderImageSource:before.borderImageSource,beforeBoxShadow:before.boxShadow,
+        beforeBorderTopStyle:before.borderTopStyle,beforeBorderTopWidth:before.borderTopWidth,
+        beforeBorderRightStyle:before.borderRightStyle,beforeBorderRightWidth:before.borderRightWidth,
+        beforeBorderBottomStyle:before.borderBottomStyle,beforeBorderBottomWidth:before.borderBottomWidth,
+        beforeBorderLeftStyle:before.borderLeftStyle,beforeBorderLeftWidth:before.borderLeftWidth,
+        afterVisibility:after.visibility,afterOpacity:after.opacity,afterBackgroundColor:after.backgroundColor,
+        afterBorderImageSource:after.borderImageSource,afterBoxShadow:after.boxShadow,
+        afterBorderTopStyle:after.borderTopStyle,afterBorderTopWidth:after.borderTopWidth,
+        afterBorderRightStyle:after.borderRightStyle,afterBorderRightWidth:after.borderRightWidth,
+        afterBorderBottomStyle:after.borderBottomStyle,afterBorderBottomWidth:after.borderBottomWidth,
+        afterBorderLeftStyle:after.borderLeftStyle,afterBorderLeftWidth:after.borderLeftWidth
       };
     };
     const get = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
@@ -297,14 +309,6 @@ try {
       assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width');
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
       if (id === 'rabbit-milk' || id === 'line-kitty') {
-        const pseudoDecoration = (media, side) => {
-          const content = media[side + 'Content'];
-          const generated = !['none','normal','""',"''"].includes(content);
-          const background = media[side + 'BackgroundImage'] !== 'none';
-          const width = Number.parseFloat(media[side + 'Width']) || 0;
-          const height = Number.parseFloat(media[side + 'Height']) || 0;
-          return { visible: generated && (background || (width > 0 && height > 0)), content, backgroundImage: media[side + 'BackgroundImage'], width: media[side + 'Width'], height: media[side + 'Height'] };
-        };
         console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
           id, baseline: baselineMedia.media.card, after: audit.media.card
         }));
