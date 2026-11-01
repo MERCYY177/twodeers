@@ -301,6 +301,33 @@ try {
         const image = row('image')?.querySelector('img');
         const imageRect = image ? image.getBoundingClientRect() : {width:-1,height:-1};
         const system = row('system');
+        const elementMetric = element => {
+          if (!element) return null;
+          const s = getComputedStyle(element), before = getComputedStyle(element,'::before'), after = getComputedStyle(element,'::after');
+          const rect = element.getBoundingClientRect();
+          return {
+            tagName:element.tagName,className:typeof element.className === 'string' ? element.className : '',
+            display:s.display,visibility:s.visibility,opacity:s.opacity,position:s.position,
+            width:s.width,height:s.height,minWidth:s.minWidth,minHeight:s.minHeight,
+            backgroundColor:s.backgroundColor,backgroundImage:s.backgroundImage,
+            borderTopStyle:s.borderTopStyle,borderTopWidth:s.borderTopWidth,
+            borderRightStyle:s.borderRightStyle,borderRightWidth:s.borderRightWidth,
+            borderBottomStyle:s.borderBottomStyle,borderBottomWidth:s.borderBottomWidth,
+            borderLeftStyle:s.borderLeftStyle,borderLeftWidth:s.borderLeftWidth,
+            borderImageSource:s.borderImageSource,boxShadow:s.boxShadow,borderRadius:s.borderRadius,
+            paddingTop:s.paddingTop,paddingRight:s.paddingRight,paddingBottom:s.paddingBottom,paddingLeft:s.paddingLeft,
+            overflow:s.overflow,objectFit:s.objectFit,flexDirection:s.flexDirection,alignItems:s.alignItems,
+            justifyContent:s.justifyContent,gap:s.gap,color:s.color,fontSize:s.fontSize,lineHeight:s.lineHeight,
+            rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+            before:{content:before.content,display:before.display,visibility:before.visibility,opacity:before.opacity,backgroundImage:before.backgroundImage,width:before.width,height:before.height,borderImageSource:before.borderImageSource},
+            after:{content:after.content,display:after.display,visibility:after.visibility,opacity:after.opacity,backgroundImage:after.backgroundImage,width:after.width,height:after.height,borderImageSource:after.borderImageSource}
+          };
+        };
+        const videoRow = row('video'), audioRow = row('audio');
+        const mediaElements = {
+          video:{row:elementMetric(videoRow),wrap:elementMetric(videoRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('video')),element:elementMetric(videoRow?.querySelector('video'))},
+          audio:{row:elementMetric(audioRow),wrap:elementMetric(audioRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('audio')),message:elementMetric(audioRow?.querySelector('.audio-message')),voiceIcon:elementMetric(audioRow?.querySelector('.voice-icon')),element:elementMetric(audioRow?.querySelector('audio'))}
+        };
         const specialVoice = id === 'rabbit-milk' || id === 'line-kitty';
         const specialVideo = specialVoice;
         const isolation = {};
@@ -316,7 +343,7 @@ try {
           selectedClasses:[...chat.classList].filter(name=>name.startsWith('duo-chat-beautify--')),
           ownChanged:changed(own,baselineMedia.text.own),
           otherChanged:changed(other,baselineMedia.text.other),
-          own,other,media,
+          own,other,media,mediaElements,
           previewOwn:previewOwn ? style(previewOwn) : null,
           previewOther:previewOther ? style(previewOther) : null,
           isolation,
