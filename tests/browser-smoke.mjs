@@ -167,7 +167,7 @@ try {
             afterDisplay:getComputedStyle(element,'::after').display
           };
         };
-        const own = bubble('own'), other = bubble('other');
+        const own = style(bubble('own')), other = style(bubble('other'));
         const previewOwn = preview?.querySelector('.msg-row.me .bubble');
         const previewOther = preview?.querySelector('.msg-row.other .bubble');
         const changed = (a,b) => Object.keys(a).some(key => a[key] !== b[key]);
