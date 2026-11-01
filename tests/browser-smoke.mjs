@@ -259,12 +259,29 @@ try {
       assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width');
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
       if (id === 'rabbit-milk' || id === 'line-kitty') {
+        const pseudoDecoration = (media, side) => {
+          const content = media[side + 'Content'];
+          const generated = !['none','normal','""',"''"].includes(content);
+          const background = media[side + 'BackgroundImage'] !== 'none';
+          const width = Number.parseFloat(media[side + 'Width']) || 0;
+          const height = Number.parseFloat(media[side + 'Height']) || 0;
+          return { visible: generated && (background || (width > 0 && height > 0)), content, backgroundImage: media[side + 'BackgroundImage'], width: media[side + 'Width'], height: media[side + 'Height'] };
+        };
+        console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
+          id, baseline: baselineMedia.media.card, after: audit.media.card
+        }));
         assert.equal(audit.voicePadding,'0px',id + ' must retain its source voice-bubble treatment');
         assert.equal(audit.media.card.paddingTop,'0px',id + ' must apply its source card-specific reset');
-        assert.ok(['none','normal'].includes(audit.media.card.beforeContent) && audit.media.card.beforeBackgroundImage === 'none',
-          id + ' card must not receive a generic before decoration');
-        assert.ok(['none','normal'].includes(audit.media.card.afterContent) && audit.media.card.afterBackgroundImage === 'none',
-          id + ' card must not receive a generic after decoration');
+        for (const side of ['before','after']) {
+          const baselinePseudo = pseudoDecoration(baselineMedia.media.card, side);
+          const appliedPseudo = pseudoDecoration(audit.media.card, side);
+          assert.equal(appliedPseudo.visible, baselinePseudo.visible,
+            id + ' card must not gain a visible generic ' + side + ' decoration: ' + JSON.stringify({baseline:baselinePseudo,after:appliedPseudo,baselineStyle:baselineMedia.media.card,afterStyle:audit.media.card}));
+          if (baselinePseudo.visible) {
+            assert.deepEqual(appliedPseudo, baselinePseudo,
+              id + ' card must preserve its pre-existing ' + side + ' decoration without modification');
+          }
+        }
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
       }
