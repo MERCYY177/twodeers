@@ -168,6 +168,7 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
     assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
       id + ' must preserve its source card-specific decoration');
     assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
+    assert.match(item.css, /\.bubble:has\(img\):not\(\.sticker-bubble\)/, id + ' image decoration must not spill onto sticker bubbles');
   }
 });
 
