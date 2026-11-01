@@ -286,7 +286,19 @@ try {
             beforeContent:before.content,beforeDisplay:before.display,beforeBackgroundImage:before.backgroundImage,
             beforeWidth:before.width,beforeHeight:before.height,
             afterContent:after.content,afterDisplay:after.display,afterBackgroundImage:after.backgroundImage,
-            afterWidth:after.width,afterHeight:after.height
+            afterWidth:after.width,afterHeight:after.height,
+            beforeVisibility:before.visibility,beforeOpacity:before.opacity,beforeBackgroundColor:before.backgroundColor,
+            beforeBorderImageSource:before.borderImageSource,beforeBoxShadow:before.boxShadow,
+            beforeBorderTopStyle:before.borderTopStyle,beforeBorderTopWidth:before.borderTopWidth,
+            beforeBorderRightStyle:before.borderRightStyle,beforeBorderRightWidth:before.borderRightWidth,
+            beforeBorderBottomStyle:before.borderBottomStyle,beforeBorderBottomWidth:before.borderBottomWidth,
+            beforeBorderLeftStyle:before.borderLeftStyle,beforeBorderLeftWidth:before.borderLeftWidth,
+            afterVisibility:after.visibility,afterOpacity:after.opacity,afterBackgroundColor:after.backgroundColor,
+            afterBorderImageSource:after.borderImageSource,afterBoxShadow:after.boxShadow,
+            afterBorderTopStyle:after.borderTopStyle,afterBorderTopWidth:after.borderTopWidth,
+            afterBorderRightStyle:after.borderRightStyle,afterBorderRightWidth:after.borderRightWidth,
+            afterBorderBottomStyle:after.borderBottomStyle,afterBorderBottomWidth:after.borderBottomWidth,
+            afterBorderLeftStyle:after.borderLeftStyle,afterBorderLeftWidth:after.borderLeftWidth
           };
         };
         const own = style(bubble('own')), other = style(bubble('other'));
