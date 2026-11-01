@@ -369,6 +369,11 @@ try {
         console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
           id, baseline: baselineMedia.media.card, after: audit.media.card
         }));
+        console.log('[special-media-diagnostic] ' + JSON.stringify({
+          id,viewport:viewport.name,baseline:baselineMedia.mediaElements,after:audit.mediaElements,
+          videoPseudo:{before:pseudoDecoration(audit.media.video,'before'),after:pseudoDecoration(audit.media.video,'after')},
+          audioPseudo:{before:pseudoDecoration(audit.media.audio,'before'),after:pseudoDecoration(audit.media.audio,'after')}
+        }));
         assert.equal(audit.voicePadding,'0px',id + ' must retain its source voice-bubble treatment');
         assert.equal(audit.media.card.paddingTop,'0px',id + ' must apply its source card-specific reset');
         for (const side of ['before','after']) {
@@ -381,8 +386,26 @@ try {
               id + ' card must preserve its pre-existing ' + side + ' decoration without modification');
           }
         }
+        for (const side of ['before','after']) {
+          assert.equal(pseudoDecoration(audit.media.video,side).visible,false,
+            id + ' video bubble must not receive ordinary text-bubble ' + side + ' decoration');
+          assert.equal(pseudoDecoration(audit.media.audio,side).visible,false,
+            id + ' voice bubble must not receive ordinary text-bubble ' + side + ' decoration');
+        }
+        assert.ok(audit.mediaElements.video.element && audit.mediaElements.video.element.rect.width > 0,
+          id + ' video element must have a rendered box');
+        assert.ok(audit.mediaElements.audio.element && audit.mediaElements.audio.element.rect.width > 0,
+          id + ' audio element must have a rendered box');
+        assert.ok(audit.mediaElements.audio.message && audit.mediaElements.audio.message.rect.width > 0,
+          id + ' voice message container must have a rendered box');
+        assert.ok(audit.mediaElements.audio.voiceIcon,id + ' voice icon must be present and inspected');
+        assert.equal(audit.media.video.backgroundImage,'none',id + ' video container must retain the media reset');
+        assert.equal(audit.media.video.paddingTop,'0px',id + ' video container must retain zero media padding');
+        assert.equal(audit.media.video.borderTopStyle,'none',id + ' video container must not inherit the ordinary text border');
+        assert.equal(audit.media.audio.paddingTop,'0px',id + ' voice container must retain the source zero-padding rule');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
+        assert.match(preset,/audio-bubble/,id + ' must retain voice-specific CSS');
       }
       await page.locator('[data-preset-card="' + id + '"] .duo-chat-beautify-preview').screenshot({
         path:'artifacts/chat-beautify/' + viewport.name + '-preview-' + id + '.png'
@@ -489,6 +512,15 @@ try {
   }
   writeFileSync('artifacts/chat-beautify/resource-audit.json',JSON.stringify({browser:resourceAudit,http:resourceHttpAudit},null,2));
   writeFileSync('artifacts/chat-beautify/preset-browser-audit.json',JSON.stringify({cssomAudit,presetRunResults},null,2));
+  writeFileSync('artifacts/chat-beautify/media-special-audit.json',JSON.stringify({
+    results:presetRunResults.filter(item=>item.id==='rabbit-milk'||item.id==='line-kitty').map(item=>({
+      viewport:item.viewport,id:item.id,video:item.mediaElements.video,audio:item.mediaElements.audio,
+      card:item.media.card,
+      videoPseudo:{before:pseudoDecoration(item.media.video,'before'),after:pseudoDecoration(item.media.video,'after')},
+      audioPseudo:{before:pseudoDecoration(item.media.audio,'before'),after:pseudoDecoration(item.media.audio,'after')},
+      cardPseudo:{before:pseudoDecoration(item.media.card,'before'),after:pseudoDecoration(item.media.card,'after')}
+    }))
+  },null,2));
 
   await page.evaluate(() => window.DuoChatBeautify.apply('line-kitty'));
   await page.reload({waitUntil:'domcontentloaded'});
