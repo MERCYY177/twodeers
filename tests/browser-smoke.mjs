@@ -19,7 +19,7 @@ const pseudoDecoration = (media, side) => {
   const emptyContent = content === '""' || content === "''" || content === '';
   const hasBox = !['none','contents'].includes(display) && visibility !== 'hidden' && visibility !== 'collapse' && opacity > 0;
   const hasDimensions = width > 0 && height > 0;
-  const transparentColor = backgroundColor === 'transparent' || /rgba?\\([^)]*,\\s*0(?:\\.0+)?\\s*\\)$/.test(backgroundColor);
+  const transparentColor = backgroundColor === 'transparent' || /rgba?\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(backgroundColor);
   const hasVisibleBackground = backgroundImage !== 'none' || !transparentColor;
   const hasVisibleBorder = borderImageSource !== 'none' || borderStyles.some((style,index) => !['none','hidden'].includes(style) && borderWidths[index] > 0);
   const visible = hasBox && generated && (!emptyContent || (hasDimensions && (hasVisibleBackground || hasVisibleBorder || boxShadow !== 'none')));
