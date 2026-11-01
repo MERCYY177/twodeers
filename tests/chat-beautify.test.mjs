@@ -189,6 +189,14 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
     assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
       id + ' must preserve its source card-specific decoration');
     assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
+    for (const rule of parseCssRules(item.css)) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        if (/\.msg-row\.(?:me|other) \.bubble/.test(selector) && !/\.audio-bubble/.test(selector) && !isExplicitMediaRule(selector)) {
+          assert.ok(selector.includes(':not(.xiaoshu-card-message-outer)') && selector.includes(':not(:has('),
+            id + ' generic text selectors must exclude special card bubbles: ' + selector);
+        }
+      }
+    }
     assert.match(item.css, /\.bubble:has\(img\):not\(\.sticker-bubble\)/, id + ' image decoration must not spill onto sticker bubbles');
   }
 });
