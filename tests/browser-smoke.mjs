@@ -128,7 +128,7 @@ try {
     const audioRow = add('beautify-smoke-audio', {type:'audio'});
     const audioBubble = audioRow.querySelector('.bubble');
     audioBubble.className = 'bubble audio-bubble';
-    audioBubble.innerHTML = '<div class="audio-message"><span>语音消息 · 1 秒</span><audio controls preload="none"></audio></div>';
+    audioBubble.innerHTML = '<div class="audio-message"><span class="voice-icon" aria-hidden="true">♫</span><span>语音消息 · 1 秒</span><audio controls preload="none"></audio></div>';
     add('beautify-smoke-sticker', {sender:'other',type:'sticker',url:gif});
     add('beautify-smoke-pending', {sender:'other',type:'image'});
     const cardRow = add('beautify-smoke-card', {type:'text',text:'卡片消息：商品信息'});
@@ -190,7 +190,37 @@ try {
       };
     };
     const get = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
+    const elementMetric = element => {
+      if (!element) return null;
+      const style = getComputedStyle(element);
+      const before = getComputedStyle(element,'::before');
+      const after = getComputedStyle(element,'::after');
+      const rect = element.getBoundingClientRect();
+      return {
+        tagName:element.tagName,className:typeof element.className === 'string' ? element.className : '',
+        display:style.display,visibility:style.visibility,opacity:style.opacity,position:style.position,
+        width:style.width,height:style.height,minWidth:style.minWidth,minHeight:style.minHeight,
+        backgroundColor:style.backgroundColor,backgroundImage:style.backgroundImage,
+        borderTopStyle:style.borderTopStyle,borderTopWidth:style.borderTopWidth,
+        borderRightStyle:style.borderRightStyle,borderRightWidth:style.borderRightWidth,
+        borderBottomStyle:style.borderBottomStyle,borderBottomWidth:style.borderBottomWidth,
+        borderLeftStyle:style.borderLeftStyle,borderLeftWidth:style.borderLeftWidth,
+        borderImageSource:style.borderImageSource,boxShadow:style.boxShadow,borderRadius:style.borderRadius,
+        paddingTop:style.paddingTop,paddingRight:style.paddingRight,paddingBottom:style.paddingBottom,paddingLeft:style.paddingLeft,
+        overflow:style.overflow,objectFit:style.objectFit,flexDirection:style.flexDirection,alignItems:style.alignItems,
+        justifyContent:style.justifyContent,gap:style.gap,color:style.color,fontSize:style.fontSize,lineHeight:style.lineHeight,
+        rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+        before:{content:before.content,display:before.display,visibility:before.visibility,opacity:before.opacity,backgroundImage:before.backgroundImage,width:before.width,height:before.height,borderImageSource:before.borderImageSource},
+        after:{content:after.content,display:after.display,visibility:after.visibility,opacity:after.opacity,backgroundImage:after.backgroundImage,width:after.width,height:after.height,borderImageSource:after.borderImageSource}
+      };
+    };
+    const videoRow = get('beautify-smoke-video');
+    const audioRow = get('beautify-smoke-audio');
     return {
+      mediaElements:{
+        video:{row:elementMetric(videoRow),wrap:elementMetric(videoRow.querySelector('.bubble-wrap')),bubble:elementMetric(videoRow.querySelector('.bubble')),element:elementMetric(videoRow.querySelector('video'))},
+        audio:{row:elementMetric(audioRow),wrap:elementMetric(audioRow.querySelector('.bubble-wrap')),bubble:elementMetric(audioRow.querySelector('.bubble')),message:elementMetric(audioRow.querySelector('.audio-message')),voiceIcon:elementMetric(audioRow.querySelector('.voice-icon')),element:elementMetric(audioRow.querySelector('audio'))}
+      },
       media:{
         video:mediaMetric(get('beautify-smoke-video').querySelector('.bubble')),
         audio:mediaMetric(get('beautify-smoke-audio').querySelector('.bubble')),
