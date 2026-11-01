@@ -93,6 +93,10 @@ try {
     audioBubble.innerHTML = '<div class="audio-message"><span>语音消息 · 1 秒</span><audio controls preload="none"></audio></div>';
     add('beautify-smoke-sticker', {sender:'other',type:'sticker',url:gif});
     add('beautify-smoke-pending', {sender:'other',type:'image'});
+    const cardRow = add('beautify-smoke-card', {type:'text',text:'卡片消息：商品信息'});
+    const cardBubble = cardRow.querySelector('.bubble');
+    cardBubble.className = 'bubble xiaoshu-card-message-outer';
+    cardBubble.innerHTML = '<div class="message-card"><strong>商品卡片</strong><span>卡片专属布局</span></div>';
     const system = buildMessageRow({id:'beautify-smoke-system',type:'system',text:'系统消息：测试开始'});
     system.dataset.beautifySmokeId = 'beautify-smoke-system';
     chat.appendChild(system);
@@ -141,14 +145,15 @@ try {
         video:mediaMetric(get('beautify-smoke-video').querySelector('.bubble')),
         audio:mediaMetric(get('beautify-smoke-audio').querySelector('.bubble')),
         sticker:mediaMetric(get('beautify-smoke-sticker').querySelector('.bubble')),
-        pending:mediaMetric(get('beautify-smoke-pending').querySelector('.bubble'))
+        pending:mediaMetric(get('beautify-smoke-pending').querySelector('.bubble')),
+        card:mediaMetric(get('beautify-smoke-card').querySelector('.bubble'))
       },
       imageRect:(() => {const r=get('beautify-smoke-image').querySelector('img').getBoundingClientRect();return {width:r.width,height:r.height};})(),
       text:{own:metric(get('beautify-smoke-own').querySelector('.bubble')),other:metric(get('beautify-smoke-other').querySelector('.bubble'))},
       rows:chat.querySelectorAll('[data-beautify-smoke-id]').length
     };
   });
-  assert.equal(baselineMedia.rows, 8, 'all seven message types plus the system row must be constructed');
+  assert.equal(baselineMedia.rows, 9, 'all seven message types, a special card and the system row must be constructed');
   await page.waitForFunction(() => {
     const image = document.querySelector('[data-beautify-smoke-id="beautify-smoke-image"] img');
     return image && image.complete && image.naturalWidth > 0;
@@ -210,7 +215,8 @@ try {
         const changed = (a,b) => Object.keys(a).some(key => a[key] !== b[key]);
         const media = {
           video:mediaStyle(bubble('video')),audio:mediaStyle(bubble('audio')),
-          sticker:mediaStyle(bubble('sticker')),pending:mediaStyle(bubble('pending'))
+          sticker:mediaStyle(bubble('sticker')),pending:mediaStyle(bubble('pending')),
+          card:mediaStyle(bubble('card'))
         };
         const image = row('image')?.querySelector('img');
         const imageRect = image ? image.getBoundingClientRect() : {width:-1,height:-1};
@@ -254,6 +260,9 @@ try {
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
       if (id === 'rabbit-milk' || id === 'line-kitty') {
         assert.equal(audit.voicePadding,'0px',id + ' must retain its source voice-bubble treatment');
+        assert.equal(audit.media.card.paddingTop,'0px',id + ' must apply its source card-specific reset');
+        assert.equal(audit.media.card.beforeDisplay,'none',id + ' card must not receive a generic bubble pseudo-element');
+        assert.equal(audit.media.card.afterDisplay,'none',id + ' card must not receive a generic bubble pseudo-element');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
       }
