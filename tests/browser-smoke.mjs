@@ -2,6 +2,44 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
+const pseudoDecoration = (media, side) => {
+  const content = media[side + 'Content'];
+  const display = media[side + 'Display'] || 'inline';
+  const visibility = media[side + 'Visibility'] || 'visible';
+  const opacity = Number.parseFloat(media[side + 'Opacity'] ?? '1');
+  const width = Number.parseFloat(media[side + 'Width']) || 0;
+  const height = Number.parseFloat(media[side + 'Height']) || 0;
+  const backgroundImage = media[side + 'BackgroundImage'] || 'none';
+  const backgroundColor = media[side + 'BackgroundColor'] || 'transparent';
+  const borderImageSource = media[side + 'BorderImageSource'] || 'none';
+  const borderStyles = ['Top','Right','Bottom','Left'].map(edge => media[side + 'Border' + edge + 'Style'] || 'none');
+  const borderWidths = ['Top','Right','Bottom','Left'].map(edge => Number.parseFloat(media[side + 'Border' + edge + 'Width']) || 0);
+  const boxShadow = media[side + 'BoxShadow'] || 'none';
+  const generated = !['none','normal'].includes(content);
+  const emptyContent = content === '""' || content === "''" || content === '';
+  const hasBox = !['none','contents'].includes(display) && visibility !== 'hidden' && visibility !== 'collapse' && opacity > 0;
+  const hasDimensions = width > 0 && height > 0;
+  const transparentColor = backgroundColor === 'transparent' || /rgba?\\([^)]*,\\s*0(?:\\.0+)?\\s*\\)$/.test(backgroundColor);
+  const hasVisibleBackground = backgroundImage !== 'none' || !transparentColor;
+  const hasVisibleBorder = borderImageSource !== 'none' || borderStyles.some((style,index) => !['none','hidden'].includes(style) && borderWidths[index] > 0);
+  const visible = hasBox && generated && (!emptyContent || (hasDimensions && (hasVisibleBackground || hasVisibleBorder || boxShadow !== 'none')));
+  return {visible,content,display,visibility,opacity,width:media[side + 'Width'],height:media[side + 'Height'],backgroundImage,backgroundColor,borderImageSource,borderStyles,borderWidths,boxShadow};
+};
+const emptyContentImagePseudo = {
+  beforeContent:'""',beforeDisplay:'block',beforeVisibility:'visible',beforeOpacity:'1',
+  beforeWidth:'24px',beforeHeight:'18px',beforeBackgroundImage:'url("fixture.png")',
+  beforeBackgroundColor:'rgba(0, 0, 0, 0)',beforeBorderImageSource:'none',
+  beforeBorderTopStyle:'none',beforeBorderTopWidth:'0px',beforeBorderRightStyle:'none',beforeBorderRightWidth:'0px',
+  beforeBorderBottomStyle:'none',beforeBorderBottomWidth:'0px',beforeBorderLeftStyle:'none',beforeBorderLeftWidth:'0px',
+  beforeBoxShadow:'none'
+};
+assert.equal(pseudoDecoration(emptyContentImagePseudo,'before').visible,true,
+  'empty content with a background image and non-zero dimensions must be visible');
+assert.equal(pseudoDecoration({...emptyContentImagePseudo,beforeContent:'none'},'before').visible,false,
+  'content:none must not generate a visible pseudo-element');
+assert.equal(pseudoDecoration({...emptyContentImagePseudo,beforeContent:'normal'},'before').visible,false,
+  'content:normal must not generate a visible pseudo-element');
+
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
 const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
 const page = await context.newPage();
