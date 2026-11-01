@@ -116,13 +116,32 @@ try {
         afterDisplay:getComputedStyle(bubble,'::after').display
       };
     };
+    const mediaMetric = bubble => {
+      const style = getComputedStyle(bubble);
+      const before = getComputedStyle(bubble,'::before');
+      const after = getComputedStyle(bubble,'::after');
+      return {
+        backgroundColor:style.backgroundColor,backgroundImage:style.backgroundImage,
+        borderTopStyle:style.borderTopStyle,borderTopWidth:style.borderTopWidth,
+        borderRightStyle:style.borderRightStyle,borderRightWidth:style.borderRightWidth,
+        borderBottomStyle:style.borderBottomStyle,borderBottomWidth:style.borderBottomWidth,
+        borderLeftStyle:style.borderLeftStyle,borderLeftWidth:style.borderLeftWidth,
+        boxShadow:style.boxShadow,outlineStyle:style.outlineStyle,outlineWidth:style.outlineWidth,
+        borderRadius:style.borderRadius,paddingTop:style.paddingTop,paddingRight:style.paddingRight,
+        paddingBottom:style.paddingBottom,paddingLeft:style.paddingLeft,
+        beforeContent:before.content,beforeDisplay:before.display,beforeBackgroundImage:before.backgroundImage,
+        beforeWidth:before.width,beforeHeight:before.height,
+        afterContent:after.content,afterDisplay:after.display,afterBackgroundImage:after.backgroundImage,
+        afterWidth:after.width,afterHeight:after.height
+      };
+    };
     const get = id => chat.querySelector('[data-beautify-smoke-id="' + id + '"]');
     return {
       media:{
-        video:metric(get('beautify-smoke-video').querySelector('.bubble')),
-        audio:metric(get('beautify-smoke-audio').querySelector('.bubble')),
-        sticker:metric(get('beautify-smoke-sticker').querySelector('.bubble')),
-        pending:metric(get('beautify-smoke-pending').querySelector('.bubble'))
+        video:mediaMetric(get('beautify-smoke-video').querySelector('.bubble')),
+        audio:mediaMetric(get('beautify-smoke-audio').querySelector('.bubble')),
+        sticker:mediaMetric(get('beautify-smoke-sticker').querySelector('.bubble')),
+        pending:mediaMetric(get('beautify-smoke-pending').querySelector('.bubble'))
       },
       imageRect:(() => {const r=get('beautify-smoke-image').querySelector('img').getBoundingClientRect();return {width:r.width,height:r.height};})(),
       text:{own:metric(get('beautify-smoke-own').querySelector('.bubble')),other:metric(get('beautify-smoke-other').querySelector('.bubble'))},
@@ -154,6 +173,8 @@ try {
         const bubble = name => row(name)?.querySelector('.bubble');
         const style = element => {
           const s = getComputedStyle(element);
+          const before = getComputedStyle(element,'::before');
+          const after = getComputedStyle(element,'::after');
           return {
             color:s.color,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight,
             backgroundColor:s.backgroundColor,backgroundImage:s.backgroundImage,borderTopColor:s.borderTopColor,
@@ -161,10 +182,26 @@ try {
             boxShadow:s.boxShadow,borderRadius:s.borderRadius,
             paddingTop:s.paddingTop,paddingRight:s.paddingRight,
             paddingBottom:s.paddingBottom,paddingLeft:s.paddingLeft,
-            beforeContent:getComputedStyle(element,'::before').content,
-            beforeDisplay:getComputedStyle(element,'::before').display,
-            afterContent:getComputedStyle(element,'::after').content,
-            afterDisplay:getComputedStyle(element,'::after').display
+            beforeContent:before.content,beforeDisplay:before.display,afterContent:after.content,afterDisplay:after.display
+          };
+        };
+        const mediaStyle = element => {
+          const s = getComputedStyle(element);
+          const before = getComputedStyle(element,'::before');
+          const after = getComputedStyle(element,'::after');
+          return {
+            backgroundColor:s.backgroundColor,backgroundImage:s.backgroundImage,
+            borderTopStyle:s.borderTopStyle,borderTopWidth:s.borderTopWidth,
+            borderRightStyle:s.borderRightStyle,borderRightWidth:s.borderRightWidth,
+            borderBottomStyle:s.borderBottomStyle,borderBottomWidth:s.borderBottomWidth,
+            borderLeftStyle:s.borderLeftStyle,borderLeftWidth:s.borderLeftWidth,
+            boxShadow:s.boxShadow,outlineStyle:s.outlineStyle,outlineWidth:s.outlineWidth,
+            borderRadius:s.borderRadius,paddingTop:s.paddingTop,paddingRight:s.paddingRight,
+            paddingBottom:s.paddingBottom,paddingLeft:s.paddingLeft,
+            beforeContent:before.content,beforeDisplay:before.display,beforeBackgroundImage:before.backgroundImage,
+            beforeWidth:before.width,beforeHeight:before.height,
+            afterContent:after.content,afterDisplay:after.display,afterBackgroundImage:after.backgroundImage,
+            afterWidth:after.width,afterHeight:after.height
           };
         };
         const own = style(bubble('own')), other = style(bubble('other'));
@@ -172,8 +209,8 @@ try {
         const previewOther = preview?.querySelector('.msg-row.other .bubble');
         const changed = (a,b) => Object.keys(a).some(key => a[key] !== b[key]);
         const media = {
-          video:style(bubble('video')),audio:style(bubble('audio')),
-          sticker:style(bubble('sticker')),pending:style(bubble('pending'))
+          video:mediaStyle(bubble('video')),audio:mediaStyle(bubble('audio')),
+          sticker:mediaStyle(bubble('sticker')),pending:mediaStyle(bubble('pending'))
         };
         const image = row('image')?.querySelector('img');
         const imageRect = image ? image.getBoundingClientRect() : {width:-1,height:-1};
