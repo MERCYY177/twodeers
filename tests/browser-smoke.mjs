@@ -214,12 +214,12 @@ try {
         after:{content:after.content,display:after.display,visibility:after.visibility,opacity:after.opacity,backgroundImage:after.backgroundImage,width:after.width,height:after.height,borderImageSource:after.borderImageSource}
       };
     };
-    const videoRow = get('beautify-smoke-video');
-    const audioRow = get('beautify-smoke-audio');
+    const videoRowForMetrics = get('beautify-smoke-video');
+    const audioRowForMetrics = get('beautify-smoke-audio');
     return {
       mediaElements:{
-        video:{row:elementMetric(videoRow),wrap:elementMetric(videoRow.querySelector('.bubble-wrap')),bubble:elementMetric(videoRow.querySelector('.bubble')),element:elementMetric(videoRow.querySelector('video'))},
-        audio:{row:elementMetric(audioRow),wrap:elementMetric(audioRow.querySelector('.bubble-wrap')),bubble:elementMetric(audioRow.querySelector('.bubble')),message:elementMetric(audioRow.querySelector('.audio-message')),voiceIcon:elementMetric(audioRow.querySelector('.voice-icon')),element:elementMetric(audioRow.querySelector('audio'))}
+        video:{row:elementMetric(videoRowForMetrics),wrap:elementMetric(videoRowForMetrics.querySelector('.bubble-wrap')),bubble:elementMetric(videoRowForMetrics.querySelector('.bubble')),element:elementMetric(videoRowForMetrics.querySelector('video'))},
+        audio:{row:elementMetric(audioRowForMetrics),wrap:elementMetric(audioRowForMetrics.querySelector('.bubble-wrap')),bubble:elementMetric(audioRowForMetrics.querySelector('.bubble')),message:elementMetric(audioRowForMetrics.querySelector('.audio-message')),voiceIcon:elementMetric(audioRowForMetrics.querySelector('.voice-icon')),element:elementMetric(audioRowForMetrics.querySelector('audio'))}
       },
       media:{
         video:mediaMetric(get('beautify-smoke-video').querySelector('.bubble')),
