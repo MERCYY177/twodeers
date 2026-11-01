@@ -250,6 +250,7 @@ try {
     await exposeBeautifySettings();
     for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
+      await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
         const chat = document.getElementById('chatList');
         const card = document.querySelector('[data-preset-card="' + id + '"]');
@@ -427,6 +428,8 @@ try {
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
         assert.match(preset,/audio-bubble/,id + ' must retain voice-specific CSS');
       }
+      await page.evaluate(() => goto('settingsPage'));
+      await exposeBeautifySettings();
       await page.locator('[data-preset-card="' + id + '"] .duo-chat-beautify-preview').screenshot({
         path:'artifacts/chat-beautify/' + viewport.name + '-preview-' + id + '.png'
       });
