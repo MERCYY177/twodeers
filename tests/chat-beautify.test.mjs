@@ -58,6 +58,7 @@ test('migrated source CSS maps legacy message selectors without adding new visua
   for (const item of migrated) {
     const scope = '.duo-chat-beautify--' + item.id;
     assert.ok(item.css.includes(scope), item.id + ' missing preset scope');
+    assert.ok(item.css.includes(':is(#chatList,.duo-chat-beautify-preview)' + scope), item.id + ' must scope both live chat and CSS preview roots');
     assert.ok(item.css.includes('.msg-row.me'), item.id + ' missing own-message selector');
     assert.ok(item.css.includes('.msg-row.other'), item.id + ' missing peer-message selector');
     assert.ok(item.css.includes('.bubble'), item.id + ' missing target bubble selector');
