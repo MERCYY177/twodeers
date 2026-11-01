@@ -165,6 +165,8 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
   for (const id of ['rabbit-milk', 'line-kitty']) {
     const item = presets.find(entry => entry.id === id);
     assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
+    assert.match(item.css, /\.msg-row:has\(\.bubble\.video-bubble\)/, id + ' must preserve the source video-row decoration');
+    assert.doesNotMatch(item.css, /\.msg-row:has\([^{}]*:has\(/, id + ' must not contain unsupported nested :has selectors');
     assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
       id + ' must preserve its source card-specific decoration');
     assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
