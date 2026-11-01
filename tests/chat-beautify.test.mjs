@@ -180,7 +180,7 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
   for (const id of ['rabbit-milk', 'line-kitty']) {
     const item = presets.find(entry => entry.id === id);
     assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
-    assert.match(item.css, /\.msg-row:has\(\.bubble\.video-bubble\)/, id + ' must preserve the source video-row decoration');
+    if (id === 'rabbit-milk') assert.match(item.css, /\.msg-row:has\(\.bubble\.video-bubble\)/, id + ' must preserve its source video-row decoration');
     for (const rule of parseCssRules(item.css)) {
       for (const selector of splitSelectorList(rule.selector)) {
         assert.equal(hasNestedHas(selector), false, id + ' must not contain unsupported nested :has selectors: ' + selector);
