@@ -105,6 +105,21 @@ function isExplicitMediaRule(selector) {
   return /\.bubble(?:\.(?:image-bubble|video-bubble|audio-bubble|sticker-bubble|media-pending|xiaoshu-card-message-outer)|:is\(\.image-bubble\)|:has\((?:img|video|canvas|\.red-packet-card|\.transfer-bubble|\.ta-phone-product-card|\.shop-chat-card|\.product-card|\.order-product|\.chat-card|\.bubble-card|\.message-card|\[data-chat-card|\[data-card))/i.test(selector);
 }
 
+function hasNestedHas(selector) {
+  const stack = [];
+  for (let i = 0; i < selector.length; i++) {
+    if (selector.startsWith(':has(', i)) {
+      if (stack.includes('has')) return true;
+      stack.push('has');
+      i += 4;
+      continue;
+    }
+    if (selector[i] === '(') stack.push('other');
+    else if (selector[i] === ')') stack.pop();
+  }
+  return false;
+}
+
 function assertMediaSafeSelector(selector, presetId) {
   if (!/\.bubble(?![-\w])/.test(selector) || isExplicitMediaRule(selector)) return;
   for (const className of ['image-bubble', 'video-bubble', 'sticker-bubble', 'media-pending']) {
@@ -166,7 +181,11 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
     const item = presets.find(entry => entry.id === id);
     assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
     assert.match(item.css, /\.msg-row:has\(\.bubble\.video-bubble\)/, id + ' must preserve the source video-row decoration');
-    assert.doesNotMatch(item.css, /\.msg-row:has\([^{}]*:has\(/, id + ' must not contain unsupported nested :has selectors');
+    for (const rule of parseCssRules(item.css)) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        assert.equal(hasNestedHas(selector), false, id + ' must not contain unsupported nested :has selectors: ' + selector);
+      }
+    }
     assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
       id + ' must preserve its source card-specific decoration');
     assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
