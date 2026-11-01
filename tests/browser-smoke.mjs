@@ -99,7 +99,8 @@ try {
     const metric = bubble => {
       const style = getComputedStyle(bubble);
       return {
-        backgroundColor:style.backgroundColor,
+        color:style.color,fontSize:style.fontSize,fontWeight:style.fontWeight,lineHeight:style.lineHeight,
+        backgroundColor:style.backgroundColor,backgroundImage:style.backgroundImage,
         borderTopColor:style.borderTopColor,
         borderTopStyle:style.borderTopStyle,
         borderTopWidth:style.borderTopWidth,
@@ -154,7 +155,8 @@ try {
         const style = element => {
           const s = getComputedStyle(element);
           return {
-            backgroundColor:s.backgroundColor,borderTopColor:s.borderTopColor,
+            color:s.color,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight,
+            backgroundColor:s.backgroundColor,backgroundImage:s.backgroundImage,borderTopColor:s.borderTopColor,
             borderTopStyle:s.borderTopStyle,borderTopWidth:s.borderTopWidth,
             boxShadow:s.boxShadow,borderRadius:s.borderRadius,
             paddingTop:s.paddingTop,paddingRight:s.paddingRight,
@@ -206,8 +208,8 @@ try {
       assert.equal(audit.pageClass,true,id + ' must scope the live chat page');
       assert.equal(audit.previewClass,true,id + ' must scope its preview');
       assert.deepEqual(audit.selectedClasses,['duo-chat-beautify--' + id],id + ' must not leave another preset scope active');
-      assert.ok(audit.ownChanged,id + ' own text bubble must receive its selected CSS');
-      assert.ok(audit.otherChanged,id + ' peer text bubble must receive its selected CSS');
+      assert.ok(audit.ownChanged,id + ' own text bubble must receive its selected CSS: ' + JSON.stringify({before:baselineMedia.text.own,after:audit.own}));
+      assert.ok(audit.otherChanged,id + ' peer text bubble must receive its selected CSS: ' + JSON.stringify({before:baselineMedia.text.other,after:audit.other}));
       assert.ok(audit.previewOwn && audit.previewOther,id + ' must render both preview directions');
       assert.equal(audit.systemHasBubble,false,id + ' must not turn system messages into bubbles');
       for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type);
