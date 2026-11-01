@@ -193,7 +193,7 @@ try {
           selectedClasses:[...chat.classList].filter(name=>name.startsWith('duo-chat-beautify--')),
           ownChanged:changed(own,baselineMedia.text.own),
           otherChanged:changed(other,baselineMedia.text.other),
-          own,other,
+          own,other,media,
           previewOwn:previewOwn ? style(previewOwn) : null,
           previewOther:previewOther ? style(previewOther) : null,
           isolation,
@@ -212,7 +212,7 @@ try {
       assert.ok(audit.otherChanged,id + ' peer text bubble must receive its selected CSS: ' + JSON.stringify({before:baselineMedia.text.other,after:audit.other}));
       assert.ok(audit.previewOwn && audit.previewOther,id + ' must render both preview directions');
       assert.equal(audit.systemHasBubble,false,id + ' must not turn system messages into bubbles');
-      for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type);
+      for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type + ': ' + JSON.stringify({before:baselineMedia.media[type],after:audit.media[type]}));
       assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width');
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
       if (id === 'rabbit-milk' || id === 'line-kitty') {
