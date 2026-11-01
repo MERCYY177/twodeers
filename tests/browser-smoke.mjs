@@ -469,9 +469,9 @@ try {
   const resourceAudit = await page.evaluate(async (assets) => {
     const loadImage = url => new Promise(resolve => {
       const image = new Image();
-      const timer = setTimeout(() => resolve({loaded:false,naturalWidth:0,error:'timeout'}),12000);
-      image.onload = () => {clearTimeout(timer);resolve({loaded:image.naturalWidth>0,naturalWidth:image.naturalWidth});};
-      image.onerror = () => {clearTimeout(timer);resolve({loaded:false,naturalWidth:0,error:'image-error'});};
+      const timer = setTimeout(() => resolve({loaded:false,naturalWidth:0,naturalHeight:0,error:'timeout'}),12000);
+      image.onload = () => {clearTimeout(timer);resolve({loaded:image.naturalWidth>0 && image.naturalHeight>0,naturalWidth:image.naturalWidth,naturalHeight:image.naturalHeight});};
+      image.onerror = () => {clearTimeout(timer);resolve({loaded:false,naturalWidth:0,naturalHeight:0,error:'image-error'});};
       image.src = url;
     });
     const results=[];
@@ -481,11 +481,16 @@ try {
     }
     return results;
   }, await page.evaluate(() => {
-    const urls = new Set();
+    const urls = new Map();
     for (const item of window.DuoChatBeautify.presets) {
-      for (const match of item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)) urls.add(match[2]);
+      for (const match of item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)) {
+        const url = match[2];
+        if (!/^https?:|^\/\//i.test(url)) continue;
+        if (!urls.has(url)) urls.set(url,new Set());
+        urls.get(url).add(item.id);
+      }
     }
-    return [...urls].filter(url => /^https?:|^\/\//i.test(url)).map(url => ({url,kind:'remote'}));
+    return [...urls].map(([url,presets]) => ({url,kind:'remote',presets:[...presets]}));
   }).then(async remote => {
     const local = await page.evaluate(() => {
       const urls = new Set();
@@ -505,12 +510,18 @@ try {
     const url = asset.kind === 'local' ? 'http://127.0.0.1:8080' + asset.url : asset.url;
     try {
       const response = await page.request.get(url,{timeout:20000});
-      resourceHttpAudit.push({...asset,status:response.status(),contentType:response.headers()['content-type'] || ''});
+      resourceHttpAudit.push({...asset,status:response.status(),contentType:response.headers()['content-type'] || '',contentLength:response.headers()['content-length'] || null});
     } catch (error) {
       resourceHttpAudit.push({...asset,status:null,contentType:'',error:error.message});
     }
   }
-  writeFileSync('artifacts/chat-beautify/resource-audit.json',JSON.stringify({browser:resourceAudit,http:resourceHttpAudit},null,2));
+  const remoteResourceFailures = resourceAudit.filter(item => item.kind === 'remote' && (
+    !item.browser.loaded || !resourceHttpAudit.some(http => http.url === item.url && http.status === 200 && /^image\\//i.test(http.contentType))
+  )).map(item => ({url:item.url,presets:item.presets || [],browser:item.browser,http:resourceHttpAudit.find(http => http.url === item.url)}));
+  writeFileSync('artifacts/chat-beautify/resource-audit.json',JSON.stringify({
+    browser:resourceAudit,http:resourceHttpAudit,
+    summary:{remoteCount:resourceAudit.filter(item=>item.kind==='remote').length,localCount:resourceAudit.filter(item=>item.kind==='local').length,remoteFailures:remoteResourceFailures}
+  },null,2));
   writeFileSync('artifacts/chat-beautify/preset-browser-audit.json',JSON.stringify({cssomAudit,presetRunResults},null,2));
   writeFileSync('artifacts/chat-beautify/media-special-audit.json',JSON.stringify({
     results:presetRunResults.filter(item=>item.id==='rabbit-milk'||item.id==='line-kitty').map(item=>({
@@ -688,6 +699,7 @@ try {
     cssBeautifyScreenshots: 98,
     cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
     resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
+    remoteResourceFailures,
     consoleErrors,
     cssBeautifyLivePreview: true,
     cssBeautifyApplySwitchReset: resetAudit.id === '' && !resetAudit.hasPresetClass,
