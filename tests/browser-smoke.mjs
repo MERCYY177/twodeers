@@ -238,6 +238,10 @@ try {
     const image = document.querySelector('[data-beautify-smoke-id="beautify-smoke-image"] img');
     return image && image.complete && image.naturalWidth > 0;
   });
+  baselineMedia.imageRect = await page.evaluate(() => {
+    const rect = document.querySelector('[data-beautify-smoke-id="beautify-smoke-image"] img').getBoundingClientRect();
+    return {width:rect.width,height:rect.height};
+  });
 
   mkdirSync('artifacts/chat-beautify', {recursive:true});
   const presetRunResults = [];
@@ -376,8 +380,8 @@ try {
       assert.ok(audit.previewOwn && audit.previewOther,id + ' must render both preview directions');
       assert.equal(audit.systemHasBubble,false,id + ' must not turn system messages into bubbles');
       for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type + ': ' + JSON.stringify({before:baselineMedia.media[type],after:audit.media[type]}));
-      assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width');
-      assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height');
+      assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
+      assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
       if (id === 'rabbit-milk' || id === 'line-kitty') {
         console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
           id, baseline: baselineMedia.media.card, after: audit.media.card
