@@ -392,16 +392,24 @@ try {
           assert.equal(pseudoDecoration(audit.media.audio,side).visible,false,
             id + ' voice bubble must not receive ordinary text-bubble ' + side + ' decoration');
         }
-        assert.ok(audit.mediaElements.video.element && audit.mediaElements.video.element.rect.width > 0,
+        assert.ok(audit.mediaElements.video.row && audit.mediaElements.video.bubble,
+          id + ' video row and bubble containers must be inspected');
+        assert.ok(audit.mediaElements.audio.row && audit.mediaElements.audio.bubble,
+          id + ' voice row and bubble containers must be inspected');
+        assert.ok(audit.mediaElements.video.element && audit.mediaElements.video.element.rect.width > 0 && audit.mediaElements.video.element.rect.height > 0,
           id + ' video element must have a rendered box');
-        assert.ok(audit.mediaElements.audio.element && audit.mediaElements.audio.element.rect.width > 0,
+        assert.ok(audit.mediaElements.audio.element && audit.mediaElements.audio.element.rect.width > 0 && audit.mediaElements.audio.element.rect.height > 0,
           id + ' audio element must have a rendered box');
         assert.ok(audit.mediaElements.audio.message && audit.mediaElements.audio.message.rect.width > 0,
           id + ' voice message container must have a rendered box');
         assert.ok(audit.mediaElements.audio.voiceIcon,id + ' voice icon must be present and inspected');
         assert.equal(audit.media.video.backgroundImage,'none',id + ' video container must retain the media reset');
+        assert.equal(audit.media.video.backgroundColor,'rgba(0, 0, 0, 0)',id + ' video container must not inherit a text-bubble fill');
         assert.equal(audit.media.video.paddingTop,'0px',id + ' video container must retain zero media padding');
         assert.equal(audit.media.video.borderTopStyle,'none',id + ' video container must not inherit the ordinary text border');
+        assert.equal(audit.media.video.borderTopWidth,'0px',id + ' video container border must be reset');
+        assert.equal(audit.media.video.boxShadow,'none',id + ' video container must not inherit the ordinary text shadow');
+        assert.equal(audit.media.video.borderRadius,'0px',id + ' video container must retain the source media radius reset');
         assert.equal(audit.media.audio.paddingTop,'0px',id + ' voice container must retain the source zero-padding rule');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
         assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
