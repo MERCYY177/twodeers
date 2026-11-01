@@ -543,7 +543,7 @@ try {
     }
   }
   const remoteResourceFailures = resourceAudit.filter(item => item.kind === 'remote' && (
-    !item.browser.loaded || !resourceHttpAudit.some(http => http.url === item.url && http.status === 200 && /^image\\//i.test(http.contentType))
+    !item.browser.loaded || !resourceHttpAudit.some(http => http.url === item.url && http.status === 200 && /^image\//i.test(http.contentType))
   )).map(item => ({url:item.url,presets:item.presets || [],browser:item.browser,http:resourceHttpAudit.find(http => http.url === item.url)}));
   writeFileSync('artifacts/chat-beautify/resource-audit.json',JSON.stringify({
     browser:resourceAudit,http:resourceHttpAudit,
