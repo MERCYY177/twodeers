@@ -28,7 +28,8 @@ jobs:
       - name: Verify source and run Node tests
         run: |
           node tools/verify-source.mjs
-          node --test tests/chat-beautify.test.mjs tests/backup-v4.test.mjs
+          node --test tests/chat-beautify.test.mjs
+          node --test tests/backup-v4.test.mjs
       - name: Install Playwright Chromium
         run: |
           npm install --no-save --no-package-lock playwright
