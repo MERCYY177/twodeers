@@ -132,19 +132,19 @@ test('chat beautification manager is valid executable JavaScript', () => {
   assert.doesNotThrow(() => new vm.Script(manager, { filename: 'chat-beautify-manager.js' }));
 });
 
-test('only the exact 21 approved CSS designs are registered, with exact source IDs', () => {
-  assert.equal(presets.length, 21, 'only 21 approved designs may exist in the preset array');
+test('only the exact 19 approved CSS designs are registered, with exact source IDs', () => {
+  assert.equal(presets.length, 19, 'only 19 approved designs may exist in the preset array');
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
-  assert.equal(new Set(presets.map(item => item.id)).size, 21, 'preset IDs must be unique');
-  assert.equal(new Set(presets.map(item => item.name)).size, 21, 'preset names must be unique');
+  assert.equal(new Set(presets.map(item => item.id)).size, 19, 'preset IDs must be unique');
+  assert.equal(new Set(presets.map(item => item.name)).size, 19, 'preset names must be unique');
   assert.deepEqual(Object.fromEntries(presets.map(item => [item.id, item.sourcePresetId])), expectedSourceIds);
-  assert.equal(presets.filter(item => item.sourcePresetId).length, 21);
+  assert.equal(presets.filter(item => item.sourcePresetId).length, 19);
   assert.ok(presets.every(item => item.description && item.category && item.css.length > 1200));
   assert.ok(!presets.some(item => item.id === 'wechat-old-green'));
   assert.ok(!presets.some(item => !expectedPresetIds.includes(item.id)), 'no native or backup preset may remain');
 });
 
-test('all 21 migrated CSS styles retain their original scope and both chat directions', () => {
+test('all 19 migrated CSS styles retain their original scope and both chat directions', () => {
   for (const item of presets) {
     const scope = '.duo-chat-beautify--' + item.id;
     assert.ok(item.css.includes(scope), item.id + ' missing its original scope');
@@ -165,7 +165,7 @@ test('all 21 migrated CSS styles retain their original scope and both chat direc
   assert.equal(scopeOnly(first.css), scopeOnly(fifth.css), 'original source styles 1 and 5 must remain identical');
 });
 
-test('all 21 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
+test('all 19 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
   for (const item of presets) {
     const rules = parseCssRules(item.css);
     assert.ok(rules.length >= 3, item.id + ' CSS should contain real parsed rules');
@@ -198,7 +198,7 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
   }
 });
 
-test('four decorative designs use real text-bubble DOM selectors and preserve decoration declarations', () => {
+test('three decorative designs use real text-bubble DOM selectors and preserve decoration declarations', () => {
   for (const id of decorativePresetIds) {
     const item = presets.find(entry => entry.id === id);
     assert.ok(item, id + ' must remain in the approved list');
@@ -220,7 +220,7 @@ test('four decorative designs use real text-bubble DOM selectors and preserve de
 
 test('removed remote-image presets are absent from the complete runtime registry', () => {
   assert.equal(presets.length, 19);
-  assert.deepEqual(presets.map(item => item.id), expectedPresetIds);
+  assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
   const serialized = JSON.stringify(presets);
   const removedTokens = [
     ['rabbit','milk'].join('-'), ['line','cat','milk'].join('-'),
