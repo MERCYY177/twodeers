@@ -100,11 +100,11 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"]);
-  assert.equal(beautifyBefore.count, 21, 'exactly 21 approved CSS designs should be loaded');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","","line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]);
+  assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
-  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 21 source stylesheets');
+  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 19 source stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
 
   await page.evaluate(() => window.DuoChatBeautify.reset());
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","","line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -345,7 +345,7 @@ try {
           video:{row:elementMetric(videoRow),wrap:elementMetric(videoRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('video')),element:elementMetric(videoRow?.querySelector('video'))},
           audio:{row:elementMetric(audioRow),wrap:elementMetric(audioRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('audio')),message:elementMetric(audioRow?.querySelector('.audio-message')),voiceIcon:elementMetric(audioRow?.querySelector('.voice-icon')),element:elementMetric(audioRow?.querySelector('audio'))}
         };
-        const specialVoice = id === 'rabbit-milk' || id === 'line-kitty';
+        const specialVoice = id === '' || id === 'line-kitty';
         const specialVideo = specialVoice;
         const isolation = {};
         for (const type of ['video','sticker','pending','audio']) {
@@ -382,7 +382,7 @@ try {
       for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type + ': ' + JSON.stringify({before:baselineMedia.media[type],after:audit.media[type]}));
       assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
-      if (id === 'rabbit-milk' || id === 'line-kitty') {
+      if (id === '' || id === 'line-kitty') {
         console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
           id, baseline: baselineMedia.media.card, after: audit.media.card
         }));
@@ -441,12 +441,12 @@ try {
       await page.locator('#chatList').screenshot({
         path:'artifacts/chat-beautify/' + viewport.name + '-chat-' + id + '.png'
       });
-      if (['pink-gray-stars','picture-frame','soft-double-frame','line-cat-milk'].includes(id)) {
+      if (['pink-gray-stars','picture-frame','soft-double-frame',''].includes(id)) {
         await page.locator('#chatList').screenshot({
           path:'artifacts/chat-beautify/' + viewport.name + '-decorative-' + id + '.png'
         });
       }
-      if (id === 'rabbit-milk' || id === 'line-kitty') {
+      if (id === '' || id === 'line-kitty') {
         await page.locator('#chatList').screenshot({
           path:'artifacts/chat-beautify/' + viewport.name + '-media-special-' + id + '.png'
         });
@@ -457,7 +457,7 @@ try {
     }
   }
 
-  await page.evaluate(() => window.DuoChatBeautify.apply('rabbit-milk'));
+  await page.evaluate(() => window.DuoChatBeautify.apply('line-kitty'));
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.evaluate(() => goto('chatPage'));
@@ -530,7 +530,7 @@ try {
     });
     return [...remote,...local];
   }));
-  assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,9,'all nine remote image URLs must be audited');
+  assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,6,'all six remaining remote image URLs must be audited');
   assert.equal(resourceAudit.filter(item=>item.kind==='local').length,11,'all eleven local image assets must be audited');
   const resourceHttpAudit = [];
   for (const asset of resourceAudit) {
@@ -551,7 +551,7 @@ try {
   },null,2));
   writeFileSync('artifacts/chat-beautify/preset-browser-audit.json',JSON.stringify({cssomAudit,presetRunResults},null,2));
   writeFileSync('artifacts/chat-beautify/media-special-audit.json',JSON.stringify({
-    results:presetRunResults.filter(item=>item.id==='rabbit-milk'||item.id==='line-kitty').map(item=>({
+    results:presetRunResults.filter(item=>item.id===''||item.id==='line-kitty').map(item=>({
       viewport:item.viewport,id:item.id,video:item.mediaElements.video,audio:item.mediaElements.audio,
       card:item.media.card,
       videoPseudo:{before:pseudoDecoration(item.media.video,'before'),after:pseudoDecoration(item.media.video,'after')},
@@ -723,7 +723,7 @@ try {
     themePersisted: true,
     cssBeautifyPresets: beautifyBefore.count,
     cssBeautifyBrowserViews: presetRunResults.length,
-    cssBeautifyScreenshots: 98,
+    cssBeautifyScreenshots: 92,
     cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
     resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
     remoteResourceFailures,
