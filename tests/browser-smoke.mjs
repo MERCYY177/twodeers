@@ -429,7 +429,7 @@ try {
         assert.equal(audit.media.video.borderRadius,'0px',id + ' video container must retain the source media radius reset');
         assert.equal(audit.media.audio.paddingTop,'0px',id + ' voice container must retain the source zero-padding rule');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
-        assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
+        assert.ok(preset.includes('.bubble.video-bubble'),id + ' must retain explicit video-bubble isolation without :has');
         assert.match(preset,/audio-bubble/,id + ' must retain voice-specific CSS');
       }
       await page.evaluate(() => goto('settingsPage'));
