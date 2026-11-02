@@ -18,7 +18,6 @@ const expectedSourceIds = {
   "rose-letter": "builtin_31b14a17_02_eve___v2",
   "blue-imessage": "builtin_0e89fa2e_03_eve_iMessage",
   "mint-sms": "builtin_4ff48447_04_eve_iMessage",
-  "carbon-glass": "builtin_3ff838e0_07_eve_iMessage",
   "miffy-memo": "builtin_30e73b53_08_miu",
   "x-blue-dm": "builtin_b9f7f258_22_miu__X",
   "x-night-dm": "builtin_e6d04d09_23_miu__X",
@@ -33,7 +32,7 @@ const expectedSourceIds = {
   "picture-frame": "builtin_xiaoshu_frame_borderimage_v1",
   "soft-double-frame": "builtin_xiaoshu_soft_frame_pair_v1",
 };
-const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
+const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
 const decorativePresetIds = ['pink-gray-stars', 'picture-frame', 'soft-double-frame'];
 const mediaClasses = ['image-bubble', 'video-bubble', 'audio-bubble', 'sticker-bubble', 'media-pending'];
 
@@ -132,10 +131,10 @@ test('chat beautification manager is valid executable JavaScript', () => {
 });
 
 test('only the exact 18 approved CSS designs are registered, with exact source IDs', () => {
-  assert.equal(presets.length, 18, 'only 18 approved designs may exist in the preset array');
+  assert.equal(presets.length, 17, 'only 17 approved designs may exist in the preset array');
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
-  assert.equal(new Set(presets.map(item => item.id)).size, 18, 'preset IDs must be unique');
-  assert.equal(new Set(presets.map(item => item.name)).size, 18, 'preset names must be unique');
+  assert.equal(new Set(presets.map(item => item.id)).size, 17, 'preset IDs must be unique');
+  assert.equal(new Set(presets.map(item => item.name)).size, 17, 'preset names must be unique');
   assert.deepEqual(Object.fromEntries(presets.map(item => [item.id, item.sourcePresetId])), expectedSourceIds);
   const mint = presets.find(item => item.id === 'mint-sms');
   const blue = presets.find(item => item.id === 'blue-imessage');
@@ -145,13 +144,13 @@ test('only the exact 18 approved CSS designs are registered, with exact source I
   assert.ok(blue.css.includes('background-image:url("' + mintTail + '")'), 'iMessage blue outgoing tail asset must remain unchanged');
 
   assert.ok(!presets.some(item => item.id === 'leaf-garden'), 'Leaf Garden must be removed from the active preset registry');
-  assert.equal(presets.filter(item => item.sourcePresetId).length, 18);
+  assert.equal(presets.filter(item => item.sourcePresetId).length, 17);
   assert.ok(presets.every(item => item.description && item.category && item.css.length > 1200));
   assert.ok(!presets.some(item => item.id === 'wechat-old-green'));
   assert.ok(!presets.some(item => !expectedPresetIds.includes(item.id)), 'no native or backup preset may remain');
 });
 
-test('all 18 migrated CSS styles retain their original scope and both chat directions', () => {
+test('all 17 migrated CSS styles retain their original scope and both chat directions', () => {
   for (const item of presets) {
     const scope = '.duo-chat-beautify--' + item.id;
     assert.ok(item.css.includes(scope), item.id + ' missing its original scope');
@@ -167,12 +166,12 @@ test('all 18 migrated CSS styles retain their original scope and both chat direc
     }
   }
   const scopeOnly = css => css.replace(/\.duo-chat-beautify--[a-z0-9-]+/g, '.duo-chat-beautify--SCOPE');
-  const first = presets.find(item => item.id === 'ink-minimal');
-  const fifth = presets.find(item => item.id === 'carbon-glass');
-  assert.equal(scopeOnly(first.css), scopeOnly(fifth.css), 'original source styles 1 and 5 must remain identical');
+  const retained = presets.find(item => item.id === 'ink-minimal');
+  assert.ok(retained, 'Ink Minimal must remain registered');
+  assert.ok(!presets.some(item => item.id === 'carbon-glass'), 'duplicate Carbon Glass must be removed');
 });
 
-test('all 18 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
+test('all 17 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
   for (const item of presets) {
     const rules = parseCssRules(item.css);
     assert.ok(rules.length >= 3, item.id + ' CSS should contain real parsed rules');
@@ -226,8 +225,9 @@ test('three decorative designs use real text-bubble DOM selectors and preserve d
 });
 
 test('removed presets are absent from the complete runtime registry', () => {
-  assert.equal(presets.length, 18);
+  assert.equal(presets.length, 17);
   assert.ok(!presets.some(item => item.id === 'leaf-garden'));
+  assert.ok(!presets.some(item => item.id === 'carbon-glass'));
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
   const serialized = JSON.stringify(presets);
   const removedTokens = [
@@ -264,6 +264,12 @@ test('manager removes only a stale selected preset ID and preserves all other st
   assert.match(manager, /state\.chatBeautifyPresetId/);
 });
 
+test('removed Carbon Glass selection migrates to the retained Ink Minimal preset', () => {
+  assert.match(manager, /value === 'carbon-glass' \? 'ink-minimal' : ''/);
+  assert.match(manager, /state\.chatBeautifyPresetId = replacement/);
+  assert.match(manager, /if \(typeof save === 'function'\) save\(\)/);
+});
+
 test('manager renders live CSS previews and persists only the chosen preset ID', () => {
   assert.match(manager, /duo-chat-beautify-preview/);
   assert.match(manager, /previewMarkup/);
@@ -278,6 +284,15 @@ test('manager renders live CSS previews and persists only the chosen preset ID',
   assert.match(manager, /duoChatBeautifyPresetStyles/);
   assert.match(targetHtml, /id="customCssInput"/);
   assert.match(targetHtml, /function applyCustomCSS\(\)/);
+});
+
+test('message metadata sits below the avatar-bubble line and dark theme recolors only bubble tails', () => {
+  assert.match(targetHtml, /\.message-line\{display:flex;align-items:flex-end;/);
+  assert.match(targetHtml, /<div class="message-line">/);
+  assert.match(manager, /class="message-line"/);
+  assert.match(appearanceManager, /mask-image:url/);
+  assert.match(appearanceManager, /--chat-pattern-dot/);
+  assert.match(appearanceManager, /data-duo-theme-resolved="dark"/);
 });
 
 test('existing theme palette and custom CSS systems remain independent', () => {

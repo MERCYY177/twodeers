@@ -100,11 +100,11 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
-  assert.equal(beautifyBefore.count, 18, 'exactly 18 approved CSS designs should be loaded');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
+  assert.equal(beautifyBefore.count, 17, 'exactly 17 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
-  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 18 source stylesheets');
+  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 17 source stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
 
   await page.evaluate(() => window.DuoChatBeautify.reset());
@@ -230,10 +230,31 @@ try {
       },
       imageRect:(() => {const r=get('beautify-smoke-image').querySelector('img').getBoundingClientRect();return {width:r.width,height:r.height};})(),
       text:{own:metric(get('beautify-smoke-own').querySelector('.bubble')),other:metric(get('beautify-smoke-other').querySelector('.bubble'))},
+      messageLayout:(() => {
+        const row=get('beautify-smoke-own');
+        const line=row.querySelector('.message-line');
+        const avatar=row.querySelector('.chat-avatar');
+        const bubble=row.querySelector('.bubble');
+        const meta=row.querySelector('.meta');
+        const avatarRect=avatar.getBoundingClientRect();
+        const bubbleRect=bubble.getBoundingClientRect();
+        return {
+          lineDisplay:getComputedStyle(line).display,
+          metaIsRowSibling:meta.parentElement===row,
+          metaInsideBubbleWrap:!!row.querySelector('.bubble-wrap .meta'),
+          avatarBottom:Number(avatarRect.bottom.toFixed(2)),
+          bubbleBottom:Number(bubbleRect.bottom.toFixed(2))
+        };
+      })(),
       rows:chat.querySelectorAll('[data-beautify-smoke-id]').length
     };
   });
   assert.equal(baselineMedia.rows, 9, 'all seven message types, a special card and the system row must be constructed');
+  assert.equal(baselineMedia.messageLayout.lineDisplay,'flex','avatar and bubble must share one flex line');
+  assert.equal(baselineMedia.messageLayout.metaIsRowSibling,true,'time/read metadata must sit below the avatar-bubble line');
+  assert.equal(baselineMedia.messageLayout.metaInsideBubbleWrap,false,'metadata must not affect avatar alignment');
+  assert.ok(Math.abs(baselineMedia.messageLayout.avatarBottom-baselineMedia.messageLayout.bubbleBottom)<=1,
+    'avatar bottom must align to bubble bottom, independently of metadata');
   await page.waitForFunction(() => {
     const image = document.querySelector('[data-beautify-smoke-id="beautify-smoke-image"] img');
     return image && image.complete && image.naturalWidth > 0;
@@ -252,7 +273,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -592,7 +613,15 @@ try {
   assert.equal(staleCleanup.customCSS,stateBeforeStale.customCSS,'stale cleanup must preserve custom CSS');
   assert.equal(staleCleanup.chatHistory,stateBeforeStale.chatHistory,'stale cleanup must preserve chat history');
   assert.equal(staleCleanup.stickers,stateBeforeStale.stickers,'stale cleanup must preserve sticker data');
-  if (beautifyBefore.selectedId) await page.evaluate(id => window.DuoChatBeautify.apply(id),beautifyBefore.selectedId);
+  const previousPresetId=beautifyBefore.selectedId==='carbon-glass'?'ink-minimal':beautifyBefore.selectedId;
+  await page.evaluate(() => {state.chatBeautifyPresetId='carbon-glass';save();});
+  const migratedPreset=await page.evaluate(() => ({
+    selectedId:window.DuoChatBeautify.getCurrent(),
+    storedId:state.chatBeautifyPresetId
+  }));
+  assert.equal(migratedPreset.selectedId,'ink-minimal','legacy Carbon Glass selection should migrate to Ink Minimal');
+  assert.equal(migratedPreset.storedId,'ink-minimal','legacy ID must be rewritten in persisted state');
+  await page.evaluate(id => id ? window.DuoChatBeautify.apply(id) : window.DuoChatBeautify.reset(),previousPresetId);
   await page.evaluate(() => {
     const p = document.getElementById('settingsPage');
     const card = document.getElementById('settingsParam');
@@ -611,6 +640,41 @@ try {
   assert.equal(themeBeforeReload.palette, 'ocean');
   assert.equal(themeBeforeReload.resolved, 'dark');
   assert.ok(themeBeforeReload.circleBg);
+  const darkThemeTailAudit=await page.evaluate(() => {
+    const list=document.getElementById('chatList');
+    const other=buildMessageRow({id:'dark-tail-other',sender:'other',type:'text',text:'深色模式接收方尾巴',time:'20:20'});
+    const me=buildMessageRow({id:'dark-tail-me',sender:'me',type:'text',text:'深色模式发送方尾巴',time:'20:21',read:true});
+    list.append(other,me);
+    window.DuoChatBeautify.apply('mint-sms');
+    const otherBubble=other.querySelector('.bubble');
+    const meBubble=me.querySelector('.bubble');
+    const otherTail=getComputedStyle(otherBubble,'::after');
+    const meTail=getComputedStyle(meBubble,'::after');
+    return {
+      resolved:document.documentElement.dataset.duoThemeResolved,
+      incoming:{mask:otherTail.maskImage,backgroundImage:otherTail.backgroundImage,backgroundColor:otherTail.backgroundColor,bubbleColor:getComputedStyle(otherBubble).backgroundColor},
+      outgoing:{mask:meTail.maskImage,backgroundImage:meTail.backgroundImage,backgroundColor:meTail.backgroundColor,bubbleColor:getComputedStyle(meBubble).backgroundColor}
+    };
+  });
+  assert.equal(darkThemeTailAudit.resolved,'dark');
+  assert.ok(darkThemeTailAudit.incoming.mask.includes('theme-a559ffc20c358860.svg'),'incoming SMS tail should use its transparent shape as a dark-mode mask');
+  assert.ok(darkThemeTailAudit.outgoing.mask.includes('theme-607e5703516d09dc.png'),'outgoing SMS tail should use its transparent shape as a dark-mode mask');
+  assert.equal(darkThemeTailAudit.incoming.backgroundImage,'none');
+  assert.equal(darkThemeTailAudit.outgoing.backgroundImage,'none');
+  assert.equal(darkThemeTailAudit.incoming.backgroundColor,darkThemeTailAudit.incoming.bubbleColor);
+  assert.equal(darkThemeTailAudit.outgoing.backgroundColor,darkThemeTailAudit.outgoing.bubbleColor);
+
+  await page.locator('#duoThemeMode').selectOption('system');
+  await page.emulateMedia({colorScheme:'dark'});
+  await page.waitForFunction(() => document.documentElement.dataset.duoThemeResolved==='dark');
+  const systemDarkResolved=await page.evaluate(() => document.documentElement.dataset.duoThemeResolved);
+  await page.emulateMedia({colorScheme:'light'});
+  await page.waitForFunction(() => document.documentElement.dataset.duoThemeResolved==='light');
+  const systemLightResolved=await page.evaluate(() => document.documentElement.dataset.duoThemeResolved);
+  assert.equal(systemDarkResolved,'dark','system mode must follow a dark OS color scheme');
+  assert.equal(systemLightResolved,'light','system mode must follow a light OS color scheme');
+  await page.locator('#duoThemeMode').selectOption('dark');
+  await page.waitForFunction(() => document.documentElement.dataset.duoThemeResolved==='dark');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.documentElement.dataset.duoThemeResolved === 'dark');
   const persistedTheme = await page.evaluate(() => state.appearanceSettings.palette);
@@ -819,7 +883,7 @@ try {
     !item.messageOrderCorrect || item.overflowY!=='auto' ||
     item.distanceToBottom>2 || !item.latestRowVisible
   );
-  assert.equal(allPresetScrollAudit.length,36,'all 18 presets must be checked on desktop and mobile viewports');
+  assert.equal(allPresetScrollAudit.length,34,'all 17 presets must be checked on desktop and mobile viewports');
   assert.deepEqual(scrollFailures,[],'every preset must keep the newest sent message visible and the chat list at bottom: '+JSON.stringify(scrollFailures));
   console.log('ALL_PRESET_SCROLL_AUDIT '+JSON.stringify(allPresetScrollAudit));
   console.log('ALL_PRESET_PERFORMANCE_AUDIT '+JSON.stringify(allPresetPerformanceAudit));
@@ -828,7 +892,7 @@ try {
     themePersisted: true,
     cssBeautifyPresets: beautifyBefore.count,
     cssBeautifyBrowserViews: presetRunResults.length,
-    cssBeautifyScreenshots: 86,
+    cssBeautifyScreenshots: 78,
     cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
     resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
     remoteResourceFailures,

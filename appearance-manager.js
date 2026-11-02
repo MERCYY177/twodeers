@@ -34,12 +34,38 @@
     root.dataset.duoThemeResolved=dark?'dark':'light';
     root.dataset.duoPalette=cfg.palette;
     root.style.colorScheme=dark?'dark':'light';
-    const vars={'--bg':p.bg,'--panel':p.panel,'--line':p.line,'--text':p.text,'--sub':p.sub,'--soft':p.soft,'--accent':p.accent,'--accent-deep':p.deep,'--shadow':p.shadow,'--chat-bg':p.chat,'--bubble-me':p.me,'--bubble-other':p.other};
+    const vars={'--bg':p.bg,'--panel':p.panel,'--line':p.line,'--text':p.text,'--sub':p.sub,'--soft':p.soft,'--accent':p.accent,'--accent-deep':p.deep,'--shadow':p.shadow,'--chat-bg':p.chat,'--bubble-me':p.me,'--bubble-other':p.other,'--chat-pattern-dot':dark?'rgba(255,255,255,.035)':'rgba(80,100,80,.06)','--chat-image-overlay':dark?'rgba(10,16,22,.50)':'rgba(255,255,255,.28)','--chat-image-overlay-strong':dark?'rgba(10,16,22,.40)':'rgba(255,255,255,.18)'};
     // Keep the existing custom accent/button fields authoritative; these are legacy user settings.
     vars['--theme-color']=normalizeHex(state.appearanceColors?.theme)||p.theme;
     vars['--button-bg']=normalizeHex(state.appearanceColors?.buttonBg)||p.button;
     vars['--button-text']=normalizeHex(state.appearanceColors?.buttonText)||'#ffffff';
-    const css=':root{'+Object.entries(vars).map(([k,v])=>k+':'+v).join(';')+'}'+(cfg.background==='gradient'?'.app{background:linear-gradient(145deg,'+p.bg+','+p.soft+')} .page{background:linear-gradient(145deg,'+p.bg+','+p.soft+') !important;}':(cfg.background==='plain'?'.app,.page{background:'+p.panel+' !important;}':'.app,.page{background:'+p.bg+' !important;}'))+'html,body,.app,.page,.page-scroll{color:var(--text)}.header{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important}.back,.round-btn,.panel-card,.editor-sheet,.phrase-sheet,.call-choice-sheet,.settings-tabs{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important}.panel-card p,.desc,.data-note,.code-help{color:var(--sub)}input,textarea,select{background:var(--panel);color:var(--text);border-color:var(--line)}.emoji-panel,.editor-mask .editor-sheet,.phrase-modal .phrase-sheet{background:var(--panel);color:var(--text)}#chatList,.chat-list,.chat-body{background:var(--chat-bg)}.bubble:not(.sticker-bubble){color:var(--text)}.msg-row .bubble{background:var(--bubble-other)}.msg-row.me .bubble{background:var(--bubble-me)}button.primary,.primary{background:var(--button-bg);color:var(--button-text)}.call-screen,.incoming-call-mask{color:#fff}';
+    const tailMasks = [
+      {id:'ink-minimal',other:'assets/builtin-theme/theme-a6ed65bd3de7d61a.png',me:'assets/builtin-theme/theme-6c6ac06a60eaaf38.png'},
+      {id:'rose-letter',other:'assets/builtin-theme/theme-cee82cfeab1103e4.png',me:'assets/builtin-theme/theme-9d387b019e34063a.png'},
+      {id:'blue-imessage',other:'assets/builtin-theme/theme-a559ffc20c358860.svg',me:'assets/builtin-theme/theme-607e5703516d09dc.png'},
+      {id:'mint-sms',other:'assets/builtin-theme/theme-a559ffc20c358860.svg',me:'assets/builtin-theme/theme-607e5703516d09dc.png'}
+    ];
+    const tailMaskRule = (item,sender) => {
+      const asset=item[sender];
+      const bubbleColor=sender==='me'?'var(--bubble-me)':'var(--bubble-other)';
+      return ':root[data-duo-theme-resolved="dark"] :is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--'+item.id+' .msg-row.'+sender+':not(:has(+ .msg-row.'+sender+')) .bubble:not(:is(.image-bubble,.video-bubble,.audio-bubble,.sticker-bubble,.media-pending))::after{background-image:none!important;background-color:'+bubbleColor+'!important;-webkit-mask-image:url("'+asset+'")!important;mask-image:url("'+asset+'")!important;-webkit-mask-mode:alpha!important;mask-mode:alpha!important;-webkit-mask-size:cover!important;mask-size:cover!important;-webkit-mask-repeat:no-repeat!important;mask-repeat:no-repeat!important;-webkit-mask-position:center!important;mask-position:center!important;}';
+    };
+    const darkChatCss=dark?[
+      ':root[data-duo-theme-resolved="dark"] #chatList{background-color:var(--chat-bg)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .system-line span{background:var(--panel)!important;color:var(--sub)!important;border-color:var(--line)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .chat-avatar,:root[data-duo-theme-resolved="dark"] .chat-header-avatar{background:var(--panel)!important;color:var(--sub)!important;border-color:var(--line)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .meta{color:var(--sub)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .meta .time{color:var(--sub)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .read-flag{color:var(--accent-deep)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .typing-bubble{background:var(--bubble-other)!important;color:var(--text)!important;}',
+      ':root[data-duo-theme-resolved="dark"] #chatList .typing-dots span{background:var(--sub)!important;}',
+      ':root[data-duo-theme-resolved="dark"] :is(#chatList,.duo-chat-beautify-preview)[class*="duo-chat-beautify--"] .msg-row.me .bubble:not(:is(.image-bubble,.video-bubble,.sticker-bubble,.media-pending)){background:var(--bubble-me)!important;background-color:var(--bubble-me)!important;color:var(--text)!important;}',
+      ':root[data-duo-theme-resolved="dark"] :is(#chatList,.duo-chat-beautify-preview)[class*="duo-chat-beautify--"] .msg-row.other .bubble:not(:is(.image-bubble,.video-bubble,.sticker-bubble,.media-pending)){background:var(--bubble-other)!important;background-color:var(--bubble-other)!important;color:var(--text)!important;}',
+      ':root[data-duo-theme-resolved="dark"] :is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--whatsapp-tails{--me:var(--bubble-me)!important;--ta:var(--bubble-other)!important;}',
+      ':root[data-duo-theme-resolved="dark"] :is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--wechat-moon{--me:var(--bubble-me)!important;--ta:var(--bubble-other)!important;}',
+      ...tailMasks.flatMap(item=>[tailMaskRule(item,'other'),tailMaskRule(item,'me')])
+    ].join(''):'';
+    const css=':root{'+Object.entries(vars).map(([k,v])=>k+':'+v).join(';')+'}'+(cfg.background==='gradient'?'.app{background:linear-gradient(145deg,'+p.bg+','+p.soft+')} .page{background:linear-gradient(145deg,'+p.bg+','+p.soft+') !important;}':(cfg.background==='plain'?'.app,.page{background:'+p.panel+' !important;}':'.app,.page{background:'+p.bg+' !important;}'))+'html,body,.app,.page,.page-scroll{color:var(--text)}.header{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important}.back,.round-btn,.panel-card,.editor-sheet,.phrase-sheet,.call-choice-sheet,.settings-tabs{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important}.panel-card p,.desc,.data-note,.code-help{color:var(--sub)}input,textarea,select{background:var(--panel);color:var(--text);border-color:var(--line)}.emoji-panel,.editor-mask .editor-sheet,.phrase-modal .phrase-sheet{background:var(--panel);color:var(--text)}#chatList,.chat-list,.chat-body{background:var(--chat-bg)}.bubble:not(.sticker-bubble){color:var(--text)}.msg-row .bubble{background:var(--bubble-other)}.msg-row.me .bubble{background:var(--bubble-me)}button.primary,.primary{background:var(--button-bg);color:var(--button-text)}.call-screen,.incoming-call-mask{color:#fff}'+darkChatCss;
     let style=document.getElementById('duoAppearanceThemeStyle');
     if(!style){style=document.createElement('style');style.id='duoAppearanceThemeStyle';document.head.appendChild(style);}
     style.textContent=css;
