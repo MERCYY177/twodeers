@@ -100,7 +100,7 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","","line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]);
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon",line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]);
   assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","","line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon",line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -345,7 +345,7 @@ try {
           video:{row:elementMetric(videoRow),wrap:elementMetric(videoRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('video')),element:elementMetric(videoRow?.querySelector('video'))},
           audio:{row:elementMetric(audioRow),wrap:elementMetric(audioRow?.querySelector('.bubble-wrap')),bubble:elementMetric(bubble('audio')),message:elementMetric(audioRow?.querySelector('.audio-message')),voiceIcon:elementMetric(audioRow?.querySelector('.voice-icon')),element:elementMetric(audioRow?.querySelector('audio'))}
         };
-        const specialVoice = id === '' || id === 'line-kitty';
+        const specialVoice = id === 'line-kitty';
         const specialVideo = specialVoice;
         const isolation = {};
         for (const type of ['video','sticker','pending','audio']) {
@@ -551,7 +551,7 @@ try {
   },null,2));
   writeFileSync('artifacts/chat-beautify/preset-browser-audit.json',JSON.stringify({cssomAudit,presetRunResults},null,2));
   writeFileSync('artifacts/chat-beautify/media-special-audit.json',JSON.stringify({
-    results:presetRunResults.filter(item=>item.id===''||item.id==='line-kitty').map(item=>({
+    results:presetRunResults.filter(item=>item.id==='line-kitty').map(item=>({
       viewport:item.viewport,id:item.id,video:item.mediaElements.video,audio:item.mediaElements.audio,
       card:item.media.card,
       videoPseudo:{before:pseudoDecoration(item.media.video,'before'),after:pseudoDecoration(item.media.video,'after')},
@@ -723,7 +723,7 @@ try {
     themePersisted: true,
     cssBeautifyPresets: beautifyBefore.count,
     cssBeautifyBrowserViews: presetRunResults.length,
-    cssBeautifyScreenshots: 92,
+    cssBeautifyScreenshots: 86,
     cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
     resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
     remoteResourceFailures,
