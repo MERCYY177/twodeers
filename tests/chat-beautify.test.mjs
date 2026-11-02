@@ -178,12 +178,12 @@ test('all 19 designs isolate generic bubble rules and pseudo-elements from media
   const item = presets.find(entry => entry.id === 'line-kitty');
   assert.ok(item, 'Line Kitty must remain registered');
   assert.ok(item.css.length < 9000, 'Line Kitty CSS must remain within the optimized size budget');
-  assert.doesNotMatch(item.css, /:has\\(/, 'Line Kitty must use the current DOM message-type classes instead of expensive relational selectors');
-  assert.match(item.css, /\\.bubble\\.image-bubble/, 'image bubbles must be explicitly isolated');
-  assert.match(item.css, /\\.bubble\\.video-bubble/, 'video bubbles must be explicitly isolated');
-  assert.match(item.css, /\\.bubble\\.audio-bubble/, 'audio bubbles must be explicitly isolated');
-  assert.match(item.css, /\\.bubble\\.sticker-bubble/, 'sticker bubbles must be explicitly isolated');
-  assert.match(item.css, /:not\\(\\.xiaoshu-card-message-outer\\)/, 'generic text bubbles must exclude special card wrappers');
+  assert.equal(item.css.includes(':has('), false, 'Line Kitty must use current DOM message-type classes instead of relational selectors');
+  assert.ok(item.css.includes('.bubble.image-bubble'), 'image bubbles must be explicitly isolated');
+  assert.ok(item.css.includes('.bubble.video-bubble'), 'video bubbles must be explicitly isolated');
+  assert.ok(item.css.includes('.bubble.audio-bubble'), 'audio bubbles must be explicitly isolated');
+  assert.ok(item.css.includes('.bubble.sticker-bubble'), 'sticker bubbles must be explicitly isolated');
+  assert.ok(item.css.includes(':not(.xiaoshu-card-message-outer)'), 'generic text bubbles must exclude special card wrappers');
   const lineKittyRules = parseCssRules(item.css);
   const scopeRoot = ':is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--line-kitty';
   assert.equal(lineKittyRules.some(rule =>
@@ -193,11 +193,11 @@ test('all 19 designs isolate generic bubble rules and pseudo-elements from media
   const lineKittySelectors = lineKittyRules.flatMap(rule => splitSelectorList(rule.selector).map(selector => selector.trim()));
   assert.equal(new Set(lineKittySelectors).size, lineKittySelectors.length,
     'Line Kitty must not contain duplicated selector branches');
-  assert.match(item.css, /theme-fd9beb0e72b310ee\\.png/, 'sender ear decoration asset must be preserved');
-  assert.match(item.css, /theme-14288d5b11c26732\\.png/, 'sender cat decoration asset must be preserved');
-  assert.match(item.css, /theme-6a408c66f8c25177\\.png/, 'receiver ear decoration asset must be preserved');
-  assert.match(item.css, /theme-d34a32d61f2f3f9f\\.png/, 'receiver cat decoration asset must be preserved');});
-
+  assert.ok(item.css.includes('theme-fd9beb0e72b310ee.png'), 'sender ear decoration asset must be preserved');
+  assert.ok(item.css.includes('theme-14288d5b11c26732.png'), 'sender cat decoration asset must be preserved');
+  assert.ok(item.css.includes('theme-6a408c66f8c25177.png'), 'receiver ear decoration asset must be preserved');
+  assert.ok(item.css.includes('theme-d34a32d61f2f3f9f.png'), 'receiver cat decoration asset must be preserved');
+});
 test('three decorative designs use real text-bubble DOM selectors and preserve decoration declarations', () => {
   for (const id of decorativePresetIds) {
     const item = presets.find(entry => entry.id === id);
