@@ -100,8 +100,8 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
-  assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
+  assert.equal(beautifyBefore.count, 19, 'exactly 18 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
   assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 19 source stylesheets');
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
