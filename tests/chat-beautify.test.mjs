@@ -292,6 +292,7 @@ test('message metadata sits below the avatar-bubble line and dark theme recolors
   assert.match(manager, /class="message-line"/);
   assert.match(appearanceManager, /mask-image:url/);
   assert.match(appearanceManager, /--chat-pattern-dot/);
+  assert.match(appearanceManager, /#chatList,\.chat-list,\.chat-body\{background-color:var\(--chat-bg\)\}/);
   assert.match(appearanceManager, /data-duo-theme-resolved="dark"/);
 });
 
