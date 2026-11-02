@@ -182,7 +182,7 @@ test('all 19 designs isolate generic bubble rules and pseudo-elements from media
   assert.ok(item.css.includes('.bubble.image-bubble'), 'image bubbles must be explicitly isolated');
   assert.ok(item.css.includes('.bubble.video-bubble'), 'video bubbles must be explicitly isolated');
   assert.ok(item.css.includes('.bubble.audio-bubble'), 'audio bubbles must be explicitly isolated');
-  assert.ok(item.css.includes('.bubble.sticker-bubble'), 'sticker bubbles must be explicitly isolated');
+  assert.ok(item.css.includes(':not(.sticker-bubble)'), 'generic text bubble selectors must exclude sticker bubbles');
   assert.ok(item.css.includes(':not(.xiaoshu-card-message-outer)'), 'generic text bubbles must exclude special card wrappers');
   const lineKittyRules = parseCssRules(item.css);
   const scopeRoot = ':is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--line-kitty';
