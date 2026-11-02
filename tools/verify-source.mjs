@@ -29,4 +29,14 @@ const native = readFileSync(resolve(root, 'android-apps/app/src/main/java/com/me
 for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','writeChunk','finishSave']) {
   if (!native.includes(token)) throw new Error('Android 文件桥接缺失：' + token);
 }
+const androidTheme = readFileSync(resolve(root, 'android-apps/app/src/main/res/values/styles.xml'), 'utf8');
+const androidNightTheme = readFileSync(resolve(root, 'android-apps/app/src/main/res/values-night/styles.xml'), 'utf8');
+const androidNight29Theme = readFileSync(resolve(root, 'android-apps/app/src/main/res/values-night-v29/styles.xml'), 'utf8');
+const androidBuild = readFileSync(resolve(root, 'android-apps/app/build.gradle.kts'), 'utf8');
+if (!androidTheme.includes('windowLightStatusBar">true')) throw new Error('Android light theme missing');
+if (!androidNightTheme.includes('statusBarColor">#101510')) throw new Error('Android night theme missing');
+if (!androidNight29Theme.includes('isLightTheme">false') || !androidNight29Theme.includes('forceDarkAllowed">false')) throw new Error('Android 10+ WebView night theme missing');
+if (!androidBuild.includes('AndroidJUnitRunner')) throw new Error('Android theme instrumentation missing');
+if (!native.includes('setAlgorithmicDarkeningAllowed(settings, false)')) throw new Error('WebView must not double-darken its page');
+console.log('OK: Android Day/Night resources and WebView theme propagation statically verified.');
 console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；来电/双列表情包/V4/Android 关键入口静态检查通过。');

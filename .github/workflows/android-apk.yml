@@ -66,6 +66,26 @@ jobs:
           echo "APK count: $count"
           test "$count" -eq 4
           find app/build/outputs/apk -type f -name '*.apk' -print
+      - name: Verify Android system light and dark mode in all four app variants
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            for flavor in Beibeilu Lu1 Lu2 Lu3; do
+              echo "=== $flavor: Android light mode ==="
+              adb shell cmd uimode night no
+              gradle --no-daemon ":app:connected${flavor}DebugAndroidTest"
+              echo "=== $flavor: Android dark mode ==="
+              adb shell cmd uimode night yes
+              gradle --no-daemon ":app:connected${flavor}DebugAndroidTest"
+            done
+            adb shell cmd uimode night no
+
       - name: Upload four APKs
         uses: actions/upload-artifact@v4
         with:
