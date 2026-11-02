@@ -47,7 +47,13 @@
   }
 
   function selectedId() {
-    const value = typeof state === 'object' && state ? state.chatBeautifyPresetId : '';
+    let value = typeof state === 'object' && state ? state.chatBeautifyPresetId : '';
+    const replacement = value === 'carbon-glass' ? 'ink-minimal' : '';
+    if (replacement && validPresets.some(item => item.id === replacement)) {
+      state.chatBeautifyPresetId = replacement;
+      if (typeof save === 'function') save();
+      value = replacement;
+    }
     return validPresets.some(item => item.id === value) ? value : '';
   }
 
@@ -67,8 +73,8 @@
   function previewMarkup(item) {
     const scope = activeClass(item.id);
     return '<div class="duo-chat-beautify-preview ' + scope + '">' +
-      '<div class="msg-row other"><div class="chat-avatar"><span>对</span></div><div class="bubble-wrap"><div class="bubble">今天的天空很漂亮，想和你分享。</div><div class="meta"><span class="time">20:18</span></div></div></div>' +
-      '<div class="msg-row me"><div class="bubble-wrap"><div class="bubble">我也看到了！晚一点一起散步吧。</div><div class="meta"><span class="meta-line"><span class="time">20:19</span><span class="read-flag">已读</span></span></div></div><div class="chat-avatar"><span>我</span></div></div>' +
+      '<div class="msg-row other"><div class="message-line"><div class="chat-avatar"><span>对</span></div><div class="bubble-wrap"><div class="bubble">今天的天空很漂亮，想和你分享。</div></div></div><div class="meta"><span class="time">20:18</span></div></div>' +
+      '<div class="msg-row me"><div class="message-line"><div class="bubble-wrap"><div class="bubble">我也看到了！晚一点一起散步吧。</div></div><div class="chat-avatar"><span>我</span></div></div><div class="meta"><span class="meta-line"><span class="time">20:19</span><span class="read-flag">已读</span></span></div></div>' +
       '<div class="duo-chat-preview-composer"><div class="input-shell"><span>输入消息…</span><span>☺</span></div></div>' +
       '</div>';
   }
@@ -184,11 +190,15 @@
       .duo-chat-beautify-manager .duo-chat-beautify-card-title span{flex:0 0 auto;padding:2px 6px;border-radius:8px;background:#f4f1ec;color:#877f74;font-size:10px}
       .duo-chat-beautify-manager .duo-chat-beautify-card>p{min-height:34px;margin:6px 0 9px;color:#80796f;font-size:11px;line-height:1.55}
       .duo-chat-beautify-manager .duo-chat-beautify-preview{height:172px;overflow:hidden;position:relative;border-radius:10px;display:flex;flex-direction:column;padding:8px!important;gap:4px}
-      .duo-chat-beautify-manager .duo-chat-beautify-preview .msg-row{flex:0 0 auto;min-height:45px;max-height:55px;overflow:hidden;margin-bottom:3px!important;gap:5px!important}
-      .duo-chat-beautify-manager .duo-chat-beautify-preview .chat-avatar{width:23px;height:23px;min-width:23px;display:flex;align-items:center;justify-content:center;font-size:9px;overflow:hidden}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .msg-row{flex:0 0 auto;min-height:45px;max-height:55px;overflow:visible;margin-bottom:3px!important}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .message-line{display:flex;align-items:flex-end;gap:5px;width:100%;min-width:0}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .msg-row.me .message-line{justify-content:flex-end}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .chat-avatar{width:23px;height:23px;min-width:23px;display:flex;align-items:center;justify-content:center;font-size:9px;overflow:hidden;flex:0 0 23px}
       .duo-chat-beautify-manager .duo-chat-beautify-preview .bubble-wrap{max-width:82%;min-width:0}
       .duo-chat-beautify-manager .duo-chat-beautify-preview .bubble{font-size:10px!important;line-height:1.35!important;padding:6px 8px!important;overflow:hidden;max-height:35px}
-      .duo-chat-beautify-manager .duo-chat-beautify-preview .meta{font-size:8px!important;line-height:1.2!important;margin-top:2px}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .meta{font-size:8px!important;line-height:1.2!important;margin-top:2px;max-width:82%}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .msg-row.other .meta{margin-left:28px}
+      .duo-chat-beautify-manager .duo-chat-beautify-preview .msg-row.me .meta{margin-left:auto;text-align:right}
       .duo-chat-beautify-manager .duo-chat-beautify-preview .duo-chat-preview-composer{margin-top:auto;padding:5px 6px;border-radius:8px;min-height:27px}
       .duo-chat-beautify-manager .duo-chat-beautify-preview .input-shell{display:flex;align-items:center;justify-content:space-between;padding:4px 7px;min-height:22px;font-size:9px;line-height:1.2}
       .duo-chat-beautify-manager .duo-chat-beautify-card>button{width:100%;margin-top:9px;padding:8px 10px;border:1px solid #ddd7cf;border-radius:9px;background:#f8f6f2;color:#524b43;font-size:12px}

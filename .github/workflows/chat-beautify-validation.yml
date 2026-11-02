@@ -1,14 +1,26 @@
 name: Chat beautification validation
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/faithful-bubble-css-migration
+      - main
     paths:
       - "chat-beautify-presets.js"
       - "chat-beautify-manager.js"
       - "tests/**"
       - "index.html"
+      - "appearance-manager.js"
+      - ".github/workflows/chat-beautify-validation.yml"
+  push:
+    branches:
+      - feat/faithful-bubble-css-migration
+      - "fix/**"
+    paths:
+      - "chat-beautify-presets.js"
+      - "chat-beautify-manager.js"
+      - "tests/**"
+      - "index.html"
+      - "appearance-manager.js"
       - ".github/workflows/chat-beautify-validation.yml"
 
 permissions:
