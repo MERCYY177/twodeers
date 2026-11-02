@@ -223,8 +223,9 @@ test('three decorative designs use real text-bubble DOM selectors and preserve d
   }
 });
 
-test('removed remote-image presets are absent from the complete runtime registry', () => {
-  assert.equal(presets.length, 19);
+test('removed presets are absent from the complete runtime registry', () => {
+  assert.equal(presets.length, 18);
+  assert.ok(!presets.some(item => item.id === 'leaf-garden'));
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
   const serialized = JSON.stringify(presets);
   const removedTokens = [
