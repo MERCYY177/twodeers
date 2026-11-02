@@ -29,15 +29,13 @@ const expectedSourceIds = {
   "ios6-bluegray": "builtin_1f7c7cb3_09_miu_iOS6",
   "wechat-moon": "builtin_dbb9ed46_12",
   "pink-lemon": "builtin_xiaoshu_webchat_pink_yellow_round_template_v1",
-  "rabbit-milk": "builtin_xiaoshu_jrys_tuwan_pink_kkk35g_v1",
   "line-kitty": "builtin_xiaoshu_line_kitty_black_white_kkk35g_v1",
   "pink-gray-stars": "builtin_xiaoshu_pink_gray_decor_v1",
   "picture-frame": "builtin_xiaoshu_frame_borderimage_v1",
   "soft-double-frame": "builtin_xiaoshu_soft_frame_pair_v1",
-  "line-cat-milk": "builtin_xiaoshu_line_cat_milk_v1"
 };
-const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","rabbit-milk","line-kitty","pink-gray-stars","picture-frame","soft-double-frame","line-cat-milk"];
-const decorativePresetIds = ['pink-gray-stars', 'picture-frame', 'soft-double-frame', 'line-cat-milk'];
+const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
+const decorativePresetIds = ['pink-gray-stars', 'picture-frame', 'soft-double-frame'];
 const mediaClasses = ['image-bubble', 'video-bubble', 'audio-bubble', 'sticker-bubble', 'media-pending'];
 
 function splitSelectorList(value) {
@@ -177,7 +175,7 @@ test('all 21 designs isolate generic bubble rules and pseudo-elements from media
       }
     }
   }
-  for (const id of ['rabbit-milk', 'line-kitty']) {
+  for (const id of ['line-kitty']) {
     const item = presets.find(entry => entry.id === id);
     assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
     if (id === 'rabbit-milk') assert.match(item.css, /\.msg-row:has\(\.bubble\.video-bubble\)/, id + ' must preserve its source video-row decoration');
@@ -219,6 +217,19 @@ test('four decorative designs use real text-bubble DOM selectors and preserve de
       }
     }
   }
+});
+
+test('removed remote-image presets are absent from the complete runtime registry', () => {
+  assert.equal(presets.length, 19);
+  assert.deepEqual(presets.map(item => item.id), expectedPresetIds);
+  const serialized = JSON.stringify(presets);
+  for (const token of [
+    'rabbit-milk', 'line-cat-milk',
+    'builtin_xiaoshu_jrys_tuwan_pink_kkk35g_v1',
+    'builtin_xiaoshu_line_cat_milk_v1',
+    '1772553939061', '1772553916921', '52442340f9bde54f2d1d15871e318fd5',
+    'img.heliar.top', 'www.lnjubao.cn'
+  ]) assert.equal(serialized.includes(token), false, 'removed preset token must not remain: ' + token);
 });
 
 test('all 11 migrated local decoration assets still exist and remain the only local preset assets', () => {
