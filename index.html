@@ -4342,14 +4342,24 @@ function renderChatHistory(loadMedia=true){
   const list=$('#chatList'); if(!list) return;
   list.innerHTML='';
   state.chatHistory.forEach(msg=>list.appendChild(buildMessageRow(msg)));
-  list.scrollTop=list.scrollHeight;
+  scrollChatToBottom(list);
   if(loadMedia) loadMessageMedia();
+}
+function scrollChatToBottom(list=$('#chatList')){
+  if(!list) return;
+  const applyBottom=()=>{ list.scrollTop=list.scrollHeight; };
+  applyBottom();
+  requestAnimationFrame(()=>{
+    applyBottom();
+    requestAnimationFrame(applyBottom);
+  });
 }
 function appendChatMessage(msg, shouldSave=true){
   ensureChatState();
   if(!msg.id) msg.id=uid(msg.type==='audio'?'a':'m');
   state.chatHistory.push(msg);
-  const list=$('#chatList'); if(list){ const row=buildMessageRow(msg); list.appendChild(row); row.scrollIntoView({behavior:'smooth',block:'end'}); }
+  const list=$('#chatList');
+  if(list){ const row=buildMessageRow(msg); list.appendChild(row); scrollChatToBottom(list); }
   if(shouldSave) save();
   return msg;
 }
@@ -4399,7 +4409,7 @@ function appendChatRow(row){
   const list=$('#chatList');
   if(!list) return;
   list.appendChild(row);
-  row.scrollIntoView({behavior:'smooth',block:'end'});
+  scrollChatToBottom(list);
 }
 function removeTypingRow(){
   const node=$('#chatList .typing-row:last-child');
@@ -4443,12 +4453,11 @@ function sendCurrentText(forceText){
   const input=$('#chatInput');
   const txt=(forceText!==undefined?String(forceText):String(input.value||'')).trim();
   if(!txt) return;
+  state.offline.lastChatAt=Date.now();
   const msg=appendChatMessage({sender:'me',type:'text',text:txt,time:formatHM(),read:false});
   if(forceText===undefined) input.value='';
   $('#inputHelper').classList.remove('show');
   $('#morePanel').classList.remove('show');
-  state.offline.lastChatAt=Date.now();
-  save();
   const list=$('#chatList');
   const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
   triggerReply(row?row.querySelector('.meta'):null);
@@ -4969,8 +4978,9 @@ async function renderStickerList(){
 function sendSticker(index){
   const sticker=state.stickers[index];if(!sticker)return;
   const stickerUrl=stickerObjectUrls.get(sticker.id);if(stickerUrl)mediaUrlCache.set(sticker.mediaId,stickerUrl);
-  appendChatMessage({sender:'me',type:'sticker',mediaId:sticker.mediaId,mediaMime:sticker.mimeType,mediaName:sticker.name,time:formatHM(),read:false});
-  state.offline.lastChatAt=Date.now();save();closeEmojiPanel();triggerReply($('#chatList [data-mid="'+state.chatHistory[state.chatHistory.length-1].id+'"] .meta'));
+  state.offline.lastChatAt=Date.now();
+  const msg=appendChatMessage({sender:'me',type:'sticker',mediaId:sticker.mediaId,mediaMime:sticker.mimeType,mediaName:sticker.name,time:formatHM(),read:false});
+  closeEmojiPanel();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
 }
 async function addStickers(files){
   for(const file of [...(files||[])]){
@@ -4998,8 +5008,9 @@ async function sendPendingMedia(){
   try{
     const id=await putMediaBlob(item.file,item.kind,item.file.name);
     const url=URL.createObjectURL(item.file);mediaUrlCache.set(id,url);
+    state.offline.lastChatAt=Date.now();
     const msg=appendChatMessage({sender:'me',type:item.kind,mediaId:id,mediaMime:item.file.type,mediaName:item.file.name,mediaSize:item.file.size,time:formatHM(),read:false});
-    state.offline.lastChatAt=Date.now();save();closeMediaPreview();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
+    closeMediaPreview();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
   }catch(e){showToast('媒体保存失败，可能是存储空间或浏览器权限不足');}
   finally{btn.disabled=false;}
 }
@@ -5478,8 +5489,9 @@ async function finishVoiceRecord(cancelled=false){
   try{
     const id=await putMediaBlob(blob,'audio',`voice-${Date.now()}`);mediaUrlCache.set(id,URL.createObjectURL(blob));
     const duration=Math.max(1,Math.round(durationSec));
+    state.offline.lastChatAt=Date.now();
     const msg=appendChatMessage({sender:'me',type:'audio',mediaId:id,mediaMime:blob.type,durationSec:duration,durationLabel:formatAudioSec(duration),time:formatHM(),read:false});
-    state.offline.lastChatAt=Date.now();save();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
+    triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
   }catch(e){showToast('语音文件保存失败，可能是存储空间不足');}
 }
 function stopVoiceRecord(evt){if(evt?.preventDefault)evt.preventDefault();pendingVoicePress=false;if(!isRecording)return;finishVoiceRecord(false);}
