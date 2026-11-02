@@ -25,7 +25,6 @@ const expectedSourceIds = {
   "whatsapp-tails": "builtin_285c4628_02__WhatsApp",
   "miu-pink-sms": "builtin_f39ffd4a_05_miu",
   "miu-blue-sms": "builtin_80431c26_06_miu",
-  "leaf-garden": "builtin_25176e9f_08",
   "ios6-bluegray": "builtin_1f7c7cb3_09_miu_iOS6",
   "wechat-moon": "builtin_dbb9ed46_12",
   "pink-lemon": "builtin_xiaoshu_webchat_pink_yellow_round_template_v1",
@@ -34,7 +33,7 @@ const expectedSourceIds = {
   "picture-frame": "builtin_xiaoshu_frame_borderimage_v1",
   "soft-double-frame": "builtin_xiaoshu_soft_frame_pair_v1",
 };
-const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
+const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
 const decorativePresetIds = ['pink-gray-stars', 'picture-frame', 'soft-double-frame'];
 const mediaClasses = ['image-bubble', 'video-bubble', 'audio-bubble', 'sticker-bubble', 'media-pending'];
 
@@ -132,19 +131,27 @@ test('chat beautification manager is valid executable JavaScript', () => {
   assert.doesNotThrow(() => new vm.Script(manager, { filename: 'chat-beautify-manager.js' }));
 });
 
-test('only the exact 19 approved CSS designs are registered, with exact source IDs', () => {
-  assert.equal(presets.length, 19, 'only 19 approved designs may exist in the preset array');
+test('only the exact 18 approved CSS designs are registered, with exact source IDs', () => {
+  assert.equal(presets.length, 18, 'only 18 approved designs may exist in the preset array');
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
-  assert.equal(new Set(presets.map(item => item.id)).size, 19, 'preset IDs must be unique');
-  assert.equal(new Set(presets.map(item => item.name)).size, 19, 'preset names must be unique');
+  assert.equal(new Set(presets.map(item => item.id)).size, 18, 'preset IDs must be unique');
+  assert.equal(new Set(presets.map(item => item.name)).size, 18, 'preset names must be unique');
   assert.deepEqual(Object.fromEntries(presets.map(item => [item.id, item.sourcePresetId])), expectedSourceIds);
-  assert.equal(presets.filter(item => item.sourcePresetId).length, 19);
+  const mint = presets.find(item => item.id === 'mint-sms');
+  const blue = presets.find(item => item.id === 'blue-imessage');
+  assert.ok(mint && blue);
+  const mintTail = 'assets/builtin-theme/theme-607e5703516d09dc.png';
+  assert.ok(mint.css.includes('background-image:url("' + mintTail + '")'), 'Mint SMS outgoing tail must use the iMessage blue tail asset');
+  assert.ok(blue.css.includes('background-image:url("' + mintTail + '")'), 'iMessage blue outgoing tail asset must remain unchanged');
+
+  assert.ok(!presets.some(item => item.id === 'leaf-garden'), 'Leaf Garden must be removed from the active preset registry');
+  assert.equal(presets.filter(item => item.sourcePresetId).length, 18);
   assert.ok(presets.every(item => item.description && item.category && item.css.length > 1200));
   assert.ok(!presets.some(item => item.id === 'wechat-old-green'));
   assert.ok(!presets.some(item => !expectedPresetIds.includes(item.id)), 'no native or backup preset may remain');
 });
 
-test('all 19 migrated CSS styles retain their original scope and both chat directions', () => {
+test('all 18 migrated CSS styles retain their original scope and both chat directions', () => {
   for (const item of presets) {
     const scope = '.duo-chat-beautify--' + item.id;
     assert.ok(item.css.includes(scope), item.id + ' missing its original scope');
@@ -165,7 +172,7 @@ test('all 19 migrated CSS styles retain their original scope and both chat direc
   assert.equal(scopeOnly(first.css), scopeOnly(fifth.css), 'original source styles 1 and 5 must remain identical');
 });
 
-test('all 19 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
+test('all 18 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
   for (const item of presets) {
     const rules = parseCssRules(item.css);
     assert.ok(rules.length >= 3, item.id + ' CSS should contain real parsed rules');
@@ -218,8 +225,9 @@ test('three decorative designs use real text-bubble DOM selectors and preserve d
   }
 });
 
-test('removed remote-image presets are absent from the complete runtime registry', () => {
-  assert.equal(presets.length, 19);
+test('removed presets are absent from the complete runtime registry', () => {
+  assert.equal(presets.length, 18);
+  assert.ok(!presets.some(item => item.id === 'leaf-garden'));
   assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
   const serialized = JSON.stringify(presets);
   const removedTokens = [
@@ -235,7 +243,7 @@ test('removed remote-image presets are absent from the complete runtime registry
   }
 });
 
-test('all 11 migrated local decoration assets still exist and remain the only local preset assets', () => {
+test('all 10 active local decoration assets still exist and remain the only local preset assets', () => {
   const localAssets = new Set();
   for (const item of presets) {
     const urls = [...item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)].map(match => match[2]);
@@ -244,7 +252,7 @@ test('all 11 migrated local decoration assets still exist and remain the only lo
       assert.ok(existsSync(resolve(root, url)), item.id + ' missing local source asset ' + url);
     }
   }
-  assert.equal(localAssets.size, 11, 'the 11 original local assets must remain present');
+  assert.equal(localAssets.size, 10, 'the 10 active local assets must remain present');
 });
 
 test('manager removes only a stale selected preset ID and preserves all other state', () => {

@@ -100,11 +100,11 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
-  assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
+  assert.equal(beautifyBefore.count, 18, 'exactly 18 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
-  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 19 source stylesheets');
+  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 18 source stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
 
   await page.evaluate(() => window.DuoChatBeautify.reset());
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -531,7 +531,7 @@ try {
     return [...remote,...local];
   }));
   assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,6,'all six remaining remote image URLs must be audited');
-  assert.equal(resourceAudit.filter(item=>item.kind==='local').length,11,'all eleven local image assets must be audited');
+  assert.equal(resourceAudit.filter(item=>item.kind==='local').length,10,'all ten active local image assets must be audited');
   const resourceHttpAudit = [];
   for (const asset of resourceAudit) {
     const url = asset.kind === 'local' ? 'http://127.0.0.1:8080' + asset.url : asset.url;
@@ -718,122 +718,111 @@ try {
   assert.equal(v3Result, true, 'legacy v3 JSON backup import path should remain available');
   assert.deepEqual(pageErrors, [], 'page should not emit uncaught JavaScript errors');
 
-  const lineKittyPerformance = [];
+  const allPresetScrollAudit = [];
+  const allPresetPerformanceAudit = [];
   for (const viewport of [
     {name:'desktop',width:1365,height:900},
     {name:'mobile',width:390,height:844}
   ]) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
-    const sample = await page.evaluate(() => {
-      const chat = document.getElementById('chatList');
+    const samples = await page.evaluate(async () => {
+      const list = document.getElementById('chatList');
+      const composer = document.querySelector('#chatPage .composer');
       const originalHistory = state.chatHistory;
-      const synthetic = Array.from({length:1200}, (_,i) => {
-        if (i % 5 === 0) return {id:'line-kitty-perf-'+i,type:'system',text:'未接来电 · 对方的视频来电',time:'14:29'};
-        if (i % 29 === 0) return {id:'line-kitty-perf-'+i,type:'video',sender:i%2?'me':'other',time:'14:29'};
-        if (i % 31 === 0) return {id:'line-kitty-perf-'+i,type:'audio',sender:i%2?'me':'other',time:'14:29'};
-        if (i % 37 === 0) return {id:'line-kitty-perf-'+i,type:'image',sender:i%2?'me':'other',time:'14:29'};
-        return {id:'line-kitty-perf-'+i,type:'text',sender:i%2?'me':'other',text:'Line Kitty performance fixture message '+i,time:'14:29'};
-      });
-      const fragment = document.createDocumentFragment();
-      for (const message of synthetic) {
-        const row = buildMessageRow(message);
-        row.dataset.lineKittyPerf = '1';
-        fragment.appendChild(row);
+      const originalPhrases = state.cardPhrases;
+      const originalLastChatAt = state.offline.lastChatAt;
+      state.cardPhrases = [];
+      const results = [];
+      for (const preset of window.DuoChatBeautify.presets) {
+        const synthetic = Array.from({length:800}, (_,i) => {
+          const id = 'all-css-audit-'+preset.id+'-'+i;
+          if (i % 11 === 0) return {id,type:'system',text:'系统记录 · 历史消息 '+i,time:'14:29'};
+          if (i % 37 === 0) return {id,sender:i%2?'me':'other',type:'image',time:'14:29'};
+          if (i % 41 === 0) return {id,sender:i%2?'me':'other',type:'video',time:'14:29'};
+          if (i % 43 === 0) return {id,sender:i%2?'me':'other',type:'audio',time:'14:29'};
+          if (i % 47 === 0) return {id,sender:i%2?'me':'other',type:'sticker',time:'14:29'};
+          return {id,sender:i%2?'me':'other',type:'text',text:preset.name+' 历史消息 '+i+' · 长列表滚动回归',time:'14:29',read:false};
+        });
+        const fragment = document.createDocumentFragment();
+        for (const message of synthetic) fragment.appendChild(buildMessageRow(message));
+        list.replaceChildren(fragment);
+        state.chatHistory = synthetic;
+
+        const started = performance.now();
+        window.DuoChatBeautify.apply(preset.id);
+        const applied = performance.now();
+
+        let checksum = 0;
+        const bubbles = list.querySelectorAll('.bubble');
+        for (const bubble of bubbles) {
+          const computed = getComputedStyle(bubble);
+          const before = getComputedStyle(bubble,'::before');
+          const after = getComputedStyle(bubble,'::after');
+          checksum += computed.borderTopWidth.length + before.content.length + after.content.length;
+        }
+        const styled = performance.now();
+
+        sendCurrentText('滚动验收最新消息 · '+preset.name);
+        await new Promise(resolve => requestAnimationFrame(() =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        ));
+
+        const latest = state.chatHistory[state.chatHistory.length-1];
+        const latestRow = latest ? list.querySelector('[data-mid="'+latest.id+'"]') : null;
+        const latestRect = latestRow?.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const composerRect = composer.getBoundingClientRect();
+        const visibleBottom = Math.min(listRect.bottom,composerRect.top);
+        const maxScroll = Math.max(0,list.scrollHeight-list.clientHeight);
+        const distanceToBottom = Math.max(0,maxScroll-list.scrollTop);
+        const result = {
+          presetId:preset.id,
+          presetName:preset.name,
+          historyCount:synthetic.length,
+          messageOrderCorrect:!!latest && latest.text==='滚动验收最新消息 · '+preset.name &&
+            latest.id===state.chatHistory[state.chatHistory.length-1].id,
+          overflowY:getComputedStyle(list).overflowY,
+          distanceToBottom:Number(distanceToBottom.toFixed(1)),
+          latestRowVisible:!!latestRect && latestRect.top>=listRect.top-1 && latestRect.bottom<=visibleBottom+1,
+          latestRowBottom:latestRect?Number(latestRect.bottom.toFixed(1)):null,
+          visibleBottom:Number(visibleBottom.toFixed(1)),
+          applySyncMs:Number((applied-started).toFixed(2)),
+          styleAndLayoutMs:Number((styled-applied).toFixed(2)),
+          totalStyleMs:Number((styled-started).toFixed(2)),
+          checksum,
+          bubbleCount:bubbles.length
+        };
+        results.push(result);
+        list.replaceChildren();
       }
-      chat.appendChild(fragment);
-      state.chatHistory = [...originalHistory,...synthetic];
-      const started = performance.now();
-      window.DuoChatBeautify.apply('line-kitty');
-      const applied = performance.now();
-      let checksum = 0;
-      const bubbles = chat.querySelectorAll('.bubble');
-      for (const bubble of bubbles) {
-        const style = getComputedStyle(bubble);
-        const before = getComputedStyle(bubble,'::before');
-        const after = getComputedStyle(bubble,'::after');
-        checksum += style.borderTopWidth.length + before.content.length + after.content.length;
-      }
-      const scrollHeight = chat.scrollHeight;
-      const finished = performance.now();
-      const result = {
-        messageCount:synthetic.length,
-        systemRecords:synthetic.filter(message=>message.type==='system').length,
-        bubbleCount:bubbles.length,
-        applySyncMs:Number((applied-started).toFixed(2)),
-        styleAndLayoutMs:Number((finished-applied).toFixed(2)),
-        totalMs:Number((finished-started).toFixed(2)),
-        scrollHeight,
-        checksum
-      };
       window.DuoChatBeautify.reset();
-      chat.querySelectorAll('[data-line-kitty-perf="1"]').forEach(node=>node.remove());
       state.chatHistory = originalHistory;
+      state.cardPhrases = originalPhrases;
+      state.offline.lastChatAt = originalLastChatAt;
+      renderChatHistory(false);
       save();
-      return result;
+      return results;
     });
-    lineKittyPerformance.push({viewport:viewport.name,...sample});
+    allPresetScrollAudit.push(...samples.map(item=>({viewport:viewport.name,...item})));
+    allPresetPerformanceAudit.push(...samples.map(item=>({
+      viewport:viewport.name,
+      presetId:item.presetId,
+      presetName:item.presetName,
+      applySyncMs:item.applySyncMs,
+      styleAndLayoutMs:item.styleAndLayoutMs,
+      totalStyleMs:item.totalStyleMs,
+      bubbleCount:item.bubbleCount
+    })));
   }
   await page.setViewportSize({width:1365,height:900});
-  console.log('LINE_KITTY_PERFORMANCE_BASELINE '+JSON.stringify(lineKittyPerformance));
-  const chatScrollRegression = await page.evaluate(async () => {
-    const list = document.getElementById('chatList');
-    const composer = document.querySelector('#chatPage .composer');
-    const originalHistory = state.chatHistory;
-    const originalLastChatAt = state.offline.lastChatAt;
-    const synthetic = Array.from({length:800}, (_,i) => ({
-      id:'chat-scroll-regression-'+i,
-      sender:i%2?'me':'other',
-      type:'text',
-      text:'滚动回归历史消息 '+i+' · 保证最新消息定位',
-      time:'14:29',
-      read:false
-    }));
-    const fragment = document.createDocumentFragment();
-    synthetic.forEach(message => fragment.appendChild(buildMessageRow(message)));
-    list.replaceChildren(fragment);
-    state.chatHistory = synthetic;
-    window.DuoChatBeautify.apply('line-kitty');
-    sendCurrentText('这是发送后必须立即显示的最新一条消息');
-    await new Promise(resolve => requestAnimationFrame(() =>
-      requestAnimationFrame(() => requestAnimationFrame(resolve))
-    ));
-    const latest = state.chatHistory[state.chatHistory.length-1];
-    const latestRow = list.querySelector('[data-mid="'+latest.id+'"]');
-    const latestRect = latestRow.getBoundingClientRect();
-    const listRect = list.getBoundingClientRect();
-    const composerRect = composer.getBoundingClientRect();
-    const maxScroll = Math.max(0,list.scrollHeight-list.clientHeight);
-    const distanceToBottom = Math.max(0,maxScroll-list.scrollTop);
-    const visibleBottom = Math.min(listRect.bottom,composerRect.top);
-    const metrics = {
-      historyBeforeSend:synthetic.length,
-      messageOrderCorrect:latest.text==='这是发送后必须立即显示的最新一条消息' && latest.id===state.chatHistory[state.chatHistory.length-1].id,
-      overflowY:getComputedStyle(list).overflowY,
-      scrollHeight:list.scrollHeight,
-      clientHeight:list.clientHeight,
-      scrollTop:list.scrollTop,
-      maxScroll,
-      distanceToBottom,
-      latestRowTop:Number(latestRect.top.toFixed(1)),
-      latestRowBottom:Number(latestRect.bottom.toFixed(1)),
-      visibleTop:Number(listRect.top.toFixed(1)),
-      visibleBottom:Number(visibleBottom.toFixed(1)),
-      latestRowVisible:latestRect.top>=listRect.top-1 && latestRect.bottom<=visibleBottom+1
-    };
-    window.DuoChatBeautify.reset();
-    state.chatHistory = originalHistory;
-    state.offline.lastChatAt = originalLastChatAt;
-    renderChatHistory(false);
-    save();
-    return metrics;
-  });
-  assert.equal(chatScrollRegression.messageOrderCorrect,true,'sending must append the new message as the final history record');
-  assert.equal(chatScrollRegression.overflowY,'auto','chat history must remain its own vertical scroll container');
-  assert.ok(chatScrollRegression.distanceToBottom<=2,
-    'after sending, chatList must be scrolled to its real bottom: '+JSON.stringify(chatScrollRegression));
-  assert.equal(chatScrollRegression.latestRowVisible,true,
-    'the newest sent message must be visible above the fixed composer: '+JSON.stringify(chatScrollRegression));
-  console.log('CHAT_SCROLL_AFTER_SEND '+JSON.stringify(chatScrollRegression));
+  const scrollFailures = allPresetScrollAudit.filter(item =>
+    !item.messageOrderCorrect || item.overflowY!=='auto' ||
+    item.distanceToBottom>2 || !item.latestRowVisible
+  );
+  assert.equal(allPresetScrollAudit.length,36,'all 18 presets must be checked on desktop and mobile viewports');
+  assert.deepEqual(scrollFailures,[],'every preset must keep the newest sent message visible and the chat list at bottom: '+JSON.stringify(scrollFailures));
+  console.log('ALL_PRESET_SCROLL_AUDIT '+JSON.stringify(allPresetScrollAudit));
+  console.log('ALL_PRESET_PERFORMANCE_AUDIT '+JSON.stringify(allPresetPerformanceAudit));
   console.log(JSON.stringify({
     result: 'passed',
     themePersisted: true,
