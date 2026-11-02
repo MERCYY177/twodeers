@@ -429,7 +429,7 @@ try {
         assert.equal(audit.media.video.borderRadius,'0px',id + ' video container must retain the source media radius reset');
         assert.equal(audit.media.audio.paddingTop,'0px',id + ' voice container must retain the source zero-padding rule');
         const preset = await page.evaluate(presetId => window.DuoChatBeautify.presets.find(x => x.id === presetId).css,id);
-        assert.match(preset,/\.bubble:has\(video\)/,id + ' must retain video-specific CSS');
+        assert.ok(preset.includes('.bubble.video-bubble'),id + ' must retain explicit video-bubble isolation without :has');
         assert.match(preset,/audio-bubble/,id + ' must retain voice-specific CSS');
       }
       await page.evaluate(() => goto('settingsPage'));
@@ -718,6 +718,63 @@ try {
   assert.equal(v3Result, true, 'legacy v3 JSON backup import path should remain available');
   assert.deepEqual(pageErrors, [], 'page should not emit uncaught JavaScript errors');
 
+  const lineKittyPerformance = [];
+  for (const viewport of [
+    {name:'desktop',width:1365,height:900},
+    {name:'mobile',width:390,height:844}
+  ]) {
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    const sample = await page.evaluate(() => {
+      const chat = document.getElementById('chatList');
+      const originalHistory = state.chatHistory;
+      const synthetic = Array.from({length:1200}, (_,i) => {
+        if (i % 5 === 0) return {id:'line-kitty-perf-'+i,type:'system',text:'未接来电 · 对方的视频来电',time:'14:29'};
+        if (i % 29 === 0) return {id:'line-kitty-perf-'+i,type:'video',sender:i%2?'me':'other',time:'14:29'};
+        if (i % 31 === 0) return {id:'line-kitty-perf-'+i,type:'audio',sender:i%2?'me':'other',time:'14:29'};
+        if (i % 37 === 0) return {id:'line-kitty-perf-'+i,type:'image',sender:i%2?'me':'other',time:'14:29'};
+        return {id:'line-kitty-perf-'+i,type:'text',sender:i%2?'me':'other',text:'Line Kitty performance fixture message '+i,time:'14:29'};
+      });
+      const fragment = document.createDocumentFragment();
+      for (const message of synthetic) {
+        const row = buildMessageRow(message);
+        row.dataset.lineKittyPerf = '1';
+        fragment.appendChild(row);
+      }
+      chat.appendChild(fragment);
+      state.chatHistory = [...originalHistory,...synthetic];
+      const started = performance.now();
+      window.DuoChatBeautify.apply('line-kitty');
+      const applied = performance.now();
+      let checksum = 0;
+      const bubbles = chat.querySelectorAll('.bubble');
+      for (const bubble of bubbles) {
+        const style = getComputedStyle(bubble);
+        const before = getComputedStyle(bubble,'::before');
+        const after = getComputedStyle(bubble,'::after');
+        checksum += style.borderTopWidth.length + before.content.length + after.content.length;
+      }
+      const scrollHeight = chat.scrollHeight;
+      const finished = performance.now();
+      const result = {
+        messageCount:synthetic.length,
+        systemRecords:synthetic.filter(message=>message.type==='system').length,
+        bubbleCount:bubbles.length,
+        applySyncMs:Number((applied-started).toFixed(2)),
+        styleAndLayoutMs:Number((finished-applied).toFixed(2)),
+        totalMs:Number((finished-started).toFixed(2)),
+        scrollHeight,
+        checksum
+      };
+      window.DuoChatBeautify.reset();
+      chat.querySelectorAll('[data-line-kitty-perf="1"]').forEach(node=>node.remove());
+      state.chatHistory = originalHistory;
+      save();
+      return result;
+    });
+    lineKittyPerformance.push({viewport:viewport.name,...sample});
+  }
+  await page.setViewportSize({width:1365,height:900});
+  console.log('LINE_KITTY_PERFORMANCE_BASELINE '+JSON.stringify(lineKittyPerformance));
   console.log(JSON.stringify({
     result: 'passed',
     themePersisted: true,
