@@ -100,11 +100,11 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
-  assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
+  assert.equal(beautifyBefore.count, 18, 'exactly 18 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
-  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 19 source stylesheets');
+  assert.ok(beautifyBefore.styleRules > 100, 'browser must parse all 18 source stylesheets');
   assert.equal(beautifyBefore.cssPriority, true, 'user custom CSS must remain after built-in preset styles');
 
   await page.evaluate(() => window.DuoChatBeautify.reset());
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -819,7 +819,7 @@ try {
     !item.messageOrderCorrect || item.overflowY!=='auto' ||
     item.distanceToBottom>2 || !item.latestRowVisible
   );
-  assert.equal(allPresetScrollAudit.length,38,'all 19 presets must be checked on desktop and mobile viewports');
+  assert.equal(allPresetScrollAudit.length,36,'all 18 presets must be checked on desktop and mobile viewports');
   assert.deepEqual(scrollFailures,[],'every preset must keep the newest sent message visible and the chat list at bottom: '+JSON.stringify(scrollFailures));
   console.log('ALL_PRESET_SCROLL_AUDIT '+JSON.stringify(allPresetScrollAudit));
   console.log('ALL_PRESET_PERFORMANCE_AUDIT '+JSON.stringify(allPresetPerformanceAudit));
