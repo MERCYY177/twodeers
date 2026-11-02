@@ -1,6 +1,17 @@
 name: Android debug APKs
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "*.js"
+      - "*.css"
+      - "assets/**"
+      - "android-apps/**"
+      - "tests/**"
+      - "tools/**"
+      - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
     paths:
