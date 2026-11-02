@@ -86,7 +86,8 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: |
-            set -euo pipefail
+            # The emulator action executes this script with /bin/sh, not bash.
+            set -eu
             for flavor in Beibeilu Lu1 Lu2 Lu3; do
               echo "=== $flavor: Android light mode ==="
               adb shell cmd uimode night no
