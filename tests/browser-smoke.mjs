@@ -100,7 +100,7 @@ try {
         ids.lastIndexOf('customStyle') > ids.indexOf('duoChatBeautifyPresetStyles');
     })()
   }));
-  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon",line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]);
+  assert.deepEqual(await page.evaluate(() => window.DuoChatBeautify.presets.map(item => item.id)), ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]);
   assert.equal(beautifyBefore.count, 19, 'exactly 19 approved CSS designs should be loaded');
   assert.equal(beautifyBefore.count, beautifyBefore.cards, 'each approved preset must have a live CSS preview card');
   assert.equal(beautifyBefore.stylePresent, true, 'preset CSS must be injected into the real page');
@@ -252,7 +252,7 @@ try {
   for (const viewport of viewports) {
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await exposeBeautifySettings();
-    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon",line-kitty","pink-gray-stars","picture-frame","soft-double-frame",""]) {
+    for (const id of ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"]) {
       await page.evaluate(presetId => window.DuoChatBeautify.apply(presetId), id);
       await page.evaluate(() => goto('chatPage'));
       const audit = await page.evaluate(({id,baselineMedia}) => {
@@ -382,7 +382,7 @@ try {
       for (const [type,passed] of Object.entries(audit.isolation)) assert.equal(passed,true,id + ' must isolate ' + type + ': ' + JSON.stringify({before:baselineMedia.media[type],after:audit.media[type]}));
       assert.ok(Math.abs(audit.imageRect.width - baselineMedia.imageRect.width) < 0.5,id + ' must preserve image width: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
       assert.ok(Math.abs(audit.imageRect.height - baselineMedia.imageRect.height) < 0.5,id + ' must preserve image height: ' + JSON.stringify({before:baselineMedia.imageRect,after:audit.imageRect}));
-      if (id === '' || id === 'line-kitty') {
+      if (id === 'line-kitty') {
         console.log('[card-pseudo-diagnostic] ' + JSON.stringify({
           id, baseline: baselineMedia.media.card, after: audit.media.card
         }));
@@ -446,7 +446,7 @@ try {
           path:'artifacts/chat-beautify/' + viewport.name + '-decorative-' + id + '.png'
         });
       }
-      if (id === '' || id === 'line-kitty') {
+      if (id === 'line-kitty') {
         await page.locator('#chatList').screenshot({
           path:'artifacts/chat-beautify/' + viewport.name + '-media-special-' + id + '.png'
         });
