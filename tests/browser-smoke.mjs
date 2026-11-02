@@ -775,6 +775,65 @@ try {
   }
   await page.setViewportSize({width:1365,height:900});
   console.log('LINE_KITTY_PERFORMANCE_BASELINE '+JSON.stringify(lineKittyPerformance));
+  const chatScrollRegression = await page.evaluate(async () => {
+    const list = document.getElementById('chatList');
+    const composer = document.querySelector('#chatPage .composer');
+    const originalHistory = state.chatHistory;
+    const originalLastChatAt = state.offline.lastChatAt;
+    const synthetic = Array.from({length:800}, (_,i) => ({
+      id:'chat-scroll-regression-'+i,
+      sender:i%2?'me':'other',
+      type:'text',
+      text:'滚动回归历史消息 '+i+' · 保证最新消息定位',
+      time:'14:29',
+      read:false
+    }));
+    const fragment = document.createDocumentFragment();
+    synthetic.forEach(message => fragment.appendChild(buildMessageRow(message)));
+    list.replaceChildren(fragment);
+    state.chatHistory = synthetic;
+    window.DuoChatBeautify.apply('line-kitty');
+    sendCurrentText('这是发送后必须立即显示的最新一条消息');
+    await new Promise(resolve => requestAnimationFrame(() =>
+      requestAnimationFrame(() => requestAnimationFrame(resolve))
+    ));
+    const latest = state.chatHistory[state.chatHistory.length-1];
+    const latestRow = list.querySelector('[data-mid="'+latest.id+'"]');
+    const latestRect = latestRow.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    const composerRect = composer.getBoundingClientRect();
+    const maxScroll = Math.max(0,list.scrollHeight-list.clientHeight);
+    const distanceToBottom = Math.max(0,maxScroll-list.scrollTop);
+    const visibleBottom = Math.min(listRect.bottom,composerRect.top);
+    const metrics = {
+      historyBeforeSend:synthetic.length,
+      messageOrderCorrect:latest.text==='这是发送后必须立即显示的最新一条消息' && latest.id===state.chatHistory[state.chatHistory.length-1].id,
+      overflowY:getComputedStyle(list).overflowY,
+      scrollHeight:list.scrollHeight,
+      clientHeight:list.clientHeight,
+      scrollTop:list.scrollTop,
+      maxScroll,
+      distanceToBottom,
+      latestRowTop:Number(latestRect.top.toFixed(1)),
+      latestRowBottom:Number(latestRect.bottom.toFixed(1)),
+      visibleTop:Number(listRect.top.toFixed(1)),
+      visibleBottom:Number(visibleBottom.toFixed(1)),
+      latestRowVisible:latestRect.top>=listRect.top-1 && latestRect.bottom<=visibleBottom+1
+    };
+    window.DuoChatBeautify.reset();
+    state.chatHistory = originalHistory;
+    state.offline.lastChatAt = originalLastChatAt;
+    renderChatHistory(false);
+    save();
+    return metrics;
+  });
+  assert.equal(chatScrollRegression.messageOrderCorrect,true,'sending must append the new message as the final history record');
+  assert.equal(chatScrollRegression.overflowY,'auto','chat history must remain its own vertical scroll container');
+  assert.ok(chatScrollRegression.distanceToBottom<=2,
+    'after sending, chatList must be scrolled to its real bottom: '+JSON.stringify(chatScrollRegression));
+  assert.equal(chatScrollRegression.latestRowVisible,true,
+    'the newest sent message must be visible above the fixed composer: '+JSON.stringify(chatScrollRegression));
+  console.log('CHAT_SCROLL_AFTER_SEND '+JSON.stringify(chatScrollRegression));
   console.log(JSON.stringify({
     result: 'passed',
     themePersisted: true,
