@@ -140,7 +140,9 @@ test('only the exact 18 approved CSS designs are registered, with exact source I
   const mint = presets.find(item => item.id === 'mint-sms');
   const blue = presets.find(item => item.id === 'blue-imessage');
   assert.ok(mint && blue);
-  const outgoingTail = css => css.match(/\.msg-row\\.me[^{}]*::after\\{[^}]*background-image:url\\([\"']?([^\"')]+)[\"']?\\)/)?.[1];
+  const mintTail = 'assets/builtin-theme/theme-607e5703516d09dc.png';
+  assert.ok(mint.css.includes('background-image:url("' + mintTail + '")'), 'Mint SMS outgoing tail must use the iMessage blue tail asset');
+  assert.ok(blue.css.includes('background-image:url("' + mintTail + '")'), 'iMessage blue outgoing tail asset must remain unchanged');
   assert.equal(outgoingTail(mint.css), outgoingTail(blue.css), 'Mint SMS outgoing tail must use the same silhouette asset as iMessage blue');
   assert.ok(!presets.some(item => item.id === 'leaf-garden'), 'Leaf Garden must be removed from the active preset registry');
   assert.equal(presets.filter(item => item.sourcePresetId).length, 18);
