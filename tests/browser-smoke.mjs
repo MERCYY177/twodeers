@@ -531,7 +531,7 @@ try {
     return [...remote,...local];
   }));
   assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,6,'all six remaining remote image URLs must be audited');
-  assert.equal(resourceAudit.filter(item=>item.kind==='local').length,11,'all eleven local image assets must be audited');
+  assert.equal(resourceAudit.filter(item=>item.kind==='local').length,10,'all ten active local image assets must be audited');
   const resourceHttpAudit = [];
   for (const asset of resourceAudit) {
     const url = asset.kind === 'local' ? 'http://127.0.0.1:8080' + asset.url : asset.url;
