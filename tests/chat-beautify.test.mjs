@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -12,52 +12,248 @@ const presets = sandbox.window.DuoChatBeautifyPresets;
 const targetHtml = readFileSync(resolve(root, 'index.html'), 'utf8');
 const manager = readFileSync(resolve(root, 'chat-beautify-manager.js'), 'utf8');
 const appearanceManager = readFileSync(resolve(root, 'appearance-manager.js'), 'utf8');
-const mediaExclusion = ':not(.image-bubble):not(.video-bubble):not(.audio-bubble):not(.sticker-bubble)';
-const normalize = css => css
-  .replace(/#[0-9a-f]{3,8}\b/gi, '#COLOR')
-  .replace(/rgba?\([^)]*\)/gi, 'COLOR')
-  .replace(/hsla?\([^)]*\)/gi, 'COLOR')
-  .replace(/content\s*:\s*(['"])[\s\S]*?\1/gi, 'content:""')
-  .replace(/\s+/g, '');
+
+const expectedSourceIds = {
+  "ink-minimal": "builtin_cfc47dbf_01_eve___v2",
+  "rose-letter": "builtin_31b14a17_02_eve___v2",
+  "blue-imessage": "builtin_0e89fa2e_03_eve_iMessage",
+  "mint-sms": "builtin_4ff48447_04_eve_iMessage",
+  "carbon-glass": "builtin_3ff838e0_07_eve_iMessage",
+  "miffy-memo": "builtin_30e73b53_08_miu",
+  "x-blue-dm": "builtin_b9f7f258_22_miu__X",
+  "x-night-dm": "builtin_e6d04d09_23_miu__X",
+  "whatsapp-tails": "builtin_285c4628_02__WhatsApp",
+  "miu-pink-sms": "builtin_f39ffd4a_05_miu",
+  "miu-blue-sms": "builtin_80431c26_06_miu",
+  "leaf-garden": "builtin_25176e9f_08",
+  "ios6-bluegray": "builtin_1f7c7cb3_09_miu_iOS6",
+  "wechat-moon": "builtin_dbb9ed46_12",
+  "pink-lemon": "builtin_xiaoshu_webchat_pink_yellow_round_template_v1",
+  "line-kitty": "builtin_xiaoshu_line_kitty_black_white_kkk35g_v1",
+  "pink-gray-stars": "builtin_xiaoshu_pink_gray_decor_v1",
+  "picture-frame": "builtin_xiaoshu_frame_borderimage_v1",
+  "soft-double-frame": "builtin_xiaoshu_soft_frame_pair_v1",
+};
+const expectedPresetIds = ["ink-minimal","rose-letter","blue-imessage","mint-sms","carbon-glass","miffy-memo","x-blue-dm","x-night-dm","whatsapp-tails","miu-pink-sms","miu-blue-sms","leaf-garden","ios6-bluegray","wechat-moon","pink-lemon","line-kitty","pink-gray-stars","picture-frame","soft-double-frame"];
+const decorativePresetIds = ['pink-gray-stars', 'picture-frame', 'soft-double-frame'];
+const mediaClasses = ['image-bubble', 'video-bubble', 'audio-bubble', 'sticker-bubble', 'media-pending'];
+
+function splitSelectorList(value) {
+  const selectors = [];
+  let start = 0, depth = 0, quote = '', escaped = false;
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if (escaped) { escaped = false; continue; }
+    if (char === '\\') { escaped = true; continue; }
+    if (quote) { if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (char === ',' && depth === 0) { selectors.push(value.slice(start, i)); start = i + 1; }
+  }
+  selectors.push(value.slice(start));
+  return selectors;
+}
+
+function parseCssRules(css) {
+  const input = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [];
+  let index = 0;
+  while (index < input.length) {
+    while (/\s/.test(input[index] || '')) index++;
+    if (index >= input.length) break;
+    const start = index;
+    let depth = 0, quote = '', escaped = false;
+    for (; index < input.length; index++) {
+      const char = input[index];
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (quote) { if (char === quote) quote = ''; continue; }
+      if (char === '"' || char === "'") { quote = char; continue; }
+      if (char === '(' || char === '[') depth++;
+      else if (char === ')' || char === ']') depth--;
+      else if (char === '{' && depth === 0) break;
+    }
+    assert.ok(index < input.length, 'unterminated CSS rule prelude');
+    const selector = input.slice(start, index).trim();
+    index++;
+    const bodyStart = index;
+    let braces = 1;
+    quote = ''; escaped = false;
+    for (; index < input.length && braces; index++) {
+      const char = input[index];
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (quote) { if (char === quote) quote = ''; continue; }
+      if (char === '"' || char === "'") { quote = char; continue; }
+      if (char === '{') braces++;
+      else if (char === '}') braces--;
+    }
+    assert.equal(braces, 0, 'unterminated CSS declaration block');
+    rules.push({ selector, body: input.slice(bodyStart, index - 1) });
+  }
+  return rules;
+}
+
+function negatesClass(selector, className) {
+  return new RegExp(':not\\([^)]*\\.' + className + '(?![\\w-])').test(selector);
+}
+
+function isExplicitMediaRule(selector) {
+  return /\.bubble(?:\.(?:image-bubble|video-bubble|audio-bubble|sticker-bubble|media-pending|xiaoshu-card-message-outer)|:is\(\.image-bubble\)|:has\((?:img|video|canvas|\.red-packet-card|\.transfer-bubble|\.ta-phone-product-card|\.shop-chat-card|\.product-card|\.order-product|\.chat-card|\.bubble-card|\.message-card|\[data-chat-card|\[data-card))/i.test(selector);
+}
+
+function hasNestedHas(selector) {
+  const stack = [];
+  for (let i = 0; i < selector.length; i++) {
+    if (selector.startsWith(':has(', i)) {
+      if (stack.includes('has')) return true;
+      stack.push('has');
+      i += 4;
+      continue;
+    }
+    if (selector[i] === '(') stack.push('other');
+    else if (selector[i] === ')') stack.pop();
+  }
+  return false;
+}
+
+function assertMediaSafeSelector(selector, presetId) {
+  if (!/\.bubble(?![-\w])/.test(selector) || isExplicitMediaRule(selector)) return;
+  for (const className of ['image-bubble', 'video-bubble', 'sticker-bubble', 'media-pending']) {
+    assert.ok(negatesClass(selector, className),
+      presetId + ' generic bubble selector must exclude .' + className + ': ' + selector);
+  }
+  assert.ok(negatesClass(selector, 'audio-bubble') || /\.audio-bubble/.test(selector),
+    presetId + ' generic bubble selector must exclude audio or explicitly target its voice design: ' + selector);
+}
 
 test('chat beautification manager is valid executable JavaScript', () => {
   assert.doesNotThrow(() => new vm.Script(manager, { filename: 'chat-beautify-manager.js' }));
 });
 
-test('registers 78 independently identified CSS chat designs', () => {
-  assert.equal(presets.length, 78);
-  assert.equal(new Set(presets.map(item => item.id)).size, presets.length);
-  assert.equal(new Set(presets.map(item => item.name)).size, presets.length);
+test('only the exact 19 approved CSS designs are registered, with exact source IDs', () => {
+  assert.equal(presets.length, 19, 'only 19 approved designs may exist in the preset array');
+  assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
+  assert.equal(new Set(presets.map(item => item.id)).size, 19, 'preset IDs must be unique');
+  assert.equal(new Set(presets.map(item => item.name)).size, 19, 'preset names must be unique');
+  assert.deepEqual(Object.fromEntries(presets.map(item => [item.id, item.sourcePresetId])), expectedSourceIds);
+  assert.equal(presets.filter(item => item.sourcePresetId).length, 19);
   assert.ok(presets.every(item => item.description && item.category && item.css.length > 1200));
-  assert.ok(new Set(presets.map(item => normalize(item.css))).size >= 40,
-    'at least 40 CSS structures must remain distinct after color normalization');
-  assert.equal(presets.filter(item => item.sourcePresetId).length, 22,
-    'all 22 recognizable source bubble design directions are adapted');
+  assert.ok(!presets.some(item => item.id === 'wechat-old-green'));
+  assert.ok(!presets.some(item => !expectedPresetIds.includes(item.id)), 'no native or backup preset may remain');
 });
 
-test('every preset styles both sender sides plus avatar, metadata and composer', () => {
+test('all 19 migrated CSS styles retain their original scope and both chat directions', () => {
   for (const item of presets) {
     const scope = '.duo-chat-beautify--' + item.id;
-    assert.ok(item.css.includes('#chatList' + scope), item.id + ' must target the target chat list root');
-    assert.ok(item.css.includes(scope + ' .msg-row.me .bubble' + mediaExclusion), item.id + ' missing own-message bubble design');
-    assert.ok(item.css.includes(scope + ' .msg-row.other .bubble' + mediaExclusion), item.id + ' missing peer-message bubble design');
-    assert.ok(item.css.includes(scope + ' .chat-avatar'), item.id + ' missing avatar treatment');
-    assert.ok(item.css.includes(scope + ' .meta'), item.id + ' missing message metadata treatment');
-    assert.ok(item.css.includes('.duo-chat-preview-composer'), item.id + ' missing preview/input-area treatment');
-    assert.ok(item.css.includes(scope + ' .bubble' + mediaExclusion + '{position:relative!important}'));
-    assert.ok(!item.css.includes(scope + ' .bubble{'), item.id + ' must not blanket-style all media bubbles');
-    assert.ok(item.css.startsWith('#chatList' + scope));
+    assert.ok(item.css.includes(scope), item.id + ' missing its original scope');
+    assert.ok(item.css.includes(':is(#chatList,.duo-chat-beautify-preview)' + scope),
+      item.id + ' must scope both live chat and preview roots');
+    assert.ok(item.css.includes('.msg-row.me'), item.id + ' missing own-message design');
+    assert.ok(item.css.includes('.msg-row.other'), item.id + ' missing peer-message design');
+    assert.ok(item.css.includes('.bubble'), item.id + ' missing bubble design');
+    assert.ok(!item.css.includes('.chat-avatar'), item.id + ' must not gain non-source avatar rules');
+    assert.ok(!item.css.includes('.duo-chat-preview-composer'), item.id + ' must not gain non-source composer rules');
+    for (const legacy of ['.chat-container', '#chat-container', '.message-wrapper', '.message-content-wrapper', '.message-sent', '.message-received', '.message-image-bubble-none']) {
+      assert.ok(!item.css.includes(legacy), item.id + ' retains legacy selector ' + legacy);
+    }
+  }
+  const scopeOnly = css => css.replace(/\.duo-chat-beautify--[a-z0-9-]+/g, '.duo-chat-beautify--SCOPE');
+  const first = presets.find(item => item.id === 'ink-minimal');
+  const fifth = presets.find(item => item.id === 'carbon-glass');
+  assert.equal(scopeOnly(first.css), scopeOnly(fifth.css), 'original source styles 1 and 5 must remain identical');
+});
+
+test('all 19 designs isolate generic bubble rules and pseudo-elements from media classes', () => {
+  for (const item of presets) {
+    const rules = parseCssRules(item.css);
+    assert.ok(rules.length >= 3, item.id + ' CSS should contain real parsed rules');
+    for (const rule of rules) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        assertMediaSafeSelector(selector.trim(), item.id);
+      }
+    }
+  }
+  for (const id of ['line-kitty']) {
+    const item = presets.find(entry => entry.id === id);
+    assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
+    for (const rule of parseCssRules(item.css)) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        assert.equal(hasNestedHas(selector), false, id + ' must not contain unsupported nested :has selectors: ' + selector);
+      }
+    }
+    assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
+      id + ' must preserve its source card-specific decoration');
+    assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
+    for (const rule of parseCssRules(item.css)) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        if (/\.msg-row\.(?:me|other) \.bubble/.test(selector) && !/\.audio-bubble/.test(selector) && !isExplicitMediaRule(selector)) {
+          assert.ok(selector.includes(':not(.xiaoshu-card-message-outer)') && selector.includes(':not(:has('),
+            id + ' generic text selectors must exclude special card bubbles: ' + selector);
+        }
+      }
+    }
+    assert.match(item.css, /\.bubble:has\(img\):not\(\.sticker-bubble\)/, id + ' image decoration must not spill onto sticker bubbles');
   }
 });
 
-test('preset CSS is scoped to real twodeers DOM and excludes media message classes', () => {
-  assert.match(targetHtml, /class="page chat-page" id="chatPage"/);
-  assert.match(targetHtml, /id="chatList"[^>]*class="chat-bg"|class="chat-bg"[^>]*id="chatList"/);
-  assert.ok(targetHtml.includes("msg.sender==='me'?'me':'other'"));
-  for (const mediaClass of ['image-bubble', 'video-bubble', 'audio-bubble', 'sticker-bubble']) {
-    assert.ok(targetHtml.includes(mediaClass), 'target renderer must contain ' + mediaClass);
-    for (const item of presets) assert.ok(item.css.includes(mediaExclusion), item.id + ' must exclude ' + mediaClass);
+test('three decorative designs use real text-bubble DOM selectors and preserve decoration declarations', () => {
+  for (const id of decorativePresetIds) {
+    const item = presets.find(entry => entry.id === id);
+    assert.ok(item, id + ' must remain in the approved list');
+    assert.ok(!item.css.includes('data-xiaoshu-uniform-text'),
+      id + ' must not depend on an attribute absent from the target DOM');
+    assert.ok(item.css.includes(':is(#chatList,.duo-chat-beautify-preview)'),
+      id + ' must target live chat and preview roots');
+    assert.ok(item.css.includes('.msg-row.me') && item.css.includes('.msg-row.other'),
+      id + ' must target both sender directions');
+    assert.ok(/background-image|border-image/i.test(item.css) && item.css.includes('url('),
+      id + ' must retain original decorative image/border rules');
+    for (const rule of parseCssRules(item.css)) {
+      for (const selector of splitSelectorList(rule.selector)) {
+        assertMediaSafeSelector(selector.trim(), id);
+      }
+    }
   }
+});
+
+test('removed remote-image presets are absent from the complete runtime registry', () => {
+  assert.equal(presets.length, 19);
+  assert.deepEqual(Array.from(presets, item => item.id), expectedPresetIds);
+  const serialized = JSON.stringify(presets);
+  const removedTokens = [
+    ['rabbit','milk'].join('-'), ['line','cat','milk'].join('-'),
+    ['builtin_xiaoshu_jrys','tuwan_pink_kkk35g_v1'].join('_'),
+    ['builtin_xiaoshu_line','cat_milk_v1'].join('_'),
+    ['1772553939','061'].join(''), ['1772553916','921'].join(''),
+    ['52442340f9bde54f2d1d','15871e318fd5'].join(''),
+    ['img.','heliar.top'].join(''), ['www.','lnjubao.cn'].join('')
+  ];
+  for (const token of removedTokens) {
+    assert.equal(serialized.includes(token), false, 'removed preset token must not remain: ' + token);
+  }
+});
+
+test('all 11 migrated local decoration assets still exist and remain the only local preset assets', () => {
+  const localAssets = new Set();
+  for (const item of presets) {
+    const urls = [...item.css.matchAll(/url\(\s*(['"]?)([^)'"]+)\1\s*\)/gi)].map(match => match[2]);
+    for (const url of urls.filter(value => !/^https?:|^data:|^\/\//i.test(value))) {
+      localAssets.add(url);
+      assert.ok(existsSync(resolve(root, url)), item.id + ' missing local source asset ' + url);
+    }
+  }
+  assert.equal(localAssets.size, 11, 'the 11 original local assets must remain present');
+});
+
+test('manager removes only a stale selected preset ID and preserves all other state', () => {
+  assert.match(manager, /const storedPresetId = state\.chatBeautifyPresetId/);
+  assert.match(manager, /delete state\.chatBeautifyPresetId/);
+  assert.match(manager, /save\(\)/);
+  assert.match(manager, /validPresets\.some\(item => item\.id === storedPresetId\)/);
+  assert.match(manager, /applyToChat\(id\)/);
+  assert.match(manager, /state\.chatBeautifyPresetId/);
 });
 
 test('manager renders live CSS previews and persists only the chosen preset ID', () => {

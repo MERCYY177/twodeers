@@ -151,6 +151,11 @@
   function updateStatus() {
     const status = $('[data-beautify-status]');
     if (!status) return;
+    const storedPresetId = state.chatBeautifyPresetId;
+    if (storedPresetId && !validPresets.some(item => item.id === storedPresetId)) {
+      delete state.chatBeautifyPresetId;
+      save();
+    }
     const id = selectedId();
     const current = validPresets.find(item => item.id === id);
     status.textContent = current
