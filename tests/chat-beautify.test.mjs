@@ -175,28 +175,28 @@ test('all 19 designs isolate generic bubble rules and pseudo-elements from media
       }
     }
   }
-  for (const id of ['line-kitty']) {
-    const item = presets.find(entry => entry.id === id);
-    assert.match(item.css, /\.bubble:has\(video\)/, id + ' must preserve its source video-specific decoration');
-    for (const rule of parseCssRules(item.css)) {
-      for (const selector of splitSelectorList(rule.selector)) {
-        assert.equal(hasNestedHas(selector), false, id + ' must not contain unsupported nested :has selectors: ' + selector);
-      }
-    }
-    assert.match(item.css, /\.bubble:has\(\.message-card\)|\.bubble:has\(\.chat-card\)/,
-      id + ' must preserve its source card-specific decoration');
-    assert.match(item.css, /:is\(\.audio-bubble\)/, id + ' must preserve its source voice-bubble design');
-    for (const rule of parseCssRules(item.css)) {
-      for (const selector of splitSelectorList(rule.selector)) {
-        if (/\.msg-row\.(?:me|other) \.bubble/.test(selector) && !/\.audio-bubble/.test(selector) && !isExplicitMediaRule(selector)) {
-          assert.ok(selector.includes(':not(.xiaoshu-card-message-outer)') && selector.includes(':not(:has('),
-            id + ' generic text selectors must exclude special card bubbles: ' + selector);
-        }
-      }
-    }
-    assert.match(item.css, /\.bubble:has\(img\):not\(\.sticker-bubble\)/, id + ' image decoration must not spill onto sticker bubbles');
-  }
-});
+  const item = presets.find(entry => entry.id === 'line-kitty');
+  assert.ok(item, 'Line Kitty must remain registered');
+  assert.ok(item.css.length < 9000, 'Line Kitty CSS must remain within the optimized size budget');
+  assert.doesNotMatch(item.css, /:has\\(/, 'Line Kitty must use the current DOM message-type classes instead of expensive relational selectors');
+  assert.match(item.css, /\\.bubble\\.image-bubble/, 'image bubbles must be explicitly isolated');
+  assert.match(item.css, /\\.bubble\\.video-bubble/, 'video bubbles must be explicitly isolated');
+  assert.match(item.css, /\\.bubble\\.audio-bubble/, 'audio bubbles must be explicitly isolated');
+  assert.match(item.css, /\\.bubble\\.sticker-bubble/, 'sticker bubbles must be explicitly isolated');
+  assert.match(item.css, /:not\\(\\.xiaoshu-card-message-outer\\)/, 'generic text bubbles must exclude special card wrappers');
+  const lineKittyRules = parseCssRules(item.css);
+  const scopeRoot = ':is(#chatList,.duo-chat-beautify-preview).duo-chat-beautify--line-kitty';
+  assert.equal(lineKittyRules.some(rule =>
+    rule.body.includes('overflow:visible') &&
+    splitSelectorList(rule.selector).some(selector => selector.trim() === scopeRoot)
+  ), false, 'Line Kitty must not override the chat list scroll container overflow');
+  const lineKittySelectors = lineKittyRules.flatMap(rule => splitSelectorList(rule.selector).map(selector => selector.trim()));
+  assert.equal(new Set(lineKittySelectors).size, lineKittySelectors.length,
+    'Line Kitty must not contain duplicated selector branches');
+  assert.match(item.css, /theme-fd9beb0e72b310ee\\.png/, 'sender ear decoration asset must be preserved');
+  assert.match(item.css, /theme-14288d5b11c26732\\.png/, 'sender cat decoration asset must be preserved');
+  assert.match(item.css, /theme-6a408c66f8c25177\\.png/, 'receiver ear decoration asset must be preserved');
+  assert.match(item.css, /theme-d34a32d61f2f3f9f\\.png/, 'receiver cat decoration asset must be preserved');});
 
 test('three decorative designs use real text-bubble DOM selectors and preserve decoration declarations', () => {
   for (const id of decorativePresetIds) {
