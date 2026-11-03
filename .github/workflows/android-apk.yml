@@ -85,19 +85,9 @@ jobs:
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: |
-            # The emulator action executes this script with /bin/sh, not bash.
-            set -eu
-            for flavor in Beibeilu Lu1 Lu2 Lu3; do
-              echo "=== $flavor: Android light mode ==="
-              adb shell cmd uimode night no
-              gradle --no-daemon ":app:connected${flavor}DebugAndroidTest"
-              echo "=== $flavor: Android dark mode ==="
-              adb shell cmd uimode night yes
-              gradle --no-daemon ":app:connected${flavor}DebugAndroidTest"
-            done
-            adb shell cmd uimode night no
-
+          working-directory: ./android-apps
+          # The action splits script input at newlines, so invoke one standalone bash script.
+          script: bash ../.github/scripts/verify-android-system-theme.sh
       - name: Upload four APKs
         uses: actions/upload-artifact@v4
         with:
