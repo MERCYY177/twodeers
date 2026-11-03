@@ -1,6 +1,18 @@
 name: Android debug APKs
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "*.js"
+      - "*.css"
+      - "assets/**"
+      - "android-apps/**"
+      - "tests/**"
+      - "tools/**"
+      - ".github/scripts/**"
+      - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
     paths:
@@ -11,8 +23,13 @@ on:
       - "android-apps/**"
       - "tests/**"
       - "tools/**"
+      - ".github/scripts/**"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
+
+concurrency:
+  group: android-apks-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -55,6 +72,7 @@ jobs:
           done
           FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
           TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
+          node tests/theme-mode-smoke.mjs
           kill "$SERVER_PID" || true
       - name: Build all four debug APKs
         working-directory: android-apps
@@ -66,10 +84,35 @@ jobs:
           echo "APK count: $count"
           test "$count" -eq 4
           find app/build/outputs/apk -type f -name '*.apk' -print
+      # Publish the four APKs immediately after build verification so they remain
+      # downloadable even when the later emulator integration test fails.
       - name: Upload four APKs
         uses: actions/upload-artifact@v4
         with:
           name: beibeilu-four-apks
           path: android-apps/app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
+      - name: Verify Android system light and dark mode in all four app variants
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          working-directory: ./android-apps
+          # Keep the test loop in bash; this action invokes each script field with sh -c.
+          script: bash ../.github/scripts/verify-android-system-theme.sh
+      - name: Upload Android theme test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-theme-test-diagnostics
+          path: |
+            android-test-diagnostics/**
+            android-apps/app/build/reports/androidTests/**
+          if-no-files-found: warn
           retention-days: 14

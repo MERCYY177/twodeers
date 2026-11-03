@@ -24,6 +24,7 @@ android {
         applicationId = "com.mercyy.beibeilu"
         minSdk = 23
         targetSdk = 35
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 1
         versionName = "1.0.0"
     }
@@ -66,4 +67,8 @@ tasks.named("preBuild").configure { dependsOn(stageWebProject) }
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
 }

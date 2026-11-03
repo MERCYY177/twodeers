@@ -17,6 +17,8 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewFeature;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -115,6 +117,10 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setDefaultTextEncodingName("UTF-8");
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        // The page owns its prefers-color-scheme dark palette; avoid a second algorithmic pass.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false);
+        }
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
