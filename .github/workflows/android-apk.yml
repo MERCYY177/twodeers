@@ -84,6 +84,15 @@ jobs:
           echo "APK count: $count"
           test "$count" -eq 4
           find app/build/outputs/apk -type f -name '*.apk' -print
+      # Publish the four APKs immediately after build verification so they remain
+      # downloadable even when the later emulator integration test fails.
+      - name: Upload four APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: beibeilu-four-apks
+          path: android-apps/app/build/outputs/apk/*/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify Android system light and dark mode in all four app variants
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -106,11 +115,4 @@ jobs:
             android-test-diagnostics/**
             android-apps/app/build/reports/androidTests/**
           if-no-files-found: warn
-          retention-days: 14
-      - name: Upload four APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: beibeilu-four-apks
-          path: android-apps/app/build/outputs/apk/*/debug/*.apk
-          if-no-files-found: error
           retention-days: 14
