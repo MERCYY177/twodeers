@@ -68,6 +68,7 @@ jobs:
           done
           FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
           TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
+          node tests/theme-mode-smoke.mjs
           kill "$SERVER_PID" || true
       - name: Build all four debug APKs
         working-directory: android-apps
@@ -83,7 +84,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_2
           emulator-boot-timeout: 900
