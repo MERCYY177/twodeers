@@ -27,7 +27,7 @@ Gradle 的 `stageWebProject` 任务会把仓库根目录的 `index.html`、JS/CS
 
 Android 10 及以上通过 `values-night-v29` 中的 `android:isLightTheme=false` 告知 WebView 当前应用主题为深色；浅色资源显式声明为 true。WebView 的 `prefers-color-scheme` 随系统主题变化，网页现有 `mode: system` 与深色 CSS 负责界面配色。WebView 算法式强制变暗保持关闭，避免与网页自身深色配色叠加。
 
-Android CI 会在模拟器中分别切换系统浅色和深色，并对贝贝鹿、鹿1、鹿2、鹿3四个变体逐一执行集成测试，核对原生主题属性、WebView 媒体查询和网页最终解析主题。
+Android CI 会在精简 AOSP 模拟器中分别切换系统浅色和深色，并对贝贝鹿、鹿1、鹿2、鹿3四个变体逐一执行集成测试。Android instrumentation 使用独立的轻量 WebView 探针 Activity（应用同一套 AppTheme），直接核对原生 isLightTheme、WebView prefers-color-scheme 和算法式二次变暗开关；完整网页的 mode: system 从浅→深→浅响应由 Playwright 浏览器回归测试单独验证，避免把整个业务首页的初始化负担混入原生主题信号测试。
 
 ## 验证边界
 
