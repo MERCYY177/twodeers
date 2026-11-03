@@ -29,15 +29,20 @@ adb wait-for-device
 adb shell getprop sys.boot_completed | grep -q '^1$'
 adb logcat -c
 
-for flavor in Beibeilu Lu1 Lu2 Lu3; do
-  echo "=== ${flavor}: Android light mode ==="
-  adb shell cmd uimode night no
-  gradle --no-daemon ":app:connected${flavor}DebugAndroidTest" --stacktrace
+ANDROID_TEST_TASKS=(
+  :app:connectedBeibeiluDebugAndroidTest
+  :app:connectedLu1DebugAndroidTest
+  :app:connectedLu2DebugAndroidTest
+  :app:connectedLu3DebugAndroidTest
+)
 
-  echo "=== ${flavor}: Android dark mode ==="
-  adb shell cmd uimode night yes
-  gradle --no-daemon ":app:connected${flavor}DebugAndroidTest" --stacktrace
-done
+echo "=== All four app variants: Android light mode ==="
+adb shell cmd uimode night no
+gradle --no-daemon --max-workers=1 --stacktrace "${ANDROID_TEST_TASKS[@]}"
+
+echo "=== All four app variants: Android dark mode ==="
+adb shell cmd uimode night yes
+gradle --no-daemon --max-workers=1 --stacktrace "${ANDROID_TEST_TASKS[@]}"
 
 # Leave the emulator in light mode after a successful run.
 adb shell cmd uimode night no
