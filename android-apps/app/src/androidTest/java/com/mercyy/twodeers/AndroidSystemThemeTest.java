@@ -2,78 +2,92 @@ package com.mercyy.twodeers;
 
 import android.content.res.Configuration;
 import android.util.TypedValue;
-import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public final class AndroidSystemThemeTest {
     @Test
-    public void webViewAndPageFollowTheCurrentAndroidNightMode() throws Exception {
+    public void sharedAppThemePropagatesSystemNightModeToWebView() throws Exception {
         int night = InstrumentationRegistry.getInstrumentation().getTargetContext()
                 .getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
-        assertTrue(night == Configuration.UI_MODE_NIGHT_NO || night == Configuration.UI_MODE_NIGHT_YES);
+        assertTrue("Emulator must be explicitly light or dark",
+                night == Configuration.UI_MODE_NIGHT_NO || night == Configuration.UI_MODE_NIGHT_YES);
+
         String expected = night == Configuration.UI_MODE_NIGHT_YES ? "dark" : "light";
-        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            AtomicReference<String> observed = new AtomicReference<>("not-ready");
+
+        try (ActivityScenario<ThemeProbeActivity> scenario =
+                     ActivityScenario.launch(ThemeProbeActivity.class)) {
             AtomicReference<Boolean> nativeLight = new AtomicReference<>(null);
+            AtomicReference<WebView> webViewRef = new AtomicReference<>(null);
+
             scenario.onActivity(activity -> {
-                TypedValue v = new TypedValue();
-                boolean resolved = activity.getTheme().resolveAttribute(android.R.attr.isLightTheme, v, true);
-                nativeLight.set(resolved && v.data != 0);
+                TypedValue value = new TypedValue();
+                boolean resolved = activity.getTheme().resolveAttribute(
+                        android.R.attr.isLightTheme, value, true);
+                nativeLight.set(resolved && value.data != 0);
+                webViewRef.set(activity.getProbeWebView());
             });
-            assertNotNull(nativeLight.get());
-            assertEquals(Boolean.valueOf(expected.equals("light")), nativeLight.get());
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(35);
+
+            assertNotNull("AppTheme must resolve android:isLightTheme", nativeLight.get());
+            assertEquals("Shared AppTheme must match the emulator night mode",
+                    Boolean.valueOf(expected.equals("light")), nativeLight.get());
+            assertNotNull("Theme probe must create a WebView", webViewRef.get());
+
+            AtomicReference<String> observed = new AtomicReference<>("no-callback");
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(45);
+
             while (System.nanoTime() < deadline) {
                 CountDownLatch latch = new CountDownLatch(1);
-                scenario.onActivity(activity -> {
-                    WebView web = findWebView(activity.getWindow().getDecorView());
-                    if (web == null) { observed.set("no-webview"); latch.countDown(); return; }
-                    web.evaluateJavascript(
-                        "(function(){return (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')+'|'+(document.documentElement.dataset.duoThemeResolved||'not-ready');})()",
-                        value -> { observed.set(unquote(value)); latch.countDown(); });
-                });
-                latch.await(1, TimeUnit.SECONDS);
-                if ((expected + "|" + expected).equals(observed.get())) break;
-                Thread.sleep(250);
+                WebView web = webViewRef.get();
+                web.post(() -> web.evaluateJavascript(
+                        "(function(){return (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')+'|'+" +
+                        "(document.documentElement.dataset.probeTheme||'not-ready')+'|'+document.readyState;})()",
+                        value -> {
+                            observed.set(unquote(value));
+                            latch.countDown();
+                        }));
+
+                if (latch.await(3, TimeUnit.SECONDS)) {
+                    String result = observed.get();
+                    if (result.startsWith(expected + "|" + expected + "|")) break;
+                }
+                Thread.sleep(200);
             }
-            assertEquals(expected + "|" + expected, observed.get());
+
+            assertTrue("WebView did not follow the shared AppTheme. Last JS result: " + observed.get(),
+                    observed.get().startsWith(expected + "|" + expected + "|"));
+
             scenario.onActivity(activity -> {
-                WebView web = findWebView(activity.getWindow().getDecorView());
-                WebSettings settings = web.getSettings();
+                WebSettings settings = webViewRef.get().getSettings();
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
-                    assertFalse(WebSettingsCompat.isAlgorithmicDarkeningAllowed(settings));
+                    assertFalse("WebView must not apply a second algorithmic darkening pass",
+                            WebSettingsCompat.isAlgorithmicDarkeningAllowed(settings));
                 }
             });
         }
     }
+
     private static String unquote(String value) {
-        if (value != null && value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+        if (value != null && value.length() >= 2 &&
+                value.startsWith("\"") && value.endsWith("\"")) {
             return value.substring(1, value.length() - 1);
         }
-        return value;
-    }
-    private static WebView findWebView(View view) {
-        if (view instanceof WebView) return (WebView) view;
-        if (!(view instanceof ViewGroup)) return null;
-        ViewGroup group = (ViewGroup) view;
-        for (int i=0; i<group.getChildCount(); i++) {
-            WebView found=findWebView(group.getChildAt(i));
-            if (found != null) return found;
-        }
-        return null;
+        return value == null ? "null" : value;
     }
 }
