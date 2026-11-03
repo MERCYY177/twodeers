@@ -11,6 +11,7 @@ on:
       - "android-apps/**"
       - "tests/**"
       - "tools/**"
+      - ".github/scripts/**"
       - ".github/workflows/android-apk.yml"
   push:
     branches: [main]
@@ -22,6 +23,7 @@ on:
       - "android-apps/**"
       - "tests/**"
       - "tools/**"
+      - ".github/scripts/**"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
@@ -80,14 +82,26 @@ jobs:
       - name: Verify Android system light and dark mode in all four app variants
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_2
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           working-directory: ./android-apps
-          # The action splits script input at newlines, so invoke one standalone bash script.
+          # Keep the test loop in bash; this action invokes each script field with sh -c.
           script: bash ../.github/scripts/verify-android-system-theme.sh
+      - name: Upload Android theme test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-theme-test-diagnostics
+          path: |
+            android-test-diagnostics/**
+            android-apps/app/build/reports/androidTests/**
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload four APKs
         uses: actions/upload-artifact@v4
         with:
