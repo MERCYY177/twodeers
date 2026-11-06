@@ -1,0 +1,33 @@
+name: Built-in sticker validation
+
+on:
+  push:
+    branches: ["feature/builtin-sticker-library"]
+    paths:
+      - "index.html"
+      - "sticker-library.js"
+      - "backup-v4.js"
+      - "tests/**"
+      - "tools/verify-source.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/builtin-stickers-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify source syntax and module wiring
+        run: node tools/verify-source.mjs
+      - name: Run complete Node regression suite
+        run: node --test tests/*.test.mjs
