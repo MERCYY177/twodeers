@@ -46,6 +46,18 @@ jobs:
           format_counts = Counter()
           errors = []
           sheets = []
+          def sniff(data):
+              head = data[:64]
+              if head.startswith(bytes.fromhex("ffd8ff")): return "JPEG"
+              if head.startswith(b"\\x89PNG\\r\\n\\x1a\\n"): return "PNG"
+              if head.startswith((b"GIF87a", b"GIF89a")): return "GIF"
+              if head.startswith(b"RIFF") and head[8:12] == b"WEBP": return "WEBP"
+              if head.startswith(b"BM"): return "BMP"
+              if head.startswith((b"II*\\x00", b"MM\\x00*")): return "TIFF"
+              if head.startswith(b"%PDF-"): return "PDF"
+              if head.lstrip().lower().startswith((b"<!doctype html", b"<html")): return "HTML"
+              if head.lstrip().startswith(b"<?xml"): return "XML"
+              return "UNKNOWN"
           total_uncompressed = 0
           max_total = 2 * 1024 * 1024 * 1024
           max_entries = 50000
@@ -101,7 +113,14 @@ jobs:
                       except Exception as exc:
                           if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".apng"}:
                               row["status"] = "image-error"
-                              errors.append({"archive": archive_name, "file": name, "error": str(exc)[:300]})
+                              errors.append({"archive": archive_name, "file": name, "error": str(exc)[:300],
+                                             "detected_by_signature": sniff(data),
+                                             "prefix_hex": data[:64].hex(),
+                                             "prefix_text": "".join(chr(b) if 32 <= b < 127 else "." for b in data[:64]),
+                                             "zip_crc32": f"{member.CRC:08x}",
+                                             "zip_compress_type": member.compress_type,
+                                             "zip_uncompressed_bytes": member.file_size,
+                                             "zip_compressed_bytes": member.compress_size})
                       rows.append(row)
                   for page_start in range(0, len(images_for_sheet), per_sheet):
                       page = images_for_sheet[page_start:page_start + per_sheet]
@@ -132,6 +151,19 @@ jobs:
           duplicate_groups = [v for v in duplicates.values() if len(v) > 1]
           with open(os.path.join(out, "errors.json"), "w", encoding="utf-8") as f:
               json.dump(errors, f, ensure_ascii=False, indent=2)
+          error_report = ["# Unreadable image entry diagnostics", ""]
+          for item in errors:
+              error_report.extend([
+                  "## " + item["archive"] + " / " + item["file"],
+                  "- Signature: " + item.get("detected_by_signature", "n/a"),
+                  "- ZIP size: " + str(item.get("zip_uncompressed_bytes", "n/a")) + " bytes",
+                  "- ZIP CRC32: " + item.get("zip_crc32", "n/a"),
+                  "- Prefix hex: " + item.get("prefix_hex", ""),
+                  "- Prefix text: " + item.get("prefix_text", ""),
+                  "- Pillow: " + item["error"], ""
+              ])
+          with open(os.path.join(out, "ERROR-DIAGNOSTICS.md"), "w", encoding="utf-8") as f:
+              f.write("\\n".join(error_report) + "\\n")
           with open(os.path.join(out, "duplicates.json"), "w", encoding="utf-8") as f:
               json.dump(duplicate_groups, f, ensure_ascii=False, indent=2)
           image_rows = [r for r in rows if r["is_image"]]
