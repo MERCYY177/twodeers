@@ -1414,6 +1414,27 @@ button,input,textarea,select{
 
 
 :host{display:block;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--bg,#f6f6f6);}
+.cover-right-actions{display:flex;align-items:center;gap:8px;position:relative;z-index:6}
+.visitor-cover-btn{position:relative;width:44px;height:44px;min-width:44px;border:0;background:transparent;color:inherit;display:flex;align-items:center;justify-content:center;padding:0}
+.visitor-cover-btn svg{width:24px;height:24px;display:block}
+.visitor-badge{position:absolute;top:0;right:-2px;min-width:16px;height:16px;padding:0 4px;background:#ff4757;color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700;border-radius:999px;box-shadow:0 1px 4px rgba(255,71,87,.45)}
+.visitor-badge.hidden{display:none!important}
+.visitor-mask{position:fixed;inset:0;z-index:150;background:var(--bg);color:var(--text);display:none;flex-direction:column}
+.visitor-mask.show{display:flex}
+.visitor-top{height:calc(56px + env(safe-area-inset-top));padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:grid;grid-template-columns:38px 1fr 54px;align-items:center;border-bottom:1px solid var(--line);background:var(--card);flex-shrink:0}
+.visitor-back{width:38px;height:38px;border:0;background:transparent;color:var(--text);font-size:30px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.visitor-title{text-align:center;font-size:17px;font-weight:700;color:var(--text)}
+.visitor-clear{border:0;background:transparent;color:#ff4757;font-size:14px;font-weight:600;padding:0;text-align:right}
+.visitor-list{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;background:var(--bg)}
+.visitor-date-group{padding:9px 16px 7px;font-size:13px;color:var(--sub);background:var(--bg);position:sticky;top:0;z-index:1}
+.visitor-item{display:grid;grid-template-columns:46px 1fr;gap:12px;align-items:center;padding:13px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+.visitor-avatar{width:46px;height:46px;background:#ddd center/cover no-repeat;overflow:hidden;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700}
+.visitor-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.visitor-name{font-size:15px;line-height:1.2;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.visitor-time{font-size:12px;color:var(--sub);margin-top:5px}
+.visitor-empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px}
+.visitor-empty-icon{font-size:46px;margin-bottom:14px;opacity:.55}
+@media(max-width:460px){.cover-right-actions{gap:6px}.visitor-cover-btn{width:42px;height:42px;min-width:42px}.visitor-cover-btn svg{width:23px;height:23px}.visitor-top{grid-template-columns:38px 1fr 50px}.visitor-clear{font-size:13px}}
 </style><div class="app">
   <div class="cover" id="cover">
     <div class="top-actions">
@@ -1422,11 +1443,17 @@ button,input,textarea,select{
           <path d="M14.6 4.8 7.4 12l7.2 7.2" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <button class="cover-camera-btn" id="cameraBtn" aria-label="发动态">
-        <svg viewBox="0 0 64 48" aria-hidden="true">
-          <path fill="currentColor" d="M22 10h20l3 5h7a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V21a6 6 0 0 1 6-6h7l3-5Zm10 27a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-4a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z"/>
-        </svg>
-      </button>
+      <div class="cover-right-actions">
+        <button class="visitor-cover-btn" id="visitorBtn" aria-label="访客记录" title="访客记录" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-3.31 0-8 1.67-8 5v1h16v-1c0-3.33-4.69-5-8-5Z"/></svg>
+          <span class="visitor-badge hidden" id="visitorBadge">0</span>
+        </button>
+        <button class="cover-camera-btn" id="cameraBtn" aria-label="发动态">
+          <svg viewBox="0 0 64 48" aria-hidden="true">
+            <path fill="currentColor" d="M22 10h20l3 5h7a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H12a6 6 0 0 1-6-6V21a6 6 0 0 1 6-6h7l3-5Zm10 27a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-4a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z"/>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="cover-meta">
       <div class="cover-name" id="coverName"></div>
@@ -1435,6 +1462,15 @@ button,input,textarea,select{
   </div>
   <div class="feed" id="feed"></div>
   <button class="fab" id="fab">＋</button>
+</div>
+
+<div class="visitor-mask" id="visitorMask" aria-hidden="true">
+  <div class="visitor-top">
+    <button type="button" class="visitor-back" id="visitorBackBtn" aria-label="返回">‹</button>
+    <div class="visitor-title">访客记录</div>
+    <button type="button" class="visitor-clear" id="visitorClearBtn">清空</button>
+  </div>
+  <div class="visitor-list" id="visitorList"></div>
 </div>
 
 <div class="sheet-mask" id="sheetMask">
@@ -1542,8 +1578,8 @@ button,input,textarea,select{
           <div class="field"><label class="label">最长发动态（分钟）</label><input class="input" id="postMaxInput" type="number" min="1" step="1"></div>
         </div>
         <div class="row">
-          <div class="field"><label class="label">最短互动（秒）</label><input class="input" id="replyMinInput" type="number" min="1" step="1"></div>
-          <div class="field"><label class="label">最长互动（秒）</label><input class="input" id="replyMaxInput" type="number" min="1" step="1"></div>
+          <div class="field"><label class="label">最短互动（分钟）</label><input class="input" id="replyMinInput" type="number" min="0.017" step="0.001"></div>
+          <div class="field"><label class="label">最长互动（分钟）</label><input class="input" id="replyMaxInput" type="number" min="0.017" step="0.001"></div>
         </div>
         <div class="small">开启后，对方会在你设的时间区间里自己发动态。你发动态或评论后，对方会在互动区间内随机点赞、评论或回复你，不需要你手动触发。</div>
         <div class="small" id="nextPostHint" style="margin-top:10px"></div>
@@ -1678,6 +1714,9 @@ const circleGetById = id => circleRoot.querySelector('[id=\"'+String(id).replace
 const qs = s => circleRoot.querySelector(s);
 const qsa = s => [...circleRoot.querySelectorAll(s)];
 const STORE_KEY = 'moments_site_blank_v49_rebuild_baseline_same_layout';
+const VISITOR_BACKUP_KEY = STORE_KEY + '_visitor_backup_step01b';
+let visitorHadRecords = false;
+let allowEmptyVisitorWrite = false;
 let tempAssets = { myAvatar:null, otherAvatar:null, myCover:null, otherCover:null, dirty:false };
 let assetJobs = [];
 let assetsBusy = false;
@@ -1708,15 +1747,42 @@ const DEFAULT_STATE = {
   pendingEvents:[],
   usageOutbox:[],
   nextOtherPostAt:0,
-  notificationsEnabled:true
+  notificationsEnabled:true,
+  visitorRecords:[],
+  visitorLastViewedCount:0,
+  visitorLastOnlineAt:0,
+  visitorNextAt:0
 };
 const state = Object.assign({}, DEFAULT_STATE, load());
 normalizeStateShape(state);
 let lastPersistedStateJson=JSON.stringify(state),circleTransactionDepth=0,circleTransactionSnapshot=null,circleTransactionDirty=false;
 function restoreCircleState(snapshot){const restored=JSON.parse(snapshot);Object.keys(state).forEach(key=>{if(!(key in restored))delete state[key];});Object.assign(state,restored);}
+function persistCircleState(){
+  if(visitorHadRecords&&(!Array.isArray(state.visitorRecords)||!state.visitorRecords.length)&&!allowEmptyVisitorWrite)throw new Error('检测到访客记录将被清空，已阻止覆盖；请先恢复访客数据或使用访客页的清空按钮');
+  const serialized=JSON.stringify(state);
+  const visitorPayload=(state.visitorRecords?.length||allowEmptyVisitorWrite)?JSON.stringify({
+    visitorRecords:state.visitorRecords||[],
+    visitorLastViewedCount:state.visitorLastViewedCount||0,
+    visitorLastOnlineAt:state.visitorLastOnlineAt||0,
+    visitorNextAt:state.visitorNextAt||0,
+    backedUpAt:Date.now()
+  }):null;
+  const oldPrimary=localStorage.getItem(STORE_KEY),oldVisitor=localStorage.getItem(VISITOR_BACKUP_KEY);
+  try{
+    localStorage.setItem(STORE_KEY,serialized);
+    if(visitorPayload!==null)localStorage.setItem(VISITOR_BACKUP_KEY,visitorPayload);
+    lastPersistedStateJson=serialized;
+    visitorHadRecords=!!(state.visitorRecords?.length);
+    return true;
+  }catch(error){
+    try{if(oldPrimary===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldPrimary);}catch(_){}
+    try{if(oldVisitor===null)localStorage.removeItem(VISITOR_BACKUP_KEY);else localStorage.setItem(VISITOR_BACKUP_KEY,oldVisitor);}catch(_){}
+    throw error;
+  }
+}
 function save(){
   if(circleTransactionDepth>0){circleTransactionDirty=true;return true;}
-  try{const serialized=JSON.stringify(state);localStorage.setItem(STORE_KEY,serialized);lastPersistedStateJson=serialized;return true;}
+  try{return persistCircleState();}
   catch(error){try{restoreCircleState(lastPersistedStateJson);}catch(_){}if(typeof showToast==='function')showToast('朋友圈保存失败，已恢复到上一次成功状态：'+(error.message||error));return false;}
 }
 function circleTransaction(label,operation){
@@ -1726,7 +1792,7 @@ function circleTransaction(label,operation){
     circleTransactionDepth--;
     if(!root){if(error)throw error;return result;}
     let ok=true,fail=error;
-    if(!fail&&result!==false&&circleTransactionDirty){try{const serialized=JSON.stringify(state);localStorage.setItem(STORE_KEY,serialized);lastPersistedStateJson=serialized;}catch(e){fail=e;}}
+    if(!fail&&result!==false&&circleTransactionDirty){try{persistCircleState();}catch(e){fail=e;}}
     if(fail||result===false){try{restoreCircleState(circleTransactionSnapshot);}catch(rollbackError){fail=fail||rollbackError;}ok=false;}
     circleTransactionSnapshot=null;circleTransactionDirty=false;
     if(!ok){try{window.__duoCircleRollbackInProgress=true;renderPosts();if(currentDetailId)renderDetail(currentDetailId);refreshViewerIfNeeded();if(typeof renderNoticeBar==='function')renderNoticeBar();}catch(_){}finally{window.__duoCircleRollbackInProgress=false;}if(typeof showToast==='function')showToast((label||'朋友圈操作')+'未能保存，已恢复到上一次成功状态'+(fail?'：'+(fail.message||fail):''));return false;}
@@ -1739,7 +1805,21 @@ const MAX_PENDING_CIRCLE_USAGE_EVENTS=1000;
 function canQueueCircleUsage(count=1){if(!Array.isArray(state.usageOutbox))state.usageOutbox=[];return state.usageOutbox.length+Math.max(0,Number(count)||0)<=MAX_PENDING_CIRCLE_USAGE_EVENTS;}
 function queueCircleUsage(text,source,cardId,postId=null){const snapshot=String(text||'').trim();if(!snapshot)return false;if(!Array.isArray(state.usageOutbox))state.usageOutbox=[];if(!canQueueCircleUsage()){if(typeof showToast==='function')showToast('朋友圈字卡使用记录队列已满；本次字卡动态暂缓，请先等待旧记录同步');return false;}const eventId='circle_use_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);state.usageOutbox.push({eventId,source,sourceId:postId||null,postId:postId||null,textSnapshot:snapshot,cardId:cardId||window.__duoCardSystem?.getCardId?.(snapshot,source)||null,usedAt:Date.now()});return true;}
 
-function load(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')||{}}catch(e){return {}} }
+function load(){
+  let primary={},backup={};
+  try{primary=JSON.parse(localStorage.getItem(STORE_KEY)||'{}')||{};}catch(e){primary={};}
+  try{backup=JSON.parse(localStorage.getItem(VISITOR_BACKUP_KEY)||'{}')||{};}catch(e){backup={};}
+  const count=value=>Array.isArray(value?.visitorRecords)?value.visitorRecords.filter(r=>r&&Number(r.ts)>0).length:0;
+  const primaryCount=count(primary),backupCount=count(backup);
+  visitorHadRecords=primaryCount>0||backupCount>0;
+  if(backupCount>primaryCount){
+    primary.visitorRecords=backup.visitorRecords;
+    primary.visitorLastViewedCount=backup.visitorLastViewedCount||0;
+    primary.visitorLastOnlineAt=backup.visitorLastOnlineAt||0;
+    primary.visitorNextAt=backup.visitorNextAt||0;
+  }
+  return primary;
+}
 function normalizeStateShape(target){
   if(!target || typeof target !== 'object') return target;
   target.myName = typeof target.myName === 'string' ? target.myName : '';
@@ -1762,11 +1842,22 @@ function normalizeStateShape(target){
   target.usageOutbox = Array.isArray(target.usageOutbox) ? target.usageOutbox.filter(v=>v&&typeof v.textSnapshot==='string') : [];
   target.nextOtherPostAt = Math.max(0, Number(target.nextOtherPostAt) || 0);
   target.notificationsEnabled = target.notificationsEnabled !== false;
+  target.visitorRecords = Array.isArray(target.visitorRecords) ? target.visitorRecords.filter(r=>r&&Number(r.ts)>0).map(r=>({id:String(r.id||('v'+r.ts)),ts:Math.max(0,Number(r.ts)||0)})).sort((a,b)=>b.ts-a.ts).slice(0,300) : [];
+  target.visitorLastViewedCount = Math.max(0,Math.min(target.visitorRecords.length,Number(target.visitorLastViewedCount)||0));
+  target.visitorLastOnlineAt = Math.max(0,Number(target.visitorLastOnlineAt)||0);
+  target.visitorNextAt = Math.max(0,Number(target.visitorNextAt)||0);
   return target;
 }
 function buildSanitizedState(data){
   const incoming = data && typeof data === 'object' ? data : {};
-  return normalizeStateShape(Object.assign({}, DEFAULT_STATE, incoming));
+  const next=Object.assign({}, DEFAULT_STATE, incoming);
+  if((!Array.isArray(incoming.visitorRecords)||incoming.visitorRecords.length===0)&&state.visitorRecords?.length){
+    next.visitorRecords=state.visitorRecords;
+    next.visitorLastViewedCount=state.visitorLastViewedCount;
+    next.visitorLastOnlineAt=state.visitorLastOnlineAt;
+    next.visitorNextAt=state.visitorNextAt;
+  }
+  return normalizeStateShape(next);
 }
 function applyImportedState(data){
   const nextState = buildSanitizedState(data);
@@ -2589,8 +2680,8 @@ async function saveSettings(){
     state.autoPost = qs('#autoPostSelect').value;
     state.postMin = Math.max(1, Number(qs('#postMinInput').value)||1);
     state.postMax = Math.max(state.postMin, Number(qs('#postMaxInput').value)||state.postMin);
-    state.replyMin = Math.max(1, Number(qs('#replyMinInput').value)||1);
-    state.replyMax = Math.max(state.replyMin, Number(qs('#replyMaxInput').value)||state.replyMin);
+    state.replyMin = Math.max(1, Math.round((Number(qs('#replyMinInput').value)||state.replyMin/60)*60));
+    state.replyMax = Math.max(state.replyMin, Math.round((Number(qs('#replyMaxInput').value)||state.replyMax/60)*60));
     const fontPercent = clampFontPercent(qs('#fontScaleNumber') ? qs('#fontScaleNumber').value : ((state.uiFontScale || DEFAULT_UI_SCALE) * 100));
     state.uiFontScale = fontPercent / 100;
     if(tempAssets.myAvatar !== null) state.myAvatar = tempAssets.myAvatar;
@@ -2617,8 +2708,8 @@ function fillSettings(){
   qs('#autoPostSelect').value = state.autoPost || 'on';
   qs('#postMinInput').value = state.postMin ?? 60;
   qs('#postMaxInput').value = state.postMax ?? 240;
-  qs('#replyMinInput').value = state.replyMin ?? 20;
-  qs('#replyMaxInput').value = state.replyMax ?? 90;
+  qs('#replyMinInput').value = Number(((state.replyMin ?? 20)/60).toFixed(3));
+  qs('#replyMaxInput').value = Number(((state.replyMax ?? 90)/60).toFixed(3));
   syncFontScaleControls(state.uiFontScale ?? DEFAULT_UI_SCALE);
   updateProfilePreview();
   updateNextHint();
@@ -2870,6 +2961,129 @@ qs('#backBtn').onclick = showSettings;
 applyUiScale(state.uiFontScale || DEFAULT_UI_SCALE);
 syncFontScaleControls(state.uiFontScale || DEFAULT_UI_SCALE);
 applyHeader();
+/* Original Moments visitor records: restore the list, unread badge, offline catch-up and durable backup. */
+(function(){
+  const VISITOR_MAX_PER_DAY=10,VISITOR_MAX_TOTAL=300;
+  let visitorTimer=null;
+  const dateKey=ts=>{const d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+  const todayKey=()=>dateKey(Date.now());
+  function fmtDay(key){
+    if(key===todayKey())return '今天';
+    const y=new Date();y.setDate(y.getDate()-1);
+    if(key===dateKey(y.getTime()))return '昨天';
+    const p=key.split('-');return Number(p[1])+'月'+Number(p[2])+'日';
+  }
+  const fmtTime=ts=>{const d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+  const visitorName=()=>state.otherName||'对方';
+  const visitorAvatar=()=>state.otherAvatar||'';
+  const visitorFallback=()=>fallbackChar(visitorName()||'对方');
+  const todayCount=()=>state.visitorRecords.filter(r=>dateKey(r.ts)===todayKey()).length;
+  const unreadCount=()=>Math.max(0,state.visitorRecords.length-Math.min(state.visitorRecords.length,Number(state.visitorLastViewedCount)||0));
+  function scheduleNextVisitor(base=Date.now()){state.visitorNextAt=base+rand(8,25)*60000;}
+  function renderVisitorBadge(){
+    const badge=qs('#visitorBadge');if(!badge)return;
+    const n=unreadCount();badge.textContent=n>99?'99+':String(n);badge.classList.toggle('hidden',!n);
+  }
+  function renderVisitorList(){
+    const list=qs('#visitorList');if(!list)return;
+    list.textContent='';
+    const records=state.visitorRecords.slice().sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(!records.length){
+      const empty=document.createElement('div');empty.className='visitor-empty';
+      const eye=document.createElement('div');eye.className='visitor-empty-icon';eye.textContent='👁️';
+      const title=document.createElement('div');title.style.fontSize='16px';title.style.marginBottom='8px';title.textContent='暂无访客记录';
+      const note=document.createElement('div');note.textContent='对方来访时会在这里留下足迹';
+      empty.append(eye,title,note);list.appendChild(empty);return;
+    }
+    let current='';
+    records.forEach(record=>{
+      const key=dateKey(record.ts);
+      if(key!==current){current=key;const group=document.createElement('div');group.className='visitor-date-group';group.textContent=fmtDay(key);list.appendChild(group);}
+      const row=document.createElement('div');row.className='visitor-item';row.dataset.visitorId=record.id;
+      const avatar=document.createElement('div');avatar.className='visitor-avatar';
+      const avatarUrl=visitorAvatar();
+      if(/^(https?:\/\/|data:image\/|blob:)/i.test(avatarUrl)){
+        const img=document.createElement('img');img.alt='';img.src=avatarUrl;img.onerror=()=>{img.remove();avatar.textContent=visitorFallback();};avatar.appendChild(img);
+      }else avatar.textContent=visitorFallback();
+      const info=document.createElement('div');info.className='visitor-info';
+      const name=document.createElement('div');name.className='visitor-name';name.textContent=visitorName();
+      const time=document.createElement('div');time.className='visitor-time';time.textContent=fmtTime(record.ts);
+      info.append(name,time);row.append(avatar,info);list.appendChild(row);
+    });
+  }
+  function addVisitorRecord(ts=Date.now(),quiet=false){
+    ts=Math.max(1,Number(ts)||Date.now());
+    if(state.visitorRecords.some(r=>Math.abs(r.ts-ts)<90000))return false;
+    if(dateKey(ts)===todayKey()&&todayCount()>=VISITOR_MAX_PER_DAY)return false;
+    const previous=state.visitorRecords.slice();
+    state.visitorRecords.unshift({id:'v'+ts.toString(36)+Math.random().toString(36).slice(2,7),ts});
+    state.visitorRecords.sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(state.visitorRecords.length>VISITOR_MAX_TOTAL)state.visitorRecords.length=VISITOR_MAX_TOTAL;
+    if(!quiet)state.visitorLastViewedCount=Math.min(state.visitorLastViewedCount||0,Math.max(0,state.visitorRecords.length-1));
+    if(save()===false){state.visitorRecords=previous;return false;}
+    renderVisitorBadge();if(qs('#visitorMask')?.classList.contains('show'))renderVisitorList();return true;
+  }
+  function generateOfflineVisitors(){
+    const now=Date.now(),last=Math.max(0,Number(state.visitorLastOnlineAt)||0);
+    if(!last){state.visitorLastOnlineAt=now;scheduleNextVisitor(now);save();return;}
+    const gap=now-last;
+    if(gap<2*60*60*1000){state.visitorLastOnlineAt=now;save();return;}
+    const start=new Date(last);start.setHours(0,0,0,0);
+    const end=new Date(now);end.setHours(0,0,0,0);
+    const days=Math.min(14,Math.max(0,Math.floor((end-start)/86400000)));
+    for(let i=0;i<=days;i++){
+      const day=new Date(start);day.setDate(day.getDate()+i);
+      const dayStart=day.getTime(),dayEnd=Math.min(dayStart+86400000-1,now);
+      if(dayEnd<=last||Math.random()>.45)continue;
+      const count=rand(1,Math.min(3,VISITOR_MAX_PER_DAY));
+      for(let j=0;j<count;j++){
+        const ts=Math.max(last+1,Math.floor(dayStart+Math.random()*(dayEnd-dayStart+1)));
+        addVisitorRecord(ts,true);
+      }
+    }
+    state.visitorLastOnlineAt=now;
+    if(!state.visitorNextAt||state.visitorNextAt<now)scheduleNextVisitor(now);
+    save();renderVisitorBadge();
+  }
+  function openVisitorPanel(){
+    state.visitorLastViewedCount=state.visitorRecords.length;save();renderVisitorBadge();renderVisitorList();
+    const mask=qs('#visitorMask');if(mask){mask.classList.add('show');mask.setAttribute('aria-hidden','false');}
+  }
+  function closeVisitorPanel(){
+    const mask=qs('#visitorMask');if(mask){mask.classList.remove('show');mask.setAttribute('aria-hidden','true');}
+  }
+  function clearVisitors(){
+    if(!confirm('确定要清空所有访客记录吗？'))return;
+    const old={records:state.visitorRecords.slice(),viewed:state.visitorLastViewedCount};
+    allowEmptyVisitorWrite=true;state.visitorRecords=[];state.visitorLastViewedCount=0;
+    const ok=save();allowEmptyVisitorWrite=false;
+    if(!ok){state.visitorRecords=old.records;state.visitorLastViewedCount=old.viewed;}
+    renderVisitorList();renderVisitorBadge();
+  }
+  function startVisitorClock(){
+    if(visitorTimer)clearInterval(visitorTimer);
+    generateOfflineVisitors();
+    if(!state.visitorNextAt||state.visitorNextAt<Date.now())scheduleNextVisitor(Date.now());
+    visitorTimer=setInterval(()=>{
+      const now=Date.now();state.visitorLastOnlineAt=now;
+      if(now>=(state.visitorNextAt||0)){
+        if(todayCount()<VISITOR_MAX_PER_DAY&&Math.random()<.72)addVisitorRecord(now,false);
+        scheduleNextVisitor(now);
+      }
+      save();renderVisitorBadge();
+    },60000);
+  }
+  window.openCircleVisitorPanel=openVisitorPanel;
+  window.closeCircleVisitorPanel=closeVisitorPanel;
+  window.renderCircleVisitorBadge=renderVisitorBadge;
+  qs('#visitorBtn')?.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openVisitorPanel();});
+  qs('#visitorBackBtn')?.addEventListener('click',closeVisitorPanel);
+  qs('#visitorClearBtn')?.addEventListener('click',clearVisitors);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){state.visitorLastOnlineAt=Date.now();save();}else{generateOfflineVisitors();renderVisitorBadge();}});
+  window.addEventListener('beforeunload',()=>{state.visitorLastOnlineAt=Date.now();save();});
+  startVisitorClock();renderVisitorBadge();
+})();
+
 renderPosts();
 fillSettings();
 planNextOtherPost();
@@ -3896,7 +4110,7 @@ window.__duoCircleApi = {
   },
   importState(data){
     const next = this.validateState(data);
-    const oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORE_KEY);
+    const oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORE_KEY),oldVisitorStorage=localStorage.getItem(VISITOR_BACKUP_KEY);
     try{
       Object.keys(state).forEach(key=>{ if(!(key in next)) delete state[key]; });
       Object.assign(state, next);
@@ -3904,7 +4118,7 @@ window.__duoCircleApi = {
       applyHeader();
       return true;
     }catch(err){
-      try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldStorage);lastPersistedStateJson=oldStorage||JSON.stringify(state);applyHeader();}catch(rollbackError){}
+      try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldStorage);if(oldVisitorStorage===null)localStorage.removeItem(VISITOR_BACKUP_KEY);else localStorage.setItem(VISITOR_BACKUP_KEY,oldVisitorStorage);lastPersistedStateJson=oldStorage||JSON.stringify(state);applyHeader();}catch(rollbackError){}
       throw err;
     }
   }
@@ -4073,7 +4287,7 @@ window.__duoCircleApi = {
 <div class="item-row"><div><div class="lab">允许主动语音来电</div></div><div class="seg" id="incomingAudioSeg"><button type="button" data-incoming-audio="on">开启</button><button type="button" data-incoming-audio="off">关闭</button></div></div>
 <div class="item-row"><div><div class="lab">允许主动视频来电</div></div><div class="seg" id="incomingVideoSeg"><button type="button" data-incoming-video="on">开启</button><button type="button" data-incoming-video="off">关闭</button></div></div>
 <div class="field"><label>视频来电概率（两种类型都开启时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
-<div class="two-col"><div class="field"><label>最短来电间隔（秒）</label><input id="incomingMinInterval" type="number" min="1" max="86400" step="1"/></div><div class="field"><label>最长来电间隔（秒）</label><input id="incomingMaxInterval" type="number" min="1" max="86400" step="1"/></div></div>
+<div class="two-col"><div class="field"><label>最短来电间隔（分钟）</label><input id="incomingMinInterval" type="number" min="0.017" max="1440" step="0.001"/></div><div class="field"><label>最长来电间隔（分钟）</label><input id="incomingMaxInterval" type="number" min="0.017" max="1440" step="0.001"/></div></div>
 <div class="field"><label>无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
 <div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
 <p class="call-settings-note">主动来电为本页面运行期间的模拟来电；页面彻底关闭或系统强制停止时，网页无法保证唤醒。这里的来电不会建立真实电话或 WebRTC 音视频连接。</p>
@@ -4757,7 +4971,7 @@ function syncIncomingCallSettings(){
   const pairs=[['incomingMasterSeg','enabled','incomingMaster'],['incomingAudioSeg','audioEnabled','incomingAudio'],['incomingVideoSeg','videoEnabled','incomingVideo']];
   pairs.forEach(([id,key,attr])=>{$$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===!!cfg[key]));});
   const set=(id,value)=>{const el=$('#'+id);if(el)el.value=String(value);};
-  set('incomingVideoProbability',cfg.videoProbability);set('incomingMinInterval',cfg.minIntervalSec);set('incomingMaxInterval',cfg.maxIntervalSec);set('incomingRingTimeout',cfg.ringTimeoutSec);
+  set('incomingVideoProbability',cfg.videoProbability);set('incomingMinInterval',Number((cfg.minIntervalSec/60).toFixed(3)));set('incomingMaxInterval',Number((cfg.maxIntervalSec/60).toFixed(3)));set('incomingRingTimeout',cfg.ringTimeoutSec);
   const out=$('#incomingVideoProbabilityValue');if(out)out.textContent=cfg.videoProbability+'%';
   updateIncomingCallStatus();
 }
@@ -5321,8 +5535,8 @@ $('#incomingVideoProbability').addEventListener('input',e=>{
 ['incomingMinInterval','incomingMaxInterval','incomingRingTimeout'].forEach(id=>{
   $('#'+id).addEventListener('change',()=>{
     const cfg=state.incomingCallSettings;
-    cfg.minIntervalSec=Number($('#incomingMinInterval').value);
-    cfg.maxIntervalSec=Number($('#incomingMaxInterval').value);
+    cfg.minIntervalSec=Math.max(1,Math.round(Number($('#incomingMinInterval').value)*60));
+    cfg.maxIntervalSec=Math.max(1,Math.round(Number($('#incomingMaxInterval').value)*60));
     cfg.ringTimeoutSec=Number($('#incomingRingTimeout').value);
     state.incomingCallSettings=normalizeIncomingCallSettings(cfg);
     syncIncomingCallSettings();save();
