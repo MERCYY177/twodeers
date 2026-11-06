@@ -704,7 +704,9 @@ try {
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 0, 'unfavoriting should empty the favorites list');
   assert.match(await page.locator('#stickerList').innerText(), /还没有收藏表情包/);
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
+  await page.waitForFunction(() => state.stickerFavorites.length === 1);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
   await page.evaluate(() => document.getElementById('emojiBtn').click());
