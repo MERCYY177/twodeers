@@ -38,7 +38,7 @@
     if(kind==='all'){stateData={state:stateSnapshot};mediaIds=[...new Set([...(stateSnapshot.chatHistory||[]),...(stateSnapshot.stickers||[])].filter(x=>x&&x.mediaId).map(x=>x.mediaId).concat([...mailboxMediaIds]))];}
     else if(kind==='chat'){
       const ids=new Set((stateSnapshot.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(stateSnapshot.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
-      stateData={chatHistory:stateSnapshot.chatHistory,stickers:stateSnapshot.stickers,stickerFavorites:stateSnapshot.stickerFavorites||[],media:{'avatar-me':stateSnapshot.media?.['avatar-me'],'avatar-other':stateSnapshot.media?.['avatar-other'],'bg-chat':stateSnapshot.media?.['bg-chat']},bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,typing:stateSnapshot.typing,offline:stateSnapshot.offline,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId};
+      stateData={chatHistory:stateSnapshot.chatHistory,stickers:stateSnapshot.stickers,stickerFavorites:stateSnapshot.stickerFavorites||[],stickerTombstones:stateSnapshot.stickerTombstones||[],media:{'avatar-me':stateSnapshot.media?.['avatar-me'],'avatar-other':stateSnapshot.media?.['avatar-other'],'bg-chat':stateSnapshot.media?.['bg-chat']},bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,typing:stateSnapshot.typing,offline:stateSnapshot.offline,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId};
     }else if(kind==='param'){mediaIds=[...mailboxMediaIds];stateData={icons:stateSnapshot.icons,media:stateSnapshot.media,avatarShape:stateSnapshot.avatarShape,bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,customCSS:stateSnapshot.customCSS,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,typing:stateSnapshot.typing,offline:stateSnapshot.offline,cardPhrases:stateSnapshot.cardPhrases,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId,cardUsageOutbox:stateSnapshot.cardUsageOutbox||[]};
     }
     entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
@@ -96,7 +96,7 @@
     }
     if(kind==='all'&&!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
     const mediaEntries=manifest.resources.filter(x=>x.type==='media'),fontEntries=manifest.resources.filter(x=>x.type==='font');
-    const newMedia=new Map(),oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY),oldCircle=(kind==='all'||kind==='param')?getCircleState():null;
+    const newMedia=new Map(),oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY),oldStickerLibrary=window.__duoStickerState?.exportSnapshot?.()||null,oldCircle=(kind==='all'||kind==='param')?getCircleState():null;
     const oldFonts=(kind!=='chat'&&window.ChuanXunFontManager)?await window.ChuanXunFontManager.exportData():null;
     const oldMailbox=(kind!=='chat'&&window.__duoMailbox)?window.__duoMailbox.exportData():null;
     const oldCards=(kind!=='chat'&&window.__duoCardSystem)?window.__duoCardSystem.exportData():null;
@@ -122,9 +122,9 @@
         if(!incomingState||typeof incomingState!=='object'||Array.isArray(incomingState))throw new Error('总备份状态格式无效');
         const circleData=map.has('circle-state.json')?JSON.parse(await map.get('circle-state.json').blob.text()):null;
         if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);setCircleState(circleData);circleWritten=true;}
-        Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);state.stickerFavorites=Array.isArray(incomingState.stickerFavorites)?incomingState.stickerFavorites.filter(id=>(state.stickers||[]).some(sticker=>sticker.id===id)):[];
+        Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);window.__duoStickerState?.applyImportedState?.(incomingState.stickers,incomingState.stickerFavorites,incomingState.stickerTombstones);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);
       }else if(kind==='chat'){
-        state.chatHistory=Array.isArray(data.chatHistory)?data.chatHistory:[];state.stickers=Array.isArray(data.stickers)?data.stickers:[];state.stickerFavorites=Array.isArray(data.stickerFavorites)?data.stickerFavorites.filter(id=>state.stickers.some(sticker=>sticker.id===id)):[];
+        state.chatHistory=Array.isArray(data.chatHistory)?data.chatHistory:[];window.__duoStickerState?.applyImportedState?.(data.stickers,data.stickerFavorites,data.stickerTombstones);
         if(data.media)state.media=Object.assign(state.media||{},data.media);
         for(const k of ['bubbleShape','bubbleColors','appearanceColors','appearanceSettings','replyWindow','showReadReceipt','typing','offline','callSettings','chatBeautifyPresetId'])if(data[k]!==undefined)state[k]=data[k];
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
@@ -135,7 +135,7 @@
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
         if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
         state.cardUsageOutbox=Array.isArray(data.cardUsageOutbox)?data.cardUsageOutbox:[];
-        if(Array.isArray(data.stickerFavorites))state.stickerFavorites=data.stickerFavorites.filter(id=>(state.stickers||[]).some(sticker=>sticker.id===id));
+        if(Array.isArray(data.stickerFavorites))window.__duoStickerState?.replaceFavorites?.(data.stickerFavorites);
       }
       if(kind==='param'&&map.has('circle-settings.json')){
         const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法恢复朋友圈参数');
@@ -165,6 +165,7 @@
         if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);
         const stored=localStorage.getItem(STORAGE_KEY);if(stored!==oldStorage)throw new Error('主状态回滚回读不一致');
       }catch(err){rollbackErrors.push('主状态：'+(err.message||err));}
+      if(oldStickerLibrary){try{window.__duoStickerState?.restoreSnapshot?.(oldStickerLibrary);}catch(err){rollbackErrors.push('表情包库：'+(err.message||err));}}
       if(circleWritten){try{setCircleState(oldCircle);if(JSON.stringify(getCircleState())!==JSON.stringify(oldCircle))throw new Error('朋友圈回读不一致');}catch(err){rollbackErrors.push('朋友圈：'+(err.message||err));}}
       for(const [id,record] of newMedia){try{
         if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size)throw new Error('媒体回滚回读不一致：'+id);}

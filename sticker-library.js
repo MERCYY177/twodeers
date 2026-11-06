@@ -26,7 +26,7 @@
     if(!items.length){list.innerHTML='<div class="empty-stickers">'+(activeTab==='favorites'?'还没有收藏表情包。':'还没有表情包，点击“添加图片 / GIF”。')+'</div>';return;}
     for(const {s} of items){if(!stickerObjectUrls.has(s.id)){try{const rec=await getMediaRecord(s.mediaId);if(generation!==renderGeneration)return;const stillPresent=(state.stickers||[]).some(current=>current.id===s.id&&current.mediaId===s.mediaId);if(stillPresent&&rec&&rec.blob)stickerObjectUrls.set(s.id,URL.createObjectURL(rec.blob));}catch(_){if(generation!==renderGeneration)return;}}}
     if(generation!==renderGeneration)return;
-    list.innerHTML=items.map(({s,i})=>{const url=stickerObjectUrls.get(s.id)||'';const isFav=fav.has(s.id);return '<div class="sticker-item duo-sticker-item" data-sticker-index="'+i+'"><img src="'+url+'" alt="表情包" loading="lazy" onerror="this.style.opacity=.25;this.alt=\'资源读取失败\'"><button class="sticker-send" type="button" data-sticker-send="'+i+'" aria-label="发送表情包">发送</button><button class="sticker-del" type="button" data-sticker-del="'+i+'" aria-label="删除表情包">×</button><button class="duo-sticker-fav '+(isFav?'active':'')+'" type="button" data-duo-sticker-fav="'+String(s.id).replace(/["&<>]/g,'')+'" aria-label="'+(isFav?'取消收藏':'收藏')+'">'+(isFav?'★':'☆')+'</button></div>';}).join('');
+    list.innerHTML=items.map(({s,i})=>{const url=stickerObjectUrls.get(s.id)||'';const isFav=fav.has(s.id);return '<div class="sticker-item duo-sticker-item" data-sticker-index="'+i+'"><img src="'+url+'" alt="表情包" loading="lazy" onerror="this.style.opacity=.25;this.alt=\'资源读取失败\'"><button class="sticker-send" type="button" data-sticker-send="'+i+'" data-sticker-send-id="'+String(s.id).replace(/["&<>]/g,'')+'" aria-label="发送表情包">发送</button><button class="sticker-del" type="button" data-sticker-del="'+i+'" data-sticker-del-id="'+String(s.id).replace(/["&<>]/g,'')+'" aria-label="删除表情包">×</button><button class="duo-sticker-fav '+(isFav?'active':'')+'" type="button" data-duo-sticker-fav="'+String(s.id).replace(/["&<>]/g,'')+'" aria-label="'+(isFav?'取消收藏':'收藏')+'">'+(isFav?'★':'☆')+'</button></div>';}).join('');
   }
   window.renderStickerList=render;
   window.__duoStickerLibrary={invalidate(){renderGeneration++;stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();}};
@@ -34,9 +34,7 @@
     const tab=e.target&&e.target.closest?e.target.closest('[data-duo-sticker-tab]'):null;
     if(tab){e.preventDefault();e.stopImmediatePropagation();const next=tab.dataset.duoStickerTab;if(next!=='uploads'&&next!=='favorites')return;activeTab=next;render();return;}
     const fav=e.target&&e.target.closest?e.target.closest('[data-duo-sticker-fav]'):null;
-    if(fav){e.preventDefault();e.stopImmediatePropagation();const id=fav.dataset.duoStickerFav;const set=new Set(state.stickerFavorites||[]);if(set.has(id))set.delete(id);else if((state.stickers||[]).some(x=>x.id===id))set.add(id);state.stickerFavorites=[...set];save();render();return;}
-    const del=e.target&&e.target.closest?e.target.closest('[data-sticker-del]'):null;
-    if(del){const item=state.stickers[Number(del.dataset.stickerDel)];if(item&&Array.isArray(state.stickerFavorites)&&state.stickerFavorites.includes(item.id)){state.stickerFavorites=state.stickerFavorites.filter(id=>id!==item.id);save();}}
+    if(fav){e.preventDefault();e.stopImmediatePropagation();const id=fav.dataset.duoStickerFav;try{window.__duoStickerState?.toggleFavorite?.(id);save();render();}catch(error){showToast('收藏状态保存失败：'+(error.message||error));}return;}
   },true);
   document.addEventListener('click',function(e){const add=e.target&&e.target.closest?e.target.closest('#addStickerBtn'):null;if(add){activeTab='uploads';setTimeout(render,0);}},true);
   ensureTabs();

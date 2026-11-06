@@ -20,6 +20,9 @@ function harness() {
   const context = {
     state: initial,
     STORE_KEY: 'circle-test',
+    VISITOR_BACKUP_KEY: 'circle-test-visitor-backup',
+    visitorHadRecords: false,
+    allowEmptyVisitorWrite: false,
     localStorage: {
       getItem(key) { return values.has(key) ? values.get(key) : null; },
       setItem(key, value) { if (failWrites) throw new Error('quota exceeded'); values.set(key, String(value)); writes++; },

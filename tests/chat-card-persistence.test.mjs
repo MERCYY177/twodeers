@@ -67,8 +67,11 @@ test('legacy chat-card add and delete controls delegate to the guarded card API'
   assert.match(html, /__duoCardSystem\.remove\('chat',idx\)/);
 });
 
-test('sticker upload rolls back metadata and cleans new media if local state save fails', () => {
-  assert.match(html, /if\(save\(\)===false\)\{state\.stickers=before;for\(const id of addedMediaIds\)await deleteIfUnreferenced\(id\)/);
+test('sticker upload commits metadata through the independent sticker library store', () => {
+  const upload = html.match(/async function addStickers\(files\)\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(upload, /putMediaBlob\(file,'sticker',file\.name\)/);
+  assert.match(upload, /addStickerToLibrary\(\{id:uid\('stk'\),mediaId:id/);
+  assert.doesNotMatch(upload, /state\.stickers\.push/);
 });
 
 test('chat-card API restores the old pool when primary localStorage save fails', async () => {
@@ -177,17 +180,17 @@ test('failed chat-message deletion persistence restores the message and skips me
   assert.equal(calls.includes('delete:media-1'), false);
 });
 
-test('P1 deletion paths gate media cleanup on successful metadata persistence', () => {
-  const remove = html.match(/async function removeChatMessage\(mid\)\{[\s\S]*?\n\}/)?.[0] || '';
-  const clear = html.match(/async function clearChatOnly\(\)\{[\s\S]*?\n\}/)?.[0] || '';
-  const sticker = html.match(/if\(del\)\{[\s\S]*?\n  \}/)?.[0] || '';
-  assert.match(remove, /if\(save\(\)===false\)\{[\s\S]*?return false;[\s\S]*?\}\s*renderChatHistory\(\);[\s\S]*?deleteIfUnreferenced/);
-  assert.match(clear, /if\(save\(\)===false\)\{[\s\S]*?return;[\s\S]*?\}\s*cancelPendingReplies\(\);[\s\S]*?deleteIfUnreferenced/);
-  assert.match(sticker, /if\(save\(\)===false\)\{[\s\S]*?return;[\s\S]*?\}\s*renderStickerList\(\);[\s\S]*?deleteIfUnreferenced/);
+test('sticker deletion writes a tombstone and removes favorite in one library commit', () => {
+  assert.match(html, /function deleteStickerFromLibrary\(id\)\{[\s\S]*?next\.items\.splice\(index,1\)[\s\S]*?next\.favorites=next\.favorites\.filter[\s\S]*?next\.tombstones\.push/);
+  assert.match(html, /function writeStickerLibraryStore\(library\)\{[\s\S]*?localStorage\.setItem\(STICKER_LIBRARY_STORAGE_KEY,serialized\)[\s\S]*?readback!==serialized/);
+  assert.match(html, /data-sticker-send-id/);
+  assert.match(html, /data-sticker-del-id/);
+  assert.match(html, /async function sendSticker\(stickerId\)[\s\S]*?isStickerSendable\(stickerId\)[\s\S]*?const latest=readStickerLibraryStore\(\)/);
 });
 
 test('whole-space reset snapshots all affected stores before deletion and restores them on failure', () => {
   const reset = html.match(/async function resetWholeDuoSpace\(\)\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(reset, /const resetKeys=\[STORAGE_KEY,STICKER_LIBRARY_STORAGE_KEY,/);
   assert.match(reset, /mediaSnapshot=await snapshotMediaRecords\(\);[\s\S]*?oldFonts=await window\.ChuanXunFontManager\.exportData\(\)/);
   assert.ok(reset.indexOf('mediaSnapshot=await snapshotMediaRecords()') < reset.indexOf('for(const key of resetKeys)localStorage.removeItem(key)'));
   assert.ok(reset.indexOf('for(const key of resetKeys)localStorage.removeItem(key)') < reset.indexOf('await clearMediaDatabase()'));
@@ -225,12 +228,12 @@ test('chat card outbox loading preserves more than 500 pending events', () => {
 test('whole-space reset restores local state, media, and fonts when a later reset step fails', async () => {
   const fn=html.match(/async function resetWholeDuoSpace\(\)\{[\s\S]*?\n\}/)?.[0];
   assert.ok(fn);
-  const keys=['main','twodeers_mailbox_letters_v1','twodeers_mailbox_drafts_v1','twodeers_card_system_v1'];
+  const keys=['main','dual_space_sticker_library_v1','twodeers_mailbox_letters_v1','twodeers_mailbox_drafts_v1','twodeers_card_system_v1'];
   const values=new Map(keys.map(key=>[key,'saved:'+key]));
   const calls=[];let restoredFonts=false,tasksPaused=false,mediaCleared=false;
   const fontManager={async exportData(){return {currentFontId:'font-1',fonts:[{id:'font-1',blob:{size:10}}]};},async importData(data){if(!data.fonts.length)throw new Error('injected font clear failure');restoredFonts=true;}};
   const sandbox={
-    STORAGE_KEY:'main',state:{call:{phase:'ringing'},incomingCallNextAt:999},confirm:()=>true,
+    STORAGE_KEY:'main',STICKER_LIBRARY_STORAGE_KEY:'dual_space_sticker_library_v1',state:{call:{phase:'ringing'},incomingCallNextAt:999},confirm:()=>true,
     localStorage:{getItem:key=>values.get(key)??null,setItem(key,value){values.set(key,String(value));},removeItem(key){values.delete(key);}},
     window:{ChuanXunFontManager:fontManager,__duoCircleApi:{pauseTasks(){tasksPaused=true;},resumeTasks(){tasksPaused=false;}},__duoMailbox:{pauseTasks(){},resumeTasks(){}}},
     async snapshotMediaRecords(){return [{id:'media-1',blob:{size:12},kind:'image',name:'keep.png'}];},

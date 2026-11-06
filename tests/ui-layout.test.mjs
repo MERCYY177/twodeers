@@ -39,3 +39,38 @@ test('从聊天右上角打开通话设置后，返回会回到聊天页',()=>{
   assert.match(settings,/returnPage=\(typeof state!=='undefined'&&state\.currentPage\)\|\|'settingsPage'/);
   assert.match(settings,/const target=returnPage;goto\(target\);if\(target==='settingsPage'\)setSettingsTab\('param'\)/);
 });
+
+
+test('来电间隔改为分钟显示，保存时换算回秒，超时仍保持秒',()=>{
+  assert.match(html,/最短来电间隔（分钟）/);
+  assert.match(html,/最长来电间隔（分钟）/);
+  assert.match(html,/cfg\.minIntervalSec=Math\.max\(1,Math\.round\(Number\(\$\('#incomingMinInterval'\)\.value\)\*60\)\)/);
+  assert.match(html,/cfg\.maxIntervalSec=Math\.max\(1,Math\.round\(Number\(\$\('#incomingMaxInterval'\)\.value\)\*60\)\)/);
+  assert.match(html,/cfg\.minIntervalSec\/60\)\.toFixed\(3\)/);
+  assert.match(html,/无人接听超时（秒）/);
+});
+
+test('朋友圈回复间隔改为分钟显示并保留秒级内部计时兼容',()=>{
+  assert.match(html,/最短互动（分钟）/);
+  assert.match(html,/最长互动（分钟）/);
+  assert.match(html,/state\.replyMin = Math\.max\(1, Math\.round\(\(Number\(qs\('#replyMinInput'\)\.value\)\|\|state\.replyMin\/60\)\*60\)\)/);
+  assert.match(html,/state\.replyMax = Math\.max\(state\.replyMin, Math\.round\(\(Number\(qs\('#replyMaxInput'\)\.value\)\|\|state\.replyMax\/60\)\*60\)\)/);
+  assert.match(html,/rand\(state\.replyMin, state\.replyMax\) \* 1000/);
+});
+
+test('朋友圈访客入口、访客列表和自动记录逻辑已恢复',()=>{
+  assert.match(html,/id="visitorBtn"/);
+  assert.match(html,/id="visitorBadge"/);
+  assert.match(html,/id="visitorMask"/);
+  assert.match(html,/id="visitorList"/);
+  assert.match(html,/visitorRecords:\[\]/);
+  assert.match(html,/window\.openCircleVisitorPanel=openVisitorPanel/);
+  assert.match(html,/visitorTimer=setInterval/);
+});
+
+test('访客记录从独立备份恢复，旧备份导入不会覆盖已有访客',()=>{
+  assert.match(html,/VISITOR_BACKUP_KEY = STORE_KEY \+ '_visitor_backup_step01b'/);
+  assert.match(html,/if\(backupCount>primaryCount\)/);
+  assert.match(html,/visitorHadRecords&&\(!Array\.isArray\(state\.visitorRecords\)\|\|!state\.visitorRecords\.length\)&&!allowEmptyVisitorWrite/);
+  assert.match(html,/return buildSanitizedState\(data\)/);
+});
