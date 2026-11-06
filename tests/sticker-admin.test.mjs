@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const root = new URL('../', import.meta.url);
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const admin = readFileSync(new URL('../sticker-admin.js', import.meta.url), 'utf8');
+const stickerLibrary = readFileSync(new URL('../sticker-library.js', import.meta.url), 'utf8');
 const settings = readFileSync(new URL('../settings-pages.js', import.meta.url), 'utf8');
 
 test('管理中心从独立设置分类和聊天表情面板入口打开', () => {
@@ -12,7 +13,7 @@ test('管理中心从独立设置分类和聊天表情面板入口打开', () =>
   assert.match(html, /src="sticker-admin\.js"/);
   assert.match(settings, /stickers:\{title:'表情包管理'/);
   assert.match(settings, /window\.__duoStickerAdmin\.mount\(content\)/);
-  assert.match(admin, /data-open-sticker-admin/);
+  assert.ok(stickerLibrary.includes('data-open-sticker-admin'));
 });
 
 test('管理中心提供搜索、分类筛选、全选、取消选择和批量删除', () => {
