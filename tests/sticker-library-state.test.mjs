@@ -21,7 +21,7 @@ function makeTab(storage, initialItems = [], initialFavorites = []) {
   };
   const sandbox = { state, localStorage, window: {}, Date, console, setTimeout, showToast() {}, STICKER_LIBRARY_STORAGE_KEY:'dual_space_sticker_library_v1', STORAGE_KEY:'dual_space_app_clean_test_v1' };
   vm.createContext(sandbox);
-  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot};this.doSave=save;', sandbox);
+  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot,registerBuiltinStickerItems,attachBuiltinStickerMedia,clearBuiltinStickerMedia};this.doSave=save;', sandbox);
   return sandbox;
 }
 
@@ -162,4 +162,46 @@ test('backup replacement tombstones locally active items omitted by the imported
   const latest=JSON.parse(storage.get(KEY));
   assert.equal(latest.items.some(x=>x.id==='stk-removed-by-restore'),false);
   assert.equal(latest.tombstones.some(x=>x.id==='stk-removed-by-restore'),true);
+});
+
+test('built-in assets register without an IndexedDB mediaId and cannot return after a local tombstone', () => {
+  const storage = new Map();
+  const tab = makeTab(storage);
+  const item = {id:'builtin-test-a',source:'builtin',assetUrl:'assets/builtin-stickers/demo/a.gif',mimeType:'image/gif',name:'a.gif',size:42};
+  const first = tab.api.registerBuiltinStickerItems([item]);
+  assert.equal(first.added, 1);
+  assert.equal(tab.state.stickers[0].source, 'builtin');
+  assert.equal(tab.state.stickers[0].mediaId, '');
+  assert.equal(tab.api.isStickerSendable(item.id), true);
+  assert.equal(tab.api.toggleStickerFavorite(item.id), true);
+  assert.equal(tab.api.deleteStickerFromLibrary(item.id).id, item.id);
+  assert.equal(tab.api.registerBuiltinStickerItems([item]).added, 0);
+  assert.equal(tab.state.stickers.some(x=>x.id===item.id), false);
+  assert.equal(JSON.parse(storage.get(KEY)).tombstones.some(x=>x.id===item.id), true);
+});
+
+test('built-in media attachment is restricted to the same live asset and survives older backup imports', () => {
+  const storage = new Map();
+  const item = {id:'builtin-test-b',source:'builtin',assetUrl:'assets/builtin-stickers/demo/b.png',mimeType:'image/png',name:'b.png',size:64};
+  const tab = makeTab(storage);
+  tab.api.registerBuiltinStickerItems([item]);
+  assert.equal(tab.api.attachBuiltinStickerMedia(item.id,item.assetUrl,'media-b'), 'media-b');
+  assert.equal(tab.state.stickers[0].mediaId, 'media-b');
+  tab.api.applyImportedStickerLibrary([],[],[]);
+  assert.equal(tab.state.stickers.some(x=>x.id===item.id), true);
+  assert.equal(tab.state.stickers.find(x=>x.id===item.id).mediaId, 'media-b');
+  assert.equal(tab.state.stickerTombstones.some(x=>x.id===item.id), false);
+  tab.api.deleteStickerFromLibrary(item.id);
+  assert.equal(tab.api.attachBuiltinStickerMedia(item.id,item.assetUrl,'media-resurrect'), null);
+});
+
+test('built-in catalogue loader uses the packaged offline manifest and shows a separate category', () => {
+  const library = readFileSync(new URL('../sticker-library.js', import.meta.url), 'utf8');
+  assert.match(library, /assets\/builtin-stickers\/manifest\.json/);
+  assert.match(library, /data-duo-sticker-tab="builtin"/);
+  assert.match(library, /source==='builtin'/);
+  assert.match(html, /registerBuiltins:items=>registerBuiltinStickerItems\(items\)/);
+  const send = html.match(/async function sendSticker\(stickerId\)\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(send, /ensureStickerMedia\(sticker\)/);
+  assert.match(html, /async function ensureStickerMedia\(sticker\)/);
 });

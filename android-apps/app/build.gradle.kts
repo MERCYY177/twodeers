@@ -4,7 +4,28 @@ plugins {
 
 val repoRoot = rootProject.projectDir.parentFile
 val stagedAssets = layout.buildDirectory.dir("generated/twodeers-assets")
+val generatedBuiltinStickerSite = layout.buildDirectory.dir("generated/builtin-sticker-site")
+val prepareBuiltinStickers by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Prepare all 353 offline built-in stickers, converting HEIF to JPEG."
+    val archiveOne = repoRoot.resolve("sticker-source/表情包1.zip")
+    val archiveTwo = repoRoot.resolve("sticker-source/表情包2.zip")
+    val extraGif = repoRoot.resolve("sticker-source/wmqt-6-efcf4318.gif")
+    val script = repoRoot.resolve("tools/prepare-builtin-stickers.py")
+    inputs.files(archiveOne, archiveTwo, extraGif, script)
+    outputs.dir(generatedBuiltinStickerSite)
+    doFirst { generatedBuiltinStickerSite.get().asFile.deleteRecursively() }
+    commandLine(
+        "python3", script.absolutePath,
+        "--archive-one", archiveOne.absolutePath,
+        "--archive-two", archiveTwo.absolutePath,
+        "--extra-gif", extraGif.absolutePath,
+        "--output-root", generatedBuiltinStickerSite.get().asFile.absolutePath
+    )
+}
 val stageWebProject by tasks.registering(Sync::class) {
+    dependsOn(prepareBuiltinStickers)
+    from(generatedBuiltinStickerSite)
     from(repoRoot) {
         include("index.html")
         include("*.js")
