@@ -81,12 +81,8 @@ try {
 
   const exposeBeautifySettings = () => page.evaluate(() => {
     if (typeof goto === 'function') goto('settingsPage');
-    const panel = document.getElementById('settingsParam');
-    if (panel) {
-      panel.hidden = false;
-      panel.classList.remove('hidden');
-      panel.style.setProperty('display', 'block', 'important');
-      panel.style.setProperty('visibility', 'visible', 'important');
+    if (typeof window.__duoOpenSettingsCategory === 'function') {
+      window.__duoOpenSettingsCategory('appearance');
     }
   });
   await exposeBeautifySettings();
