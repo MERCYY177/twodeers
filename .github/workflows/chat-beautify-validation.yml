@@ -8,6 +8,8 @@ on:
       - "chat-beautify-presets.js"
       - "chat-beautify-manager.js"
       - "tests/**"
+      - "package.json"
+      - "package-lock.json"
       - "index.html"
       - "appearance-manager.js"
       - ".github/workflows/chat-beautify-validation.yml"
@@ -19,6 +21,8 @@ on:
       - "chat-beautify-presets.js"
       - "chat-beautify-manager.js"
       - "tests/**"
+      - "package.json"
+      - "package-lock.json"
       - "index.html"
       - "appearance-manager.js"
       - ".github/workflows/chat-beautify-validation.yml"
@@ -37,14 +41,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Verify source and run Node tests
         run: |
           node tools/verify-source.mjs
           node --test tests/chat-beautify.test.mjs
           node --test tests/backup-v4.test.mjs
+          node --test tests/mailbox-card-system.test.mjs
       - name: Install Playwright Chromium
         run: |
-          npm install --no-save --no-package-lock playwright
+          npm ci
           npx playwright install --with-deps chromium
       - name: Run real-browser smoke and visual checks
         run: |

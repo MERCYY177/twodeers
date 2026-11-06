@@ -21,23 +21,53 @@
   function centralHeader(name,size,crc,offset){const n=enc.encode(name),h=new Uint8Array(46),d=new DataView(h.buffer);d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x0800,true);d.setUint16(10,0,true);d.setUint16(12,0,true);d.setUint16(14,0x21,true);d.setUint32(16,crc,true);d.setUint32(20,size,true);d.setUint32(24,size,true);d.setUint16(28,n.length,true);d.setUint16(30,0,true);d.setUint16(32,0,true);d.setUint16(34,0,true);d.setUint16(36,0,true);d.setUint32(38,0,true);d.setUint32(42,offset,true);return [h,n];}
   async function makeZip(entries){if(entries.length>65534)throw new Error('备份条目数量超过 ZIP 限制');let total=0,offset=0;const parts=[],central=[],resources=[];for(const e of entries){if(!(e.blob instanceof Blob)||!e.path||e.path.startsWith('/')||e.path.split('/').includes('..'))throw new Error('备份资源路径或内容无效');if(e.blob.size>0xffffffff)throw new Error('单项资源超过 ZIP32 限制');total+=e.blob.size;if(total>MAX_ARCHIVE)throw new Error('备份资源合计超过 1 GB 限制');const h=await inspectBlob(e.blob),name=e.path;const meta={path:name,size:e.blob.size,crc32:h.crc32,sha256:h.sha256,type:e.type||'file',mimeType:e.mimeType||e.blob.type||'application/octet-stream'};for(const k of ['id','name','kind','format','createdAt'])if(e[k]!==undefined)meta[k]=e[k];resources.push(meta);const [lh,ln]=localHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0);parts.push(lh,ln,e.blob);const [ch,cn]=centralHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0,offset);central.push(ch,cn);offset+=lh.length+ln.length+e.blob.size;if(offset>0xffffffff)throw new Error('备份总长度超过 ZIP32 4 GB 偏移范围');}const manifest={format:'twodeers-backup',formatVersion:4,kind:window.__duoBackupKind||'all',createdAt:new Date().toISOString(),resourceCount:resources.length,totalResourceBytes:total,hashAlgorithm:'SHA-256',checksumAlgorithm:'CRC-32',compression:'store',fontsCurrentId:window.__duoBackupFontCurrentId||null,resources};const mb=new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'});const mh=await inspectBlob(mb);const [lh,ln]=localHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0);parts.push(lh,ln,mb);const mo=offset;offset+=lh.length+ln.length+mb.size;const [ch,cn]=centralHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0,mo);central.push(ch,cn);const centralSize=central.reduce((n,x)=>n+x.length,0);const eocd=new Uint8Array(22),d=new DataView(eocd.buffer);d.setUint32(0,0x06054b50,true);d.setUint16(8,entries.length+1,true);d.setUint16(10,entries.length+1,true);d.setUint32(12,centralSize,true);d.setUint32(16,offset,true);d.setUint16(20,0,true);parts.push(...central,eocd);return new Blob(parts,{type:'application/zip'});}
   function jsonBlob(value){return new Blob([JSON.stringify(value)],{type:'application/json;charset=utf-8'});}
-  async function buildV4(kind){
+  async function buildV4Internal(kind){
     if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
+    if(kind!=='chat'){
+      if(!window.__duoMailbox||typeof window.__duoMailbox.exportData!=='function')throw new Error('信件模块不可用，无法生成完整参数/总备份');
+      if(!window.__duoCardSystem||typeof window.__duoCardSystem.exportData!=='function')throw new Error('字卡模块不可用，无法生成完整参数/总备份');
+      if(!window.ChuanXunFontManager||typeof window.ChuanXunFontManager.exportData!=='function')throw new Error('字体模块不可用，无法生成完整参数/总备份');
+    }
+    const stateSnapshot=JSON.parse(JSON.stringify(state));
+    const circleSnapshot=kind==='chat'?{}:JSON.parse(JSON.stringify(getCircleState()||{}));
+    const mailboxSnapshot=kind!=='chat'?window.__duoMailbox.exportData():null;
+    const cardSnapshot=kind!=='chat'?window.__duoCardSystem.exportData():null;
     const entries=[];let stateData={},mediaIds=[];
-    if(kind==='all'){stateData={state:JSON.parse(JSON.stringify(state))};mediaIds=typeof getCurrentMediaIds==='function'?getCurrentMediaIds():[];}
+    const mailboxMediaIds=new Set();
+    if(mailboxSnapshot){const mailbox=mailboxSnapshot.mailbox||mailboxSnapshot;for(const letter of mailbox.items||[])for(const image of letter.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);for(const draft of mailboxSnapshot.drafts||[])for(const image of draft.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);}
+    if(kind==='all'){stateData={state:stateSnapshot};mediaIds=[...new Set([...(stateSnapshot.chatHistory||[]),...(stateSnapshot.stickers||[])].filter(x=>x&&x.mediaId).map(x=>x.mediaId).concat([...mailboxMediaIds]))];}
     else if(kind==='chat'){
-      const ids=new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(state.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
-      stateData={chatHistory:state.chatHistory,stickers:state.stickers,stickerFavorites:state.stickerFavorites||[],media:{'avatar-me':state.media?.['avatar-me'],'avatar-other':state.media?.['avatar-other'],'bg-chat':state.media?.['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings};
-    }else{
-      stateData={icons:state.icons,media:state.media,avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,appearanceSettings:state.appearanceSettings,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,stickerFavorites:state.stickerFavorites||[]};
+      const ids=new Set((stateSnapshot.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(stateSnapshot.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
+      stateData={chatHistory:stateSnapshot.chatHistory,stickers:stateSnapshot.stickers,stickerFavorites:stateSnapshot.stickerFavorites||[],media:{'avatar-me':stateSnapshot.media?.['avatar-me'],'avatar-other':stateSnapshot.media?.['avatar-other'],'bg-chat':stateSnapshot.media?.['bg-chat']},bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,typing:stateSnapshot.typing,offline:stateSnapshot.offline,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId};
+    }else if(kind==='param'){mediaIds=[...mailboxMediaIds];stateData={icons:stateSnapshot.icons,media:stateSnapshot.media,avatarShape:stateSnapshot.avatarShape,bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,customCSS:stateSnapshot.customCSS,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,typing:stateSnapshot.typing,offline:stateSnapshot.offline,cardPhrases:stateSnapshot.cardPhrases,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId,cardUsageOutbox:stateSnapshot.cardUsageOutbox||[]};
     }
     entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
-    if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(getCircleState()||{}),type:'circle-state'});
+    if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(circleSnapshot),type:'circle-state'});
+    if(kind==='param'){
+      const circle=circleSnapshot;
+      const circleSettings={};
+      for(const key of ['myName','otherName','myAvatar','otherAvatar','myCover','otherCover','autoPost','postMin','postMax','replyMin','replyMax','uiFontScale','notificationsEnabled','nextOtherPostAt'])if(circle[key]!==undefined)circleSettings[key]=circle[key];
+      entries.push({path:'circle-settings.json',blob:jsonBlob(circleSettings),type:'circle-settings'});
+    }
+    if(kind==='all'||kind==='param'){
+      entries.push({path:'mailbox-data.json',blob:jsonBlob(mailboxSnapshot),type:'mailbox-data'});
+      entries.push({path:'card-system.json',blob:jsonBlob(cardSnapshot),type:'card-system'});
+    }
     for(const id of mediaIds){const rec=await getMediaRecord(id);if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});}
     let fontsCurrentId=null;
-    if(kind!=='chat'&&window.ChuanXunFontManager){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
+    if(kind!=='chat'){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
     window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
     try{return await makeZip(entries);}finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
+  }
+  let exportInProgress=false;
+  async function buildV4(kind){
+    if(exportInProgress||window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('当前已有备份导出或恢复任务正在执行');
+    exportInProgress=true;window.__duoExportInProgress=true;let overlay=null;
+    try{
+      overlay=document.createElement('div');overlay.id='duoBackupOverlay';overlay.textContent='正在冻结数据并生成备份，请勿关闭页面…';overlay.style.cssText='position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,20,20,.68);color:#fff;font:600 15px/1.6 sans-serif;text-align:center;';document.body.appendChild(overlay);
+      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+      return await buildV4Internal(kind);
+    }finally{overlay?.remove();exportInProgress=false;window.__duoExportInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
   }
   function safePath(path){return typeof path==='string'&&path.length>0&&path.length<1024&&!path.startsWith('/')&&!path.includes('\\')&&!path.split('/').some(x=>x==='..'||x==='.'||x==='');}
   async function unzipStored(blob){
@@ -45,66 +75,119 @@
     const tailStart=Math.max(0,blob.size-65557),tail=new DataView(await blob.slice(tailStart).arrayBuffer());let eocd=-1;for(let p=tail.byteLength-22;p>=0;p--){if(tail.getUint32(p,true)===0x06054b50){eocd=p;break;}}if(eocd<0)throw new Error('ZIP 目录结束标记缺失');
     const count=tail.getUint16(eocd+10,true),centralSize=tail.getUint32(eocd+12,true),centralOffset=tail.getUint32(eocd+16,true);if(count<1||count>65535||centralSize>64*1024*1024||centralOffset+centralSize>blob.size)throw new Error('ZIP 目录参数超出允许范围');
     const cbuf=await blob.slice(centralOffset,centralOffset+centralSize).arrayBuffer(),dv=new DataView(cbuf),map=new Map();let p=0;
-    for(let i=0;i<count;i++){if(p+46>dv.byteLength||dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 中央目录损坏');const flags=dv.getUint16(p+8,true),method=dv.getUint16(p+10,true),crc=dv.getUint32(p+16,true),size=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);if((flags&1)||method!==0||size!==usize||size>MAX_ARCHIVE)throw new Error('仅支持未加密、无压缩的安全 ZIP 备份');const name=dec.decode(new Uint8Array(cbuf,p+46,nl));if(!safePath(name)||map.has(name))throw new Error('ZIP 文件路径非法或重复：'+name);const local= new DataView(await blob.slice(off,off+30).arrayBuffer());if(local.byteLength!==30||local.getUint32(0,true)!==0x04034b50)throw new Error('ZIP 本地文件头损坏');const lnl=local.getUint16(26,true),lel=local.getUint16(28,true),dataStart=off+30+lnl+lel;if(dataStart+size>blob.size)throw new Error('ZIP 数据长度越界：'+name);map.set(name,{blob:blob.slice(dataStart,dataStart+size),size,crc32:crc.toString(16).padStart(8,'0')});p+=46+nl+el+cl;}
+    for(let i=0;i<count;i++){if(p+46>dv.byteLength||dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 中央目录损坏');const flags=dv.getUint16(p+8,true),method=dv.getUint16(p+10,true),crc=dv.getUint32(p+16,true),size=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);if((flags&1)||method!==0||size!==usize||size>MAX_ARCHIVE)throw new Error('仅支持未加密、无压缩的安全 ZIP 备份');const name=dec.decode(new Uint8Array(cbuf,p+46,nl));if(!safePath(name)||map.has(name))throw new Error('ZIP 文件路径非法或重复：'+name);const local= new DataView(await blob.slice(off,off+30).arrayBuffer());if(local.byteLength!==30||local.getUint32(0,true)!==0x04034b50)throw new Error('ZIP 本地文件头损坏');const lflags=local.getUint16(6,true),lmethod=local.getUint16(8,true),lcrc=local.getUint32(14,true),lsize=local.getUint32(18,true),lusize=local.getUint32(22,true),lnl=local.getUint16(26,true),lel=local.getUint16(28,true);if(lflags!==flags||lmethod!==method||lcrc!==crc||lsize!==size||lusize!==usize)throw new Error('ZIP 本地文件头与中央目录不一致：'+name);const localName=dec.decode(new Uint8Array(await blob.slice(off+30,off+30+lnl).arrayBuffer()));if(localName!==name)throw new Error('ZIP 本地文件名与中央目录不一致：'+name);const dataStart=off+30+lnl+lel;if(dataStart+size>centralOffset)throw new Error('ZIP 数据长度越界：'+name);map.set(name,{blob:blob.slice(dataStart,dataStart+size),size,crc32:crc.toString(16).padStart(8,'0')});p+=46+nl+el+cl;}
     if(!map.has('manifest.json'))throw new Error('缺少 manifest.json');const manifest=JSON.parse(await map.get('manifest.json').blob.text());if(manifest.format!=='twodeers-backup'||manifest.formatVersion!==4||!['all','chat','param'].includes(manifest.kind)||!Array.isArray(manifest.resources))throw new Error('不是受支持的双人空间 V4 备份');
-    if(manifest.resources.length!==map.size-1)throw new Error('manifest 资源数量与 ZIP 内容不一致');
+    if(manifest.resources.length!==map.size-1||manifest.resourceCount!==manifest.resources.length)throw new Error('manifest 资源数量与 ZIP 内容不一致');
+    const declaredBytes=manifest.resources.reduce((n,x)=>n+(Number(x&&x.size)||0),0);
+    if(!Number.isSafeInteger(declaredBytes)||declaredBytes!==manifest.totalResourceBytes||declaredBytes>MAX_ARCHIVE)throw new Error('manifest 总资源字节数与清单不一致或超出限制');
     for(const item of manifest.resources){if(!item||!safePath(item.path)||!map.has(item.path))throw new Error('备份缺少资源：'+(item&&item.path||''));const file=map.get(item.path);if(item.size!==file.size)throw new Error('资源字节数不匹配：'+item.path);const got=await inspectBlob(file.blob);if(got.sha256!==item.sha256||got.crc32!==item.crc32||got.crc32!==file.crc32)throw new Error('资源校验失败：'+item.path);file.meta=item;}
     return {manifest,map};
   }
-  async function restoreV4(blob){
+  async function restoreV4Internal(blob){
     const parsed=await unzipStored(blob),{manifest,map}=parsed,kind=manifest.kind;
     const data=JSON.parse(await map.get('state.json').blob.text());if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('state.json 格式无效');
+    if(kind==='all'||kind==='param'){
+      for(const path of ['mailbox-data.json','card-system.json','font-library.json'])if(!map.has(path))throw new Error('参数/总备份缺少必需模块文件：'+path);
+      if(!window.__duoMailbox||typeof window.__duoMailbox.importData!=='function')throw new Error('信件模块不可用，无法恢复此备份');
+      if(!window.__duoCardSystem||typeof window.__duoCardSystem.importData!=='function')throw new Error('字卡模块不可用，无法恢复此备份');
+      if(!window.ChuanXunFontManager||typeof window.ChuanXunFontManager.importData!=='function')throw new Error('字体模块不可用，无法恢复此备份');
+      if(kind==='param'&&!Object.prototype.hasOwnProperty.call(data,'cardUsageOutbox'))throw new Error('参数备份缺少待投递聊天字卡记录');
+      if(kind==='param'&&!map.has('circle-settings.json'))throw new Error('参数备份缺少 Circle 设置文件');
+    }
+    if(kind==='all'&&!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
     const mediaEntries=manifest.resources.filter(x=>x.type==='media'),fontEntries=manifest.resources.filter(x=>x.type==='font');
-    const newMedia=new Map(),oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY),oldCircle=kind==='all'?getCircleState():null;
+    const newMedia=new Map(),oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY),oldCircle=(kind==='all'||kind==='param')?getCircleState():null;
     const oldFonts=(kind!=='chat'&&window.ChuanXunFontManager)?await window.ChuanXunFontManager.exportData():null;
+    const oldMailbox=(kind!=='chat'&&window.__duoMailbox)?window.__duoMailbox.exportData():null;
+    const oldCards=(kind!=='chat'&&window.__duoCardSystem)?window.__duoCardSystem.exportData():null;
     for(const item of mediaEntries)newMedia.set(item.id,await getMediaRecord(item.id));
-    let circleWritten=false,fontsWritten=false;
+    let circleWritten=false,fontsWritten=false,mailboxWritten=false,cardsWritten=false;
     try{
+      cancelPendingReplies?.();
+      clearIncomingRingTimer?.();clearIncomingSchedule?.(true);
+      if(typeof callTimerHandle!=='undefined'&&callTimerHandle){clearInterval(callTimerHandle);callTimerHandle=null;}
+      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();
+      mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();
+      stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
       const mediaData=new Map();for(const item of mediaEntries){const recBlob=map.get(item.path).blob;if(recBlob.size!==item.size)throw new Error('媒体大小异常：'+item.path);mediaData.set(item.id,{blob:recBlob,meta:item});}
       let incomingState;
       if(kind==='all')incomingState=data.state||data;
       const chatSource=kind==='chat'?data:(kind==='all'?incomingState:null);
       if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id))throw new Error('备份包未包含聊天 / 表情引用的媒体：'+id);}}
+      if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=JSON.parse(await map.get('mailbox-data.json').blob.text()),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const draft of mailbox.drafts||[])for(const image of draft.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件 / 草稿引用的图片：'+id);}
       for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
       if(kind==='all'){
         if(!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
         if(!incomingState||typeof incomingState!=='object'||Array.isArray(incomingState))throw new Error('总备份状态格式无效');
         const circleData=map.has('circle-state.json')?JSON.parse(await map.get('circle-state.json').blob.text()):null;
         if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);setCircleState(circleData);circleWritten=true;}
-        Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);state.stickerFavorites=Array.isArray(incomingState.stickerFavorites)?incomingState.stickerFavorites:[];
+        Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);state.stickerFavorites=Array.isArray(incomingState.stickerFavorites)?incomingState.stickerFavorites.filter(id=>(state.stickers||[]).some(sticker=>sticker.id===id)):[];
       }else if(kind==='chat'){
-        state.chatHistory=Array.isArray(data.chatHistory)?data.chatHistory:[];state.stickers=Array.isArray(data.stickers)?data.stickers:[];state.stickerFavorites=Array.isArray(data.stickerFavorites)?data.stickerFavorites:[];
+        state.chatHistory=Array.isArray(data.chatHistory)?data.chatHistory:[];state.stickers=Array.isArray(data.stickers)?data.stickers:[];state.stickerFavorites=Array.isArray(data.stickerFavorites)?data.stickerFavorites.filter(id=>state.stickers.some(sticker=>sticker.id===id)):[];
         if(data.media)state.media=Object.assign(state.media||{},data.media);
-        for(const k of ['bubbleShape','bubbleColors','appearanceColors','appearanceSettings','replyWindow','showReadReceipt','typing','offline','callSettings'])if(data[k]!==undefined)state[k]=data[k];
+        for(const k of ['bubbleShape','bubbleColors','appearanceColors','appearanceSettings','replyWindow','showReadReceipt','typing','offline','callSettings','chatBeautifyPresetId'])if(data[k]!==undefined)state[k]=data[k];
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
       }else if(kind==='param'){
         if(data.icons)state.icons=Object.assign(state.icons||{},data.icons);if(data.media)state.media=Object.assign(state.media||{},data.media);
-        for(const k of ['avatarShape','bubbleShape','customCSS','appearanceSettings','showReadReceipt'])if(data[k]!==undefined)state[k]=data[k];
+        for(const k of ['avatarShape','bubbleShape','customCSS','appearanceSettings','showReadReceipt','chatBeautifyPresetId'])if(data[k]!==undefined)state[k]=data[k];
         for(const k of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[k])state[k]=Object.assign(state[k]||{},data[k]);
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
         if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
-        if(Array.isArray(data.stickerFavorites))state.stickerFavorites=data.stickerFavorites;
+        state.cardUsageOutbox=Array.isArray(data.cardUsageOutbox)?data.cardUsageOutbox:[];
+        if(Array.isArray(data.stickerFavorites))state.stickerFavorites=data.stickerFavorites.filter(id=>(state.stickers||[]).some(sticker=>sticker.id===id));
       }
-      if(kind!=='chat'&&window.ChuanXunFontManager&&!map.has('font-library.json'))throw new Error('参数/总备份缺少字体库清单');
-      if(kind!=='chat'&&window.ChuanXunFontManager&&map.has('font-library.json')){
+      if(kind==='param'&&map.has('circle-settings.json')){
+        const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法恢复朋友圈参数');
+        const current=getCircleState()||{},settings=JSON.parse(await map.get('circle-settings.json').blob.text());
+        const merged={...current,...settings};api.validateState(merged);setCircleState(merged);circleWritten=true;
+      }
+      if(kind!=='chat'){mailboxWritten=true;window.__duoMailbox.importData(JSON.parse(await map.get('mailbox-data.json').blob.text()));}
+      if(kind!=='chat'){cardsWritten=true;window.__duoCardSystem.importData(JSON.parse(await map.get('card-system.json').blob.text()));}
+      if(kind!=='chat'){
         const fm=JSON.parse(await map.get('font-library.json').blob.text());
         const restored=[];for(const f of fm.fonts||[]){const x=map.get(f.path);if(!x)throw new Error('字体资源缺失：'+f.id);restored.push({...f,blob:x.blob});}
         fontsWritten=true;await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true});
       }
-      if(kind==='all'&&incomingState.call&&incomingState.call.phase==='ringing'){incomingState.call.active=false;}
+      if(kind==='all'&&incomingState.call&&incomingState.call.phase==='ringing'){incomingState.call={...incomingState.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0,mini:false};}
       if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
       if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
-      ensureChatState();save();init();renderStickerList();loadMessageMedia();
+      ensureChatState();
+      const serialized=JSON.stringify(state);localStorage.setItem(STORAGE_KEY,serialized);
+      const persisted=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(!persisted||JSON.stringify(persisted)!==serialized)throw new Error('主状态写入后回读校验失败');
+      init();renderStickerList();loadMessageMedia();
       showToast('V4 备份恢复完成（资源完整性已校验）');
       return true;
     }catch(e){
-      try{Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);}catch(_){}
-      if(circleWritten){try{setCircleState(oldCircle);}catch(_){}}
-      for(const [id,record] of newMedia){try{if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}else await deleteMediaRecord(id);}catch(_){}}
-      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});}catch(_){}}
-      try{init();}catch(_){}
+      const rollbackErrors=[];
+      try{
+        Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,JSON.parse(oldState));
+        if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);
+        const stored=localStorage.getItem(STORAGE_KEY);if(stored!==oldStorage)throw new Error('主状态回滚回读不一致');
+      }catch(err){rollbackErrors.push('主状态：'+(err.message||err));}
+      if(circleWritten){try{setCircleState(oldCircle);if(JSON.stringify(getCircleState())!==JSON.stringify(oldCircle))throw new Error('朋友圈回读不一致');}catch(err){rollbackErrors.push('朋友圈：'+(err.message||err));}}
+      for(const [id,record] of newMedia){try{
+        if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size)throw new Error('媒体回滚回读不一致：'+id);}
+        else{await deleteMediaRecord(id);if(await getMediaRecord(id))throw new Error('媒体删除回滚校验失败：'+id);}
+      }catch(err){rollbackErrors.push('媒体 '+id+'：'+(err.message||err));}}
+      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});const check=await window.ChuanXunFontManager.exportData();if(check.currentFontId!==(oldFonts.currentFontId||null)||check.fonts.length!==oldFonts.fonts.length||check.fonts.some(x=>!oldFonts.fonts.some(y=>y.id===x.id&&y.size===x.size)))throw new Error('字体库回滚回读不一致');}catch(err){rollbackErrors.push('字体库：'+(err.message||err));}}
+      if(mailboxWritten&&oldMailbox){try{window.__duoMailbox.importData(oldMailbox);if(JSON.stringify(window.__duoMailbox.exportData())!==JSON.stringify(oldMailbox))throw new Error('信件数据回滚回读不一致');}catch(err){rollbackErrors.push('信件：'+(err.message||err));}}
+      if(cardsWritten&&oldCards){try{window.__duoCardSystem.importData(oldCards);if(JSON.stringify(window.__duoCardSystem.exportData())!==JSON.stringify(oldCards))throw new Error('字卡数据回滚回读不一致');}catch(err){rollbackErrors.push('字卡：'+(err.message||err));}}
+      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
+      try{init();renderStickerList();loadMessageMedia();}catch(err){rollbackErrors.push('界面重建：'+(err.message||err));}
+      if(rollbackErrors.length)throw new Error((e.message||'恢复失败')+'；回滚未完全通过：'+rollbackErrors.join('；'));
       throw e;
     }
+  }
+  let restoreInProgress=false;
+  async function restoreV4(blob){
+    if(restoreInProgress||window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('已有备份导出或恢复任务正在执行，请等待完成');
+    restoreInProgress=true;window.__duoRestoreInProgress=true;let overlay=null;
+    try{
+      overlay=document.createElement('div');overlay.id='duoRestoreOverlay';overlay.textContent='正在校验并恢复备份，请勿关闭页面…';overlay.style.cssText='position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,20,20,.72);color:#fff;font:600 15px/1.6 sans-serif;text-align:center;';document.body.appendChild(overlay);
+      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+      return await restoreV4Internal(blob);
+    }finally{overlay?.remove();restoreInProgress=false;window.__duoRestoreInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
   }
   async function exportV4(kind){try{const blob=await buildV4(kind);triggerDownloadBlob('双人空间_'+kind+'_backup_v4.zip',blob);showToast(kind==='all'?'V4 总备份已导出':'V4 备份已导出');}catch(e){showToast('V4 备份失败：'+(e.message||e));throw e;}}
   document.addEventListener('click',function(e){const b=e.target&&e.target.closest?e.target.closest('#backupAllBtn,#backupChatBtn,#backupParamBtn'):null;if(!b)return;e.preventDefault();e.stopImmediatePropagation();exportV4(b.id==='backupAllBtn'?'all':b.id==='backupChatBtn'?'chat':'param').catch(()=>{});},true);

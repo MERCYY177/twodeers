@@ -2,6 +2,22 @@
 
 该工程只负责把仓库根目录当前网页应用封装进 Android WebView，不替换网页业务结构。
 
+## 网页源码检查
+
+在仓库根目录使用 Node.js 22：
+
+```bash
+npm ci
+npm run verify
+npm test
+```
+
+需要运行真实浏览器回归时，先启动本地 HTTP 服务，再执行 `npm run test:browser`；若使用系统安装的 Chromium，可设置 `CHROMIUM_PATH` 指向浏览器可执行文件。CI 使用锁定的 Playwright 版本并安装对应 Chromium。
+
+## Gradle 版本
+
+Android GitHub Actions 固定使用 Gradle 8.9。当前源码包未包含 Gradle Wrapper；本地构建仍需自行安装 Gradle 8.9。
+
 ## 构建
 
 需要 JDK 17、Android SDK Platform 35、Build Tools 35.x 与 Gradle 8.9：

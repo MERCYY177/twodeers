@@ -40,7 +40,7 @@ assert.equal(pseudoDecoration({...emptyContentImagePseudo,beforeContent:'none'},
 assert.equal(pseudoDecoration({...emptyContentImagePseudo,beforeContent:'normal'},'before').visible,false,
   'content:normal must not generate a visible pseudo-element');
 
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox','--disable-dev-shm-usage'] });
+const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}), args: ['--no-sandbox','--disable-dev-shm-usage'] });
 const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
 const page = await context.newPage();
 const pageErrors = [];
@@ -54,7 +54,10 @@ try {
     !!window.__duoBackupV4 &&
     !!window.ChuanXunFontManager &&
     !!document.getElementById('duoThemeMode') &&
-    !!document.getElementById('duoFontPanel'),
+    !!document.getElementById('duoFontPanel') &&
+    !!document.getElementById('settingsCategoryGrid') &&
+    !!document.getElementById('duoUnifiedCardPanel') &&
+    window.__duoSettingsPagesReady === true,
     { timeout: 15000 }
   );
 
@@ -887,6 +890,82 @@ try {
   assert.deepEqual(scrollFailures,[],'every preset must keep the newest sent message visible and the chat list at bottom: '+JSON.stringify(scrollFailures));
   console.log('ALL_PRESET_SCROLL_AUDIT '+JSON.stringify(allPresetScrollAudit));
   console.log('ALL_PRESET_PERFORMANCE_AUDIT '+JSON.stringify(allPresetPerformanceAudit));
+  // New second-level settings, unified card pools/recent usage, mailbox drafts and V4 inclusion.
+  await page.evaluate(() => { goto('settingsPage'); setSettingsTab('param'); });
+  await page.locator('[data-settings-category="cards"]').click();
+  await page.waitForSelector('#duoUnifiedCardPanel');
+  await page.locator('[data-card-input="chat"]').fill('浏览器验收字卡');
+  await page.locator('[data-card-add="chat"]').click();
+  const recentBeforeDraw = await page.evaluate(() => window.__duoCardSystem.getRecent().length);
+  await page.evaluate(() => { window.__testRandomOriginal=Math.random; Math.random=()=>0.999999; });
+  await page.locator('[data-card-draw="chat"]').click();
+  await page.evaluate(() => { Math.random=window.__testRandomOriginal; delete window.__testRandomOriginal; });
+  const afterPreview = await page.evaluate(() => window.__duoCardSystem.getRecent().length);
+  assert.equal(afterPreview,recentBeforeDraw,'previewing a random card must not count as actual use');
+  assert.equal(await page.locator('[data-card-preview="chat"]').textContent(),'浏览器验收字卡','random draw preview should show the selected card');
+  await page.locator('[data-card-use="chat"]').click();
+  await page.locator('[data-card-input="moments-dynamic"]').fill('朋友圈动态验收字卡');
+  await page.locator('[data-card-add="moments-dynamic"]').click();
+  await page.locator('[data-card-input="moments-reply"]').fill('朋友圈回复验收字卡');
+  await page.locator('[data-card-add="moments-reply"]').click();
+  const cardAudit = await page.evaluate(() => ({
+    chat:state.cardPhrases.includes('浏览器验收字卡'),
+    dynamic:window.__duoCircleApi.exportState().dynamicCards.includes('朋友圈动态验收字卡'),
+    reply:window.__duoCircleApi.exportState().replyCards.includes('朋友圈回复验收字卡'),
+    recent:window.__duoCardSystem.getRecent().some(x=>x.textSnapshot==='浏览器验收字卡'),
+    previewOnlyDoesNotCount:true
+  }));
+  assert.deepEqual(cardAudit,{chat:true,dynamic:true,reply:true,recent:true,previewOnlyDoesNotCount:true},'the three card pools must remain distinct and actual use must be recorded');
+  await page.locator('#settingsCategoryBack').click();
+  assert.equal(await page.locator('[data-settings-category]').count(),7,'all seven independent settings categories must be available');
+  await page.locator('[data-settings-category="appearance"]').click();
+  const appearanceCategory = await page.evaluate(() => ({theme:!document.getElementById('duoAppearancePanel').hidden,font:!document.getElementById('duoFontPanel').hidden,beautify:!document.getElementById('duoChatBeautifyPanel').hidden}));
+  assert.deepEqual(appearanceCategory,{theme:true,font:true,beautify:true},'theme, font and CSS beautification controls should live in the appearance subpage');
+  await page.locator('#settingsCategoryBack').click();
+  await page.locator('[data-settings-category="calls"]').click();
+  await page.locator('#circleNoticeEnabled').uncheck();
+  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),false,'the in-app Circle notification switch should persist to Circle state');
+  await page.locator('#circleNoticeEnabled').check();
+  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),true,'Circle notification switch should be reversible');
+  await page.locator('#settingsCategoryBack').click();
+  await page.evaluate(() => goto('mailPage'));
+  await page.locator('#mailComposeBtn').click();
+  await page.locator('#mailComposeTitle').fill('浏览器验收信件');
+  await page.locator('#mailComposeContent').fill('这是一封用于回归测试的信。');
+  await page.locator('#mailInsertCardBtn').click();
+  await page.locator('#mailDraftBtn').click();
+  const draftCount = await page.locator('#mailDraftList [data-mail-draft]').count();
+  assert.equal(draftCount,1,'typing and explicit save should persist a draft');
+  await page.locator('#mailComposeSend').click();
+  const mailboxAudit = await page.evaluate(() => {
+    const data=window.__duoMailbox.exportData();
+    return {outgoing:data.mailbox.items.some(x=>x.type==='outgoing'&&x.title==='浏览器验收信件'),drafts:data.drafts.length,fragments:data.mailbox.items.find(x=>x.title==='浏览器验收信件')?.cardFragments?.length||0};
+  });
+  assert.equal(mailboxAudit.outgoing,true,'manual letters should be persisted independently');
+  assert.equal(mailboxAudit.drafts,0,'sent drafts should be removed from the draft list');
+  assert.equal(mailboxAudit.fragments,1,'selected card fragments should be snapshotted into the letter');
+  const extendedBackup = await page.evaluate(async () => {
+    const blob=await window.__duoBackupV4.build('all');
+    const parsed=await window.__duoBackupV4.unzip(blob);
+    return {mailbox:parsed.map.has('mailbox-data.json'),cards:parsed.map.has('card-system.json'),circleSettings:parsed.map.has('circle-settings.json')||parsed.map.has('circle-state.json'),resources:parsed.manifest.resources.length};
+  });
+  assert.equal(extendedBackup.mailbox,true,'all backup must include letters and drafts');
+  assert.equal(extendedBackup.cards,true,'all backup must include card IDs and recent usage');
+  assert.equal(extendedBackup.circleSettings,true,'param/all data paths must preserve the Circle settings area');
+  assert.ok(extendedBackup.resources>=4,'all backup should include state, Circle, mailbox and card system');
+  const roundTrip = await page.evaluate(async () => {
+    const archive=await window.__duoBackupV4.build('all');
+    window.__duoMailbox.importData({mailbox:{items:[],pending:[],settings:{autoIncoming:false,autoReply:false}},drafts:[]});
+    window.__duoCardSystem.importData({version:1,chatIds:[],chatTexts:[],momentsDynamic:[],momentsReply:[],momentsDynamicIds:[],momentsReplyIds:[],recentDrawnRepliesV1:[],notificationsEnabled:true});
+    await window.__duoBackupV4.restore(archive);
+    const mail=window.__duoMailbox.exportData(),cards=window.__duoCardSystem.exportData(),circle=window.__duoCircleApi.exportState();
+    return {letter:mail.mailbox.items.some(x=>x.title==='浏览器验收信件'),recent:cards.recentDrawnRepliesV1.some(x=>x.textSnapshot==='浏览器验收字卡'),dynamic:circle.dynamicCards.includes('朋友圈动态验收字卡'),reply:circle.replyCards.includes('朋友圈回复验收字卡'),chat:state.cardPhrases.includes('浏览器验收字卡')};
+  });
+  assert.deepEqual(roundTrip,{letter:true,recent:true,dynamic:true,reply:true,chat:true},'V4 all restore must round-trip mailbox, all card pools and recent-use records');
+  const paramBackup = await page.evaluate(async () => {const parsed=await window.__duoBackupV4.unzip(await window.__duoBackupV4.build('param'));return {circle:parsed.map.has('circle-settings.json'),mailbox:parsed.map.has('mailbox-data.json'),cards:parsed.map.has('card-system.json')};});
+  assert.deepEqual(paramBackup,{circle:true,mailbox:true,cards:true},'parameter backup must include Circle settings, mailbox and card-system data');
+  await page.evaluate(() => goto('homePage'));
+
   console.log(JSON.stringify({
     result: 'passed',
     themePersisted: true,
@@ -913,7 +992,15 @@ try {
     customFontImported: fontTested,
     v4Bytes: backupResult.size,
     mediaResources: backupResult.media,
-    fontResources: backupResult.fonts
+    fontResources: backupResult.fonts,
+    sevenSettingsCategories: true,
+    appearanceCategory,
+    circleNotificationToggle: true,
+    distinctCardPools: cardAudit,
+    mailbox: mailboxAudit,
+    extendedBackup: extendedBackup,
+    paramBackup,
+    roundTrip
   }, null, 2));
 } finally {
   await browser.close();

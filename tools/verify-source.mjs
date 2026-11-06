@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(resolve(root, 'index.html'), 'utf8');
-const required = ['appearance-manager.js','custom-font-manager.js','font-panel.js','sticker-library.js','backup-v4.js'];
+const required = ['appearance-manager.js','custom-font-manager.js','font-panel.js','sticker-library.js','backup-v4.js','card-system.js','mailbox-manager.js','settings-pages.js'];
 for (const file of required) {
   const source = readFileSync(resolve(root, file), 'utf8');
   new vm.Script(source, { filename: file });
@@ -21,12 +21,17 @@ for (const path of ['android-apps/app/src/main/java/com/mercyy/twodeers/MainActi
 const mainScript = inline.map(x => x[1]).join('\n');
 if (!mainScript.includes('initializeIncomingCallScheduler') || !mainScript.includes('triggerIncomingCall')) throw new Error('主动来电现有逻辑缺失');
 if (!html.includes('emoji-panel-columns') || !html.includes('emoji-column-stickers')) throw new Error('原有双列表情包布局被改变');
+for (const token of ['data-settings-category="profile"','data-settings-category="chat"','data-settings-category="cards"','data-settings-category="circle"','data-settings-category="appearance"','data-settings-category="calls"','data-settings-category="privacy"','id="mailPage"','id="mailDraftList"']) if (!html.includes(token)) throw new Error('独立设置/信件页面缺失：'+token);
 const v4 = readFileSync(resolve(root, 'backup-v4.js'), 'utf8');
-for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json']) {
+for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json','mailbox-data.json','card-system.json','circle-settings.json','restoreInProgress','pauseTasks']) {
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
 }
 const native = readFileSync(resolve(root, 'android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java'), 'utf8');
 for (const token of ['onShowFileChooser','ACTION_CREATE_DOCUMENT','triggerDownloadBlob','writeChunk','finishSave']) {
   if (!native.includes(token)) throw new Error('Android 文件桥接缺失：' + token);
 }
-console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；来电/双列表情包/V4/Android 关键入口静态检查通过。');
+const card = readFileSync(resolve(root, 'card-system.js'), 'utf8');
+for (const token of ['recentDrawnRepliesV1','momentsDynamicIds','momentsReplyIds','recordUsed','confirmDraw','function draw']) if (!card.includes(token)) throw new Error('统一字卡系统缺失：'+token);
+const mailbox = readFileSync(resolve(root, 'mailbox-manager.js'), 'utf8');
+for (const token of ['DRAFT_KEY','autoIncoming','autoReply','processDue','exportData','importData']) if (!mailbox.includes(token)) throw new Error('信件系统缺失：'+token);
+console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；七区参数/信件草稿/统一字卡/备份/来电/双列表情包/Android 入口静态检查通过。');

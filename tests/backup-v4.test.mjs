@@ -9,22 +9,28 @@ const state = {
   icons: {}, media: {}, avatarShape: 'round', bubbleShape: 'round',
   bubbleColors: { me:'#f2f5fb', other:'#fff' },
   appearanceColors: { theme:'#8aa05f', buttonBg:'#342d28', buttonText:'#fff' },
-  appearanceSettings: { mode:'system', palette:'sage' },
+  appearanceSettings: { mode:'system', palette:'sage' }, chatBeautifyPresetId:'line-kitty',
   customCSS: '', replyWindow: {min:3,max:12}, showReadReceipt:true,
   typing:{enabled:true,text:'正在输入中'}, offline:{chatEnabled:true},
-  cardPhrases:[], callSettings:{audioEnabled:true,videoEnabled:true},
+  cardPhrases:[], cardUsageOutbox:[], callSettings:{audioEnabled:true,videoEnabled:true},
   incomingCallSettings:{enabled:true}, stickerFavorites:[], chatHistory:[], stickers:[]
 };
 const mediaBlob = new Blob(['chat-media-binary']);
+const extraMedia = new Map([['mail-image-1', new Blob(['letter-image-binary'])], ['draft-image-1', new Blob(['draft-image-binary'])]]);
+let mailboxData = {mailbox:{items:[],pending:[],settings:{autoIncoming:false}},drafts:[{id:'d1',content:'草稿'}]};
 const sandbox = {
   state,
-  window: {},
-  document: { addEventListener(){}, getElementById(){ return null; } },
+  window: {
+    __duoMailbox:{exportData(){return JSON.parse(JSON.stringify(mailboxData));},importData(next){mailboxData=JSON.parse(JSON.stringify(next));}},
+    __duoCardSystem:{exportData(){return {version:1,chatIds:['c1'],chatTexts:['你好'],momentsDynamic:['动态'],momentsReply:['回复'],recentDrawnRepliesV1:[]};},importData(){}},
+    ChuanXunFontManager:{async exportData(){return {currentFontId:null,fonts:[]};},async importData(){return true;}}
+  },
+  document: { addEventListener(){}, getElementById(){ return null; }, createElement(){return {style:{},remove(){},textContent:''};}, body:{appendChild(){}} },
   TextEncoder, TextDecoder, Blob,
   getCircleState(){ return {}; },
   getCurrentMediaIds(){ return sandbox.currentMediaIds || []; },
   currentMediaIds: ['media-test-1'],
-  getMediaRecord(id){ return Promise.resolve(id === 'media-test-1' ? { id, blob: mediaBlob, kind:'image', mimeType:'image/png', name:'test.png', createdAt:1 } : null); },
+  getMediaRecord(id){ return Promise.resolve(id === 'media-test-1' ? { id, blob: mediaBlob, kind:'image', mimeType:'image/png', name:'test.png', createdAt:1 } : extraMedia.has(id) ? { id, blob:extraMedia.get(id), kind:'mail-image', mimeType:'image/png', name:id+'.png', createdAt:2 } : null); },
   console
 };
 vm.createContext(sandbox);
@@ -38,17 +44,27 @@ test('SHA-256 and CRC-32 use standard test vectors', async () => {
 });
 
 test('param v4 ZIP builds, parses, and verifies manifest resources', async () => {
+  state.cardUsageOutbox=[{eventId:'pending-card-evt',cardId:'card-1',source:'chat',textSnapshot:'待投递字卡',usedAt:123}];
   const archive = await api.build('param');
   assert.equal(archive.type, 'application/zip');
   const parsed = await api.unzip(archive);
   assert.equal(parsed.manifest.format, 'twodeers-backup');
   assert.equal(parsed.manifest.formatVersion, 4);
   assert.equal(parsed.manifest.kind, 'param');
-  assert.equal(parsed.manifest.resources.length, 1);
+  assert.equal(parsed.manifest.resources.length, 5);
+  assert.ok(parsed.map.has('circle-settings.json'));
+  assert.ok(parsed.map.has('mailbox-data.json'));
+  assert.ok(parsed.map.has('card-system.json'));
   const stateFile = parsed.map.get('state.json');
   assert.ok(stateFile);
   const payload = JSON.parse(await stateFile.blob.text());
   assert.equal(payload.appearanceSettings.palette, 'sage');
+  assert.equal(payload.chatBeautifyPresetId, 'line-kitty');
+  assert.deepEqual(payload.cardUsageOutbox, [{eventId:'pending-card-evt',cardId:'card-1',source:'chat',textSnapshot:'待投递字卡',usedAt:123}]);
+  const mailbox = JSON.parse(await parsed.map.get('mailbox-data.json').blob.text());
+  assert.equal(mailbox.drafts[0].content, '草稿');
+  const cards = JSON.parse(await parsed.map.get('card-system.json').blob.text());
+  assert.deepEqual(cards.momentsDynamic, ['动态']);
 });
 
 test('all/chat V4 ZIP include media blobs and references', async () => {
@@ -73,4 +89,29 @@ test('corrupted ZIP resource bytes must fail SHA-256 validation', async () => {
   const dataOffset = 30 + nameLength + extraLength;
   bytes[dataOffset + 1] ^= 0xff;
   await assert.rejects(() => api.unzip(new Blob([bytes])), /校验失败|manifest|ZIP/);
+});
+
+
+test('all and param V4 backups include image blobs referenced by letters and drafts', async () => {
+  mailboxData = {
+    mailbox: { version:1, items:[{id:'letter-img',type:'outgoing',title:'带图的信',content:'正文',images:[{id:'mail-image-1',name:'信件图片.png',mimeType:'image/png',size:20}]}], pending:[], settings:{autoIncoming:false} },
+    drafts: [{id:'draft-img',title:'带图草稿',content:'未寄出',images:[{id:'draft-image-1',name:'草稿图片.png',mimeType:'image/png',size:19}]}]
+  };
+  const param = await api.unzip(await api.build('param'));
+  const paramMedia = param.manifest.resources.filter(x => x.type === 'media');
+  assert.deepEqual(new Set(paramMedia.map(x => x.id)), new Set(['mail-image-1','draft-image-1']));
+  assert.equal(await param.map.get(paramMedia.find(x=>x.id==='mail-image-1').path).blob.text(), 'letter-image-binary');
+  assert.equal(await param.map.get(paramMedia.find(x=>x.id==='draft-image-1').path).blob.text(), 'draft-image-binary');
+  const all = await api.unzip(await api.build('all'));
+  const allMedia = all.manifest.resources.filter(x => x.type === 'media');
+  assert.deepEqual(new Set(allMedia.map(x => x.id)), new Set(['mail-image-1','draft-image-1','media-test-1']));
+  assert.ok(all.map.has('mailbox-data.json'));
+  mailboxData = {mailbox:{items:[],pending:[],settings:{autoIncoming:false}},drafts:[{id:'d1',content:'草稿'}]};
+});
+
+
+test('V4 all/param restore rejects missing required module files before mutation', () => {
+  assert.match(source, /for\(const path of \['mailbox-data\.json','card-system\.json','font-library\.json'\]\)if\(!map\.has\(path\)\)throw new Error/);
+  assert.match(source, /参数备份缺少待投递聊天字卡记录/);
+  assert.match(source, /state\.cardUsageOutbox=Array\.isArray\(data\.cardUsageOutbox\)\?data\.cardUsageOutbox:\[\]/);
 });

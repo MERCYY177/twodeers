@@ -423,6 +423,10 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <div class="icon-slot" id="icon-home-settings"><img alt=""/><span>设置图标</span></div>
 <div class="label">参数区</div>
 </button>
+<button class="home-card" data-go="mailPage">
+<div class="icon-slot"><span>✉</span></div>
+<div class="label">信件</div>
+</button>
 </div>
 </div>
 </div>
@@ -1684,10 +1688,38 @@ const DEFAULT_STATE = {
   uiFontScale:DEFAULT_UI_SCALE,
   posts:[],
   pendingEvents:[],
-  nextOtherPostAt:0
+  usageOutbox:[],
+  nextOtherPostAt:0,
+  notificationsEnabled:true
 };
 const state = Object.assign({}, DEFAULT_STATE, load());
 normalizeStateShape(state);
+let lastPersistedStateJson=JSON.stringify(state),circleTransactionDepth=0,circleTransactionSnapshot=null,circleTransactionDirty=false;
+function restoreCircleState(snapshot){const restored=JSON.parse(snapshot);Object.keys(state).forEach(key=>{if(!(key in restored))delete state[key];});Object.assign(state,restored);}
+function save(){
+  if(circleTransactionDepth>0){circleTransactionDirty=true;return true;}
+  try{const serialized=JSON.stringify(state);localStorage.setItem(STORE_KEY,serialized);lastPersistedStateJson=serialized;return true;}
+  catch(error){try{restoreCircleState(lastPersistedStateJson);}catch(_){}if(typeof showToast==='function')showToast('朋友圈保存失败，已恢复到上一次成功状态：'+(error.message||error));return false;}
+}
+function circleTransaction(label,operation){
+  const root=circleTransactionDepth===0;if(root){circleTransactionSnapshot=JSON.stringify(state);circleTransactionDirty=false;}
+  circleTransactionDepth++;
+  const finish=(result,error)=>{
+    circleTransactionDepth--;
+    if(!root){if(error)throw error;return result;}
+    let ok=true,fail=error;
+    if(!fail&&result!==false&&circleTransactionDirty){try{const serialized=JSON.stringify(state);localStorage.setItem(STORE_KEY,serialized);lastPersistedStateJson=serialized;}catch(e){fail=e;}}
+    if(fail||result===false){try{restoreCircleState(circleTransactionSnapshot);}catch(rollbackError){fail=fail||rollbackError;}ok=false;}
+    circleTransactionSnapshot=null;circleTransactionDirty=false;
+    if(!ok){try{window.__duoCircleRollbackInProgress=true;renderPosts();if(currentDetailId)renderDetail(currentDetailId);refreshViewerIfNeeded();if(typeof renderNoticeBar==='function')renderNoticeBar();}catch(_){}finally{window.__duoCircleRollbackInProgress=false;}if(typeof showToast==='function')showToast((label||'朋友圈操作')+'未能保存，已恢复到上一次成功状态'+(fail?'：'+(fail.message||fail):''));return false;}
+    if(window.__duoCardSystem?.flushOutbox){try{window.__duoCardSystem.flushOutbox();}catch(error){if(typeof showToast==='function')showToast('朋友圈已保存，字卡使用记录将在稍后重试：'+(error.message||error));}}
+    return result===undefined?true:result;
+  };
+  try{const result=operation();if(result&&typeof result.then==='function')return result.then(value=>finish(value,null),error=>finish(undefined,error));return finish(result,null);}catch(error){return finish(undefined,error);}
+}
+const MAX_PENDING_CIRCLE_USAGE_EVENTS=1000;
+function canQueueCircleUsage(count=1){if(!Array.isArray(state.usageOutbox))state.usageOutbox=[];return state.usageOutbox.length+Math.max(0,Number(count)||0)<=MAX_PENDING_CIRCLE_USAGE_EVENTS;}
+function queueCircleUsage(text,source,cardId,postId=null){const snapshot=String(text||'').trim();if(!snapshot)return false;if(!Array.isArray(state.usageOutbox))state.usageOutbox=[];if(!canQueueCircleUsage()){if(typeof showToast==='function')showToast('朋友圈字卡使用记录队列已满；本次字卡动态暂缓，请先等待旧记录同步');return false;}const eventId='circle_use_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,9);state.usageOutbox.push({eventId,source,sourceId:postId||null,postId:postId||null,textSnapshot:snapshot,cardId:cardId||window.__duoCardSystem?.getCardId?.(snapshot,source)||null,usedAt:Date.now()});return true;}
 
 function load(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')||{}}catch(e){return {}} }
 function normalizeStateShape(target){
@@ -1709,7 +1741,9 @@ function normalizeStateShape(target){
   target.uiFontScale = scale >= 0.8 && scale <= 1.6 ? scale : DEFAULT_UI_SCALE;
   target.posts = Array.isArray(target.posts) ? target.posts : [];
   target.pendingEvents = Array.isArray(target.pendingEvents) ? target.pendingEvents : [];
+  target.usageOutbox = Array.isArray(target.usageOutbox) ? target.usageOutbox.filter(v=>v&&typeof v.textSnapshot==='string') : [];
   target.nextOtherPostAt = Math.max(0, Number(target.nextOtherPostAt) || 0);
+  target.notificationsEnabled = target.notificationsEnabled !== false;
   return target;
 }
 function buildSanitizedState(data){
@@ -1724,9 +1758,10 @@ function applyImportedState(data){
   Object.assign(state, DEFAULT_STATE, nextState);
   return state;
 }
-function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
 function rand(min,max){ min=Number(min)||0; max=Number(max)||min; if(max<min){const t=max;max=min;min=t;} return Math.floor(Math.random()*(max-min+1))+min; }
 function pick(arr,fallback=''){ arr=(arr||[]).filter(Boolean); if(!arr.length) return fallback; return arr[Math.floor(Math.random()*arr.length)]; }
+function pickCircleCard(arr,source,fallback=''){const candidates=(arr||[]).map((text,index)=>({text:String(text||'').trim(),index})).filter(x=>x.text);if(!candidates.length)return {text:fallback,cardId:null};const selected=candidates[Math.floor(Math.random()*candidates.length)];return {text:selected.text,cardId:window.__duoCardSystem?.getCardIdAt?.(source,selected.index)||window.__duoCardSystem?.getCardId?.(selected.text,source)||null};}
 function normLines(text){ return String(text||'').split('\n').map(s=>s.trim()).filter(Boolean); }
 function clampFontPercent(v){
   const n = Math.round(Number(v) || DEFAULT_FONT_PERCENT);
@@ -2243,30 +2278,34 @@ function scheduleOtherEngagement(postId, forceComment=false, options={}){
   const hasReplyCards = Array.isArray(state.replyCards) && state.replyCards.filter(Boolean).length > 0;
   const shouldComment = hasReplyCards && (forceComment || Math.random() < 0.85);
   if(shouldComment){
-    const ev = {type:'other_comment', postId, text:pick(state.replyCards,''), due:Date.now()+delay+rand(1,6)*1000};
+    const selected=pickCircleCard(state.replyCards,'moments-reply');
+    const ev = {type:'other_comment', postId, text:selected.text, cardId:selected.cardId, due:Date.now()+delay+rand(1,6)*1000};
     if(!ev.text) return;
     if(options.replyToCommentId) ev.replyToCommentId = options.replyToCommentId;
     scheduleEvent(ev);
   }
 }
-async function postMine(text){
+function postMine(text){
   const t = text.trim();
   if(!t && !selectedPostMedia.length) return;
   const post = createPost('me', t, Date.now(), { media:[...selectedPostMedia] });
   state.posts.push(post);
   scheduleOtherEngagement(post.id, true);
-  save(); renderPosts();
-  clearPostMedia();
+  if(save()===false){state.posts=state.posts.filter(x=>x.id!==post.id);state.pendingEvents=state.pendingEvents.filter(ev=>ev.postId!==post.id);renderPosts();if(typeof showToast==='function')showToast('动态未能保存，请重试');return false;}
+  renderPosts();
+  clearPostMedia();return true;
 }
 function postOtherNow(){
-  const text = pick(state.dynamicCards, ''); if(!text) return;
-  state.posts.push(createPost('other', text));
+  const selected=pickCircleCard(state.dynamicCards,'moments-dynamic');const text=selected.text;if(!text)return;
+  if(!canQueueCircleUsage()){if(typeof showToast==='function')showToast('朋友圈字卡使用记录队列已满；请等待旧记录同步后再发布');return false;}
+  const post=createPost('other',text);state.posts.push(post);queueCircleUsage(text,'moments-dynamic',selected.cardId,post.id);
   planNextOtherPost(true);
-  save(); renderPosts();
+  if(save()===false)return false;renderPosts();return true;
 }
 function processPending(){
   const now = Date.now();
   let changed = false;
+  const pendingBeforeCount=(state.pendingEvents||[]).length;
   const left = [];
   (state.pendingEvents||[]).forEach(item=>{
     if(now < item.due){ left.push(item); return; }
@@ -2284,24 +2323,25 @@ function processPending(){
           extra.replyToName = targetComment.authorName || authorNameByKey(targetComment.author);
         }
       }
-      if(addComment(item.postId, 'other', item.text, item.due, extra)) changed = true;
+      if(!canQueueCircleUsage()){left.push(item);return;}
+      if(addComment(item.postId, 'other', item.text, item.due, extra)){ changed = true; queueCircleUsage(item.text,'moments-reply',item.cardId,item.postId); }
     }
   });
   state.pendingEvents = left;
+  if(left.length!==pendingBeforeCount)changed=true;
   if(state.autoPost==='on' && state.nextOtherPostAt && now >= state.nextOtherPostAt){
-    const text = pick(state.dynamicCards, '');
-    if(text){ state.posts.push(createPost('other', text, now)); changed = true; }
-    planNextOtherPost(true);
+    const selected=pickCircleCard(state.dynamicCards,'moments-dynamic');const text=selected.text;
+    if(text&&canQueueCircleUsage()){const post=createPost('other',text,now);state.posts.push(post);queueCircleUsage(text,'moments-dynamic',selected.cardId,post.id);changed=true;planNextOtherPost(true);}
   }
   if(changed){ save(); renderPosts(); if(currentDetailId) renderDetail(currentDetailId); refreshViewerIfNeeded(); }
   updateNextHint();
 }
-function planNextOtherPost(force=false){
-  if(state.autoPost !== 'on' || !(state.dynamicCards||[]).length){ state.nextOtherPostAt = 0; save(); updateNextHint(); return; }
+function planNextOtherPost(force=false, shouldSave=true){
+  if(state.autoPost !== 'on' || !(state.dynamicCards||[]).length){ state.nextOtherPostAt = 0; if(shouldSave)save(); updateNextHint(); return; }
   if(state.nextOtherPostAt && !force) return;
   const mins = rand(state.postMin, state.postMax);
   state.nextOtherPostAt = Date.now() + mins*60*1000;
-  save(); updateNextHint();
+  if(shouldSave)save(); updateNextHint();
 }
 function updateNextHint(){
   const el = qs('#nextPostHint'); if(!el) return;
@@ -2522,26 +2562,32 @@ async function saveSettings(){
     assetsBusy = false;
     updateProfilePreview();
   }
-  state.myName = qs('#myNameInput').value.trim();
-  state.otherName = qs('#otherNameInput').value.trim();
-  state.dynamicCards = draftDynamicCards.filter(Boolean);
-  state.replyCards = draftReplyCards.filter(Boolean);
-  state.autoPost = qs('#autoPostSelect').value;
-  state.postMin = Math.max(1, Number(qs('#postMinInput').value)||1);
-  state.postMax = Math.max(state.postMin, Number(qs('#postMaxInput').value)||state.postMin);
-  state.replyMin = Math.max(1, Number(qs('#replyMinInput').value)||1);
-  state.replyMax = Math.max(state.replyMin, Number(qs('#replyMaxInput').value)||state.replyMin);
-  const fontPercent = clampFontPercent(qs('#fontScaleNumber') ? qs('#fontScaleNumber').value : ((state.uiFontScale || DEFAULT_UI_SCALE) * 100));
-  state.uiFontScale = fontPercent / 100;
-  if(tempAssets.myAvatar !== null) state.myAvatar = tempAssets.myAvatar;
-  if(tempAssets.otherAvatar !== null) state.otherAvatar = tempAssets.otherAvatar;
-  if(tempAssets.myCover !== null) state.myCover = tempAssets.myCover;
-  if(tempAssets.otherCover !== null) state.otherCover = tempAssets.otherCover;
+  const assetsToApply={...tempAssets};
+  const committed=circleTransaction('保存朋友圈设置',()=>{
+    state.myName = qs('#myNameInput').value.trim();
+    state.otherName = qs('#otherNameInput').value.trim();
+    state.dynamicCards = draftDynamicCards.filter(Boolean);
+    state.replyCards = draftReplyCards.filter(Boolean);
+    state.autoPost = qs('#autoPostSelect').value;
+    state.postMin = Math.max(1, Number(qs('#postMinInput').value)||1);
+    state.postMax = Math.max(state.postMin, Number(qs('#postMaxInput').value)||state.postMin);
+    state.replyMin = Math.max(1, Number(qs('#replyMinInput').value)||1);
+    state.replyMax = Math.max(state.replyMin, Number(qs('#replyMaxInput').value)||state.replyMin);
+    const fontPercent = clampFontPercent(qs('#fontScaleNumber') ? qs('#fontScaleNumber').value : ((state.uiFontScale || DEFAULT_UI_SCALE) * 100));
+    state.uiFontScale = fontPercent / 100;
+    if(tempAssets.myAvatar !== null) state.myAvatar = tempAssets.myAvatar;
+    if(tempAssets.otherAvatar !== null) state.otherAvatar = tempAssets.otherAvatar;
+    if(tempAssets.myCover !== null) state.myCover = tempAssets.myCover;
+    if(tempAssets.otherCover !== null) state.otherCover = tempAssets.otherCover;
+    if(state.autoPost === 'on'){
+      if(!state.nextOtherPostAt || state.nextOtherPostAt < Date.now()) planNextOtherPost(true,false);
+    }else state.nextOtherPostAt = 0;
+    save();
+    return true;
+  });
+  if(committed===false){tempAssets=assetsToApply;fillSettings();return false;}
   tempAssets = { myAvatar:null, otherAvatar:null, myCover:null, otherCover:null, dirty:false };
-  if(state.autoPost === 'on'){
-    if(!state.nextOtherPostAt || state.nextOtherPostAt < Date.now()) planNextOtherPost(true);
-  }else state.nextOtherPostAt = 0;
-  save(); applyHeader(false); updateProfilePreview(); renderPosts(); updateNextHint();
+  applyHeader(false); updateProfilePreview(); renderPosts(); updateNextHint();return true;
 }
 function fillSettings(){
   qs('#myNameInput').value = state.myName || '';
@@ -2603,9 +2649,9 @@ qs('#mediaPreviewGrid').addEventListener('click', e=>{
   selectedPostMedia.splice(idx,1);
   updateMediaPreview();
 });
-qs('#submitPostBtn').onclick = async ()=>{ await postMine(qs('#postInput').value); hidePostModal(); };
+qs('#submitPostBtn').onclick = ()=>{ const published=postMine(qs('#postInput').value); if(published!==false)hidePostModal(); };
 qs('#closeSettingsBtn').onclick = hideSettings;
-qs('#saveSettingsBtn').onclick = async ()=>{ await saveSettings(); hideSettings(); };
+qs('#saveSettingsBtn').onclick = async ()=>{ if(await saveSettings()===true)hideSettings(); };
 qs('#coverAvatar').onclick = ()=>openProfile('me');
 qs('#coverName').onclick = ()=>openProfile('me');
 circleRoot.addEventListener('click', e=>{
@@ -2718,14 +2764,13 @@ qs('#detailSendBtn').onclick = ()=>{
   if(!currentDetailId) return;
   const text=(qs('#detailCommentInput').value||'').trim(); if(!text) return;
   const post = state.posts.find(p=>p.id===currentDetailId); if(post?.private) return;
-  const extra = currentReplyTarget ? { replyTo: currentReplyTarget.author, replyToName: currentReplyTarget.name } : {};
-  const addedComment = addComment(currentDetailId,'me',text, Date.now(), extra);
-  if(addedComment){
-    qs('#detailCommentInput').value='';
-    setReplyTarget(null);
-    if(post && !post.private) scheduleOtherEngagement(currentDetailId, true, { replyToCommentId: addedComment.id });
-    save(); renderPosts(); renderDetail(currentDetailId);
-  }
+  const postId=currentDetailId,extra = currentReplyTarget ? { replyTo: currentReplyTarget.author, replyToName: currentReplyTarget.name } : {};
+  Promise.resolve(circleTransaction('发布评论',()=>{
+    const addedComment = addComment(postId,'me',text, Date.now(), extra);
+    if(!addedComment)return false;
+    if(post && !post.private) scheduleOtherEngagement(postId, true, { replyToCommentId: addedComment.id });
+    save();renderPosts();renderDetail(postId);return true;
+  })).then(ok=>{if(ok){qs('#detailCommentInput').value='';setReplyTarget(null);}});
 };
 qs('#detailSheetGrid').addEventListener('click', e=>{
   if(!currentDetailId) return;
@@ -2765,14 +2810,14 @@ if(qs('#fontScaleNumber')) qs('#fontScaleNumber').addEventListener('input', e=>{
   state.uiFontScale = percent / 100;
   applyUiScale(state.uiFontScale);
   syncFontScaleControls(state.uiFontScale);
-  save();
+  if(save()===false){applyUiScale(state.uiFontScale);syncFontScaleControls(state.uiFontScale);}
 });
 if(qs('#fontScaleRange')) qs('#fontScaleRange').addEventListener('input', e=>{
   const percent = clampFontPercent(e.target.value);
   state.uiFontScale = percent / 100;
   applyUiScale(state.uiFontScale);
   syncFontScaleControls(state.uiFontScale);
-  save();
+  if(save()===false){applyUiScale(state.uiFontScale);syncFontScaleControls(state.uiFontScale);}
 });
 qs('#clearMyAvatarBtn').onclick = ()=>{ tempAssets.myAvatar=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
 qs('#clearOtherAvatarBtn').onclick = ()=>{ tempAssets.otherAvatar=''; tempAssets.dirty=true; updateProfilePreview(); applyHeader(true); };
@@ -2789,7 +2834,7 @@ qs('#importFile').addEventListener('change', async e=>{
     const text = await file.text();
     const data = JSON.parse(text);
     applyImportedState(data);
-    save();
+    if(save()===false)throw new Error('朋友圈导入状态未能保存');
     applyUiScale(state.uiFontScale);
     applyHeader();
     renderPosts();
@@ -2810,8 +2855,8 @@ applyHeader();
 renderPosts();
 fillSettings();
 planNextOtherPost();
-processPending();
-setInterval(processPending, 4000);
+setTimeout(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 0);
+setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
 
 (function(){
   function buildDetailCard(post){
@@ -3251,15 +3296,15 @@ setInterval(processPending, 4000);
   };
 
   const originalPostMine = postMine;
-  postMine = async function(text){
+  postMine = function(text){
     const mediaFinger = (selectedPostMedia||[]).map(item=>item && item.src ? item.src.slice(0, 48) : '').join('|');
     const fingerprint = `${String(text||'').trim()}__${mediaFinger}__${selectedPostMedia.length}`;
     const now = Date.now();
     if(fingerprint === lastPostFingerprint && now - lastPostAt < 1800) return false;
     lastPostFingerprint = fingerprint;
     lastPostAt = now;
-    await originalPostMine(text);
-    return true;
+    const result=originalPostMine(text);
+    return result!==false;
   };
 
   function renderNoticeBar(){
@@ -3267,7 +3312,7 @@ setInterval(processPending, 4000);
   }
 
   function pushNotice(type, post, text){
-    if(!post || post.author !== 'me' || post.private) return;
+    if(state.notificationsEnabled===false || !post || post.author !== 'me' || post.private) return;
     if(!Array.isArray(state.notifications)) state.notifications = [];
     if(type === 'like'){
       const exists = state.notifications.some(n=>n.type === 'like' && n.postId === post.id && !n.read);
@@ -3332,6 +3377,7 @@ setInterval(processPending, 4000);
   processPending = function(){
     const now = Date.now();
     let changed = false;
+    const pendingBeforeCount=(state.pendingEvents||[]).length;
     const left = [];
     (state.pendingEvents||[]).forEach(item=>{
       if(now < item.due){ left.push(item); return; }
@@ -3353,17 +3399,19 @@ setInterval(processPending, 4000);
             extra.replyToName = targetComment.authorName || authorNameByKey(targetComment.author);
           }
         }
+        if(!canQueueCircleUsage()){left.push(item);return;}
         if(addComment(item.postId, 'other', item.text, item.due, extra)){
+          queueCircleUsage(item.text,'moments-reply',item.cardId,item.postId);
           changed = true;
           pushNotice('comment', post, item.text);
         }
       }
     });
     state.pendingEvents = left;
+    if(left.length!==pendingBeforeCount)changed=true;
     if(state.autoPost==='on' && state.nextOtherPostAt && now >= state.nextOtherPostAt){
-      const text = pick(state.dynamicCards, '');
-      if(text){ state.posts.push(createPost('other', text, now)); changed = true; }
-      planNextOtherPost(true);
+      const selected=pickCircleCard(state.dynamicCards,'moments-dynamic');const text=selected.text;
+      if(text&&canQueueCircleUsage()){const post=createPost('other',text,now);state.posts.push(post);queueCircleUsage(text,'moments-dynamic',selected.cardId,post.id);changed=true;planNextOtherPost(true);}
     }
     if(changed){ save(); renderPosts(); if(currentDetailId) renderDetail(currentDetailId); refreshViewerIfNeeded(); }
     updateNextHint();
@@ -3383,8 +3431,8 @@ setInterval(processPending, 4000);
       if(!hasSomething) return;
       setPublishBusy(true);
       try{
-        await postMine(text);
-        hidePostModal();
+        const published=await postMine(text);
+        if(published!==false)hidePostModal();
       }finally{
         setPublishBusy(false);
       }
@@ -3421,6 +3469,7 @@ setInterval(processPending, 4000);
   }
 
   function syncNotificationsFromPosts(){
+    if(window.__duoCircleRollbackInProgress)return;
     ensureNotifications();
     let changed = false;
     const posts = Array.isArray(state.posts) ? state.posts : [];
@@ -3489,7 +3538,7 @@ setInterval(processPending, 4000);
   };
 
   syncNotificationsFromPosts();
-  setInterval(syncNotificationsFromPosts, 1200);
+  setInterval(()=>{if(!window.__duoCircleRestorePaused)syncNotificationsFromPosts();}, 1200);
   document.addEventListener('visibilitychange', function(){
     if(!document.hidden) syncNotificationsFromPosts();
   });
@@ -3801,8 +3850,26 @@ setInterval(processPending, 4000);
   }
 })();
 
+// Every compound Circle mutation commits as one persisted snapshot. Failed commits restore the last good state.
+const rawPostMine=postMine;
+postMine=function(...args){const mediaBefore=(selectedPostMedia||[]).slice();const ok=circleTransaction('发布动态',()=>rawPostMine.apply(this,args)!==false);if(!ok){selectedPostMedia=mediaBefore;try{updateMediaPreview();}catch(_){}}return ok;};
+const rawPostOtherNow=postOtherNow;
+postOtherNow=function(...args){return circleTransaction('自动发布动态',()=>rawPostOtherNow.apply(this,args)!==false);};
+const rawToggleMyLike=toggleMyLike;
+toggleMyLike=function(...args){return circleTransaction('点赞',()=>rawToggleMyLike.apply(this,args));};
+const rawSetPostPrivacy=setPostPrivacy;
+setPostPrivacy=function(...args){return circleTransaction('修改动态可见范围',()=>rawSetPostPrivacy.apply(this,args));};
+const rawDeletePost=deletePost;
+deletePost=function(...args){return circleTransaction('删除动态',()=>rawDeletePost.apply(this,args));};
+const rawProcessPending=processPending;
+processPending=function(...args){return circleTransaction('自动互动',()=>rawProcessPending.apply(this,args));};
+
 window.__duoCircleApi = {
+  pauseTasks(){ window.__duoCircleRestorePaused=true; },
+  resumeTasks(){ window.__duoCircleRestorePaused=false; },
   exportState(){ return JSON.parse(JSON.stringify(state)); },
+  getUsageOutbox(){return (state.usageOutbox||[]).map(x=>({...x}));},
+  ackUsageOutbox(ids){const wanted=new Set((ids||[]).map(String));const before=state.usageOutbox.slice();state.usageOutbox=before.filter(x=>!wanted.has(String(x.eventId)));if(save()===false){state.usageOutbox=before;return false;}return true;},
   validateState(data){
     if(!data || typeof data !== 'object' || !Array.isArray(data.posts)) throw new Error('朋友圈备份数据格式无效');
     const next = Object.assign({}, DEFAULT_STATE, data);
@@ -3815,11 +3882,11 @@ window.__duoCircleApi = {
     try{
       Object.keys(state).forEach(key=>{ if(!(key in next)) delete state[key]; });
       Object.assign(state, next);
-      save();
+      if(save()===false)throw new Error('朋友圈状态保存失败');
       applyHeader();
       return true;
     }catch(err){
-      try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldStorage);applyHeader();}catch(rollbackError){}
+      try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORE_KEY);else localStorage.setItem(STORE_KEY,oldStorage);lastPersistedStateJson=oldStorage||JSON.stringify(state);applyHeader();}catch(rollbackError){}
       throw err;
     }
   }
@@ -3901,6 +3968,15 @@ window.__duoCircleApi = {
 </div>
 </div>
 <div class="settings-body hidden" id="settingsParam">
+<div class="settings-category-grid" id="settingsCategoryGrid">
+<button type="button" data-settings-category="profile"><strong>空间资料</strong><small>头像、封面与首页入口</small></button>
+<button type="button" data-settings-category="chat"><strong>聊天设置</strong><small>回复节奏、已读与聊天规则</small></button>
+<button type="button" data-settings-category="cards"><strong>信件与字卡</strong><small>信箱、草稿、字卡池与最近抽过</small></button>
+<button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
+<button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
+<button type="button" data-settings-category="calls"><strong>通知与通话</strong><small>主动来电、语音与视频设置</small></button>
+<button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
+</div>
 <div class="panel-card">
 <h3>回复与已读</h3>
 <div class="two-col">
@@ -4066,7 +4142,7 @@ window.__duoCircleApi = {
 </div>
 <div class="panel-card backup-management">
 <h3>备份与恢复</h3>
-<p class="data-note">总备份包含双人空间全部设置、聊天消息与媒体，并直接导出朋友圈存档。聊天备份包含消息和关联媒体；参数备份只包含个人配置与字卡。</p>
+<p class="data-note">总备份包含双人空间全部设置、聊天消息与媒体、完整朋友圈存档、信件与草稿及字卡历史。聊天备份包含消息和关联媒体；参数备份包含空间/朋友圈参数、字体、信件与草稿、字卡池和最近实际使用记录。</p>
 <div class="data-actions">
 <button class="primary" id="backupAllBtn" type="button">导出总备份</button>
 <button class="mini-btn" id="restoreAnyBtn" type="button">导入备份</button>
@@ -4077,7 +4153,7 @@ window.__duoCircleApi = {
 </div>
 </div><div class="panel-card data-management">
 <h3>数据管理</h3>
-<p class="data-note">清空聊天只删除消息及消息媒体，保留头像、背景、外观和你的字卡。重置双人空间会删除本应用全部个人数据，但不会删除独立朋友圈存档。建议先导出总备份。</p>
+<p class="data-note">清空聊天只删除消息及消息媒体，保留头像、背景、外观和你的字卡。重置双人空间会删除聊天、信件与草稿、字卡最近使用记录、字体库和本应用参数，但不会删除独立朋友圈存档。建议先导出总备份。</p>
 <div class="data-actions">
 <button class="mini-btn danger-btn" id="clearChatBtn" type="button">清空聊天记录</button>
 <button class="mini-btn danger-btn" id="resetAppBtn" type="button">重置整个双人空间</button>
@@ -4085,6 +4161,17 @@ window.__duoCircleApi = {
 </div></div>
 </div>
 </section>
+<section class="page" id="mailPage">
+<div class="top-safe"></div>
+<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信件</h2><p>独立信箱 · 草稿与自动来信</p></div></div>
+<div class="page-scroll">
+<div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
+<div class="panel-card"><h3>信件自动化设置</h3><div class="item-row"><label for="mailAutoIncoming">自动来信</label><input id="mailAutoIncoming" type="checkbox"/></div><div class="item-row"><label for="mailAutoReply">自动回信</label><input id="mailAutoReply" type="checkbox"/></div><div class="mail-setting-grid"><label>来信最短间隔（分钟）<input id="mailIncomingMin" type="number" min="1" max="10080"/></label><label>来信最长间隔（分钟）<input id="mailIncomingMax" type="number" min="1" max="10080"/></label><label>回信最短延迟（分钟）<input id="mailReplyMin" type="number" min="1" max="10080"/></label><label>回信最长延迟（分钟）<input id="mailReplyMax" type="number" min="1" max="10080"/></label></div><p class="data-note" id="mailAutoStatus"></p><button class="primary" id="mailSettingsSave" type="button">保存信件设置</button></div>
+</div>
+<div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-hint" id="mailImageHint">最多 6 张图片</div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
+<div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
+</section>
+<section class="page" id="settingsCategoryPage"><div class="top-safe"></div><div class="header"><button class="back" id="settingsCategoryBack" type="button">‹</button><div class="header-title"><h2 id="settingsCategoryTitle">设置</h2><p>独立设置页面</p></div></div><div class="page-scroll" id="settingsCategoryContent"></div></section>
 <div class="call-choice" id="callChoiceModal">
 <div class="call-choice-sheet">
 <div class="call-choice-title">选择通话方式</div>
@@ -4191,7 +4278,8 @@ const state = {
   settingsTab:'icon',
   cardPhrases:[],
   stickers:[],
-  chatHistory:[]
+  chatHistory:[],
+  cardUsageOutbox:[]
 };
 try{
   const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
@@ -4220,10 +4308,11 @@ try{
     state.cardPhrases=Array.isArray(saved.cardPhrases)?saved.cardPhrases.filter(v=>typeof v==='string'&&v.trim()):[];
     state.stickers=Array.isArray(saved.stickers)?saved.stickers:[];
     state.chatHistory=Array.isArray(saved.chatHistory)?saved.chatHistory:[];
+    state.cardUsageOutbox=Array.isArray(saved.cardUsageOutbox)?saved.cardUsageOutbox.filter(x=>x&&typeof x.textSnapshot==='string'):[];
     const seeded = new Set(['m1','m2','m3','m4']);
     state.chatHistory=state.chatHistory.filter(msg=>!seeded.has(msg?.id));
     delete state.quick; delete state.activeSpace; delete state.selectedDay; delete state.calendar;
-    if(!['homePage','chatPage','circlePage','settingsPage'].includes(state.currentPage)) state.currentPage='homePage';
+    if(!['homePage','chatPage','circlePage','settingsPage','mailPage','settingsCategoryPage'].includes(state.currentPage)) state.currentPage='homePage';
   }
 }catch(e){}
 
@@ -4280,6 +4369,7 @@ function referencedMediaIds(){
   const ids=new Set();
   (state.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});
   (state.stickers||[]).forEach(s=>{if(s.mediaId)ids.add(s.mediaId);});
+  try{window.__duoMailbox?.getReferencedMediaIds?.().forEach(id=>ids.add(id));}catch(_){}
   return ids;
 }
 async function deleteIfUnreferenced(id){if(id&&!referencedMediaIds().has(id))await deleteMediaRecord(id);}
@@ -4287,8 +4377,13 @@ async function loadMessageMedia(){
   const generation=++mediaLoadGeneration;
   const ids=[...new Set((state.chatHistory||[]).filter(m=>m.mediaId&&!mediaUrlCache.has(m.mediaId)&&!mediaLoadFailed.has(m.mediaId)).map(m=>m.mediaId))];
   for(const id of ids){
-    try{const rec=await getMediaRecord(id);if(rec?.blob)mediaUrlCache.set(id,URL.createObjectURL(rec.blob));else mediaLoadFailed.add(id);}
-    catch(e){mediaLoadFailed.add(id);}
+    try{
+      const rec=await getMediaRecord(id);
+      if(generation!==mediaLoadGeneration)break;
+      const stillReferenced=(state.chatHistory||[]).some(m=>m.mediaId===id);
+      if(!stillReferenced)continue;
+      if(rec?.blob)mediaUrlCache.set(id,URL.createObjectURL(rec.blob));else mediaLoadFailed.add(id);
+    }catch(e){if(generation===mediaLoadGeneration)mediaLoadFailed.add(id);}
   }
   if(ids.length&&generation===mediaLoadGeneration)renderChatHistory(false);
 }
@@ -4303,7 +4398,7 @@ async function migrateLegacyChatMedia(){
   if(changed){save();renderChatHistory(false);}
 }
 
-function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}catch(e){showToast('本地设置保存失败，可能是存储空间不足');}}
+function save(){try{localStorage.setItem(STORAGE_KEY, JSON.stringify(state));return true;}catch(e){showToast('本地设置保存失败，可能是存储空间不足');return false;}}
 function showToast(text){
   toastEl.textContent=text;
   toastEl.classList.add('show');
@@ -4359,21 +4454,50 @@ function scrollChatToBottom(list=$('#chatList')){
     requestAnimationFrame(applyBottom);
   });
 }
-function appendChatMessage(msg, shouldSave=true){
+const MAX_PENDING_CARD_USAGE_EVENTS=1000;
+function appendChatMessage(msg, shouldSave=true, usageEvents=[]){
   ensureChatState();
   if(!msg.id) msg.id=uid(msg.type==='audio'?'a':'m');
+  if(!Array.isArray(state.cardUsageOutbox))state.cardUsageOutbox=[];
+  const queuedEvents=(Array.isArray(usageEvents)?usageEvents:[]).map(event=>({...event,eventId:event.eventId||uid('use'),messageId:msg.id,sourceId:msg.id,usedAt:event.usedAt||Date.now()}));
+  if(state.cardUsageOutbox.length+queuedEvents.length>MAX_PENDING_CARD_USAGE_EVENTS){showToast('聊天字卡使用记录队列已满；本条含字卡的消息暂缓发送，请稍后重试');return null;}
   state.chatHistory.push(msg);
+  if(queuedEvents.length)state.cardUsageOutbox.push(...queuedEvents);
   const list=$('#chatList');
-  if(list){ const row=buildMessageRow(msg); list.appendChild(row); scrollChatToBottom(list); }
-  if(shouldSave) save();
+  let row=null;
+  if(list){ row=buildMessageRow(msg); list.appendChild(row); scrollChatToBottom(list); }
+  if(shouldSave && save()===false){
+    const index=state.chatHistory.findIndex(item=>item.id===msg.id);
+    if(index>=0) state.chatHistory.splice(index,1);
+    if(queuedEvents.length)state.cardUsageOutbox=state.cardUsageOutbox.filter(event=>!queuedEvents.some(queued=>queued.eventId===event.eventId));
+    if(row?.isConnected) row.remove();
+    showToast('消息未能保存，已取消发送，请检查本地存储空间后重试');
+    return null;
+  }
+  if(shouldSave&&queuedEvents.length)flushChatCardUsageOutbox();
   return msg;
+}
+function flushChatCardUsageOutbox(){
+  const api=window.__duoCardSystem;if(!api||typeof api.recordUsageEvent!=='function'||!Array.isArray(state.cardUsageOutbox)||!state.cardUsageOutbox.length)return false;
+  const before=state.cardUsageOutbox.slice(),remaining=[];let processed=0;
+  for(const event of before){if(api.recordUsageEvent(event))processed++;else remaining.push(event);}
+  if(processed){state.cardUsageOutbox=remaining;if(save()===false)state.cardUsageOutbox=before;}
+  return processed>0;
 }
 async function removeChatMessage(mid){
   ensureChatState();
   const idx=state.chatHistory.findIndex(m=>m.id===mid);
   if(idx<0) return false;
   const [removed]=state.chatHistory.splice(idx,1);
-  renderChatHistory(); save();
+  // The persisted message is the source of truth for media reachability.
+  // Never collect its media until the metadata commit has succeeded.
+  if(save()===false){
+    state.chatHistory.splice(idx,0,removed);
+    renderChatHistory(false);
+    showToast('消息删除未能保存，原消息和附件均已保留');
+    return false;
+  }
+  renderChatHistory();
   if(removed?.mediaId) await deleteIfUnreferenced(removed.mediaId);
   return true;
 }
@@ -4430,13 +4554,16 @@ function getReplyDelayMs(){
   if(!Number.isFinite(max) || max<min) max=min;
   return Math.round((Math.random()*(max-min)+min)*1000);
 }
-function pickReplyText(){
-  const pool=(state.cardPhrases||[]).map(v=>String(v||'').trim()).filter(Boolean);
-  return pool.length ? pool[Math.floor(Math.random()*pool.length)] : '';
+function pickReplyCard(){
+  const pool=(state.cardPhrases||[]).map((text,index)=>({text:String(text||'').trim(),index})).filter(x=>x.text);
+  if(!pool.length)return null;
+  const selected=pool[Math.floor(Math.random()*pool.length)];
+  return {text:selected.text,cardId:window.__duoCardSystem?.getCardIdAt?.('chat',selected.index)||window.__duoCardSystem?.getCardId?.(selected.text,'chat')||null};
 }
 function triggerReply(metaEl){
-  const replyText=pickReplyText();
-  if(!replyText) return;
+  const selectedReply=pickReplyCard();
+  if(!selectedReply) return;
+  const replyText=selectedReply.text;
   const delay=getReplyDelayMs();
   const typingEnabled=!!state.typing?.enabled;
   const typingLabel=(state.typing?.text||'正在输入中').trim()||'正在输入中';
@@ -4450,23 +4577,68 @@ function triggerReply(metaEl){
     if(typingTimer){clearTimeout(typingTimer);pendingTypingTimers.delete(typingTimer);}
     removeTypingRow();
     if(metaEl && state.showReadReceipt){const flag=metaEl.querySelector('.read-flag');if(flag)flag.classList.remove('hidden');}
-    appendChatMessage({sender:'other',type:'text',text:replyText,time:'刚刚'});
+    appendChatMessage({sender:'other',type:'text',text:replyText,time:'刚刚'},true,[{eventId:uid('use'),cardId:selectedReply.cardId,source:'chat',textSnapshot:replyText,usedAt:Date.now()}]);
   },delay);
   pendingReplyTimers.add(replyTimer);
+}
+function updatePendingCardFragmentsOnInput(input){
+  let fragments=[];try{fragments=JSON.parse(input.dataset.pendingCardFragments||'[]');}catch(_){}
+  const previous=String(input.dataset.pendingCardSnapshot||''),current=String(input.value||'');
+  if(!fragments.length){input.dataset.pendingCardSnapshot=current;return;}
+  let prefix=0;while(prefix<previous.length&&prefix<current.length&&previous[prefix]===current[prefix])prefix++;
+  let suffix=0;while(suffix<previous.length-prefix&&suffix<current.length-prefix&&previous[previous.length-1-suffix]===current[current.length-1-suffix])suffix++;
+  const oldEnd=previous.length-suffix,newEnd=current.length-suffix,delta=(newEnd-prefix)-(oldEnd-prefix);
+  const kept=[];
+  for(const item of fragments){
+    const start=Number(item.start),end=Number(item.end);
+    if(!Number.isInteger(start)||!Number.isInteger(end)||end<=start)continue;
+    if(oldEnd<=start)kept.push({...item,start:start+delta,end:end+delta});
+    else if(prefix>=end)kept.push(item);
+    else if(current.slice(start,end)===item.textSnapshot)kept.push(item);
+  }
+  input.dataset.pendingCardFragments=JSON.stringify(kept);input.dataset.pendingCardSnapshot=current;
+}
+function addPendingCardFragment(input,start,end,text,cardId,source='chat'){
+  let fragments=[];try{fragments=JSON.parse(input.dataset.pendingCardFragments||'[]');}catch(_){}
+  const delta=text.length-(end-start),kept=[];
+  for(const item of fragments){
+    if(item.end<=start)kept.push(item);
+    else if(item.start>=end)kept.push({...item,start:item.start+delta,end:item.end+delta});
+  }
+  kept.push({start,end:start+text.length,cardId:cardId||null,source,textSnapshot:text});
+  input.dataset.pendingCardFragments=JSON.stringify(kept);input.dataset.pendingCardSnapshot=input.value;
+}
+function getPendingCardUsageEvents(input,txt,allowSearch=false){
+  let fragments=[];try{fragments=JSON.parse(input.dataset.pendingCardFragments||'[]');}catch(_){}
+  const trimmed=String(txt||''),events=[];let searchFrom=0;
+  for(const item of fragments){
+    const phrase=String(item.textSnapshot||'');if(!phrase)continue;
+    let found=-1;
+    if(input.value.trim()===trimmed){const leading=input.value.length-input.value.trimStart().length;const start=Number(item.start)-leading;if(start>=0&&trimmed.slice(start,start+phrase.length)===phrase)found=start;}
+    if(found<0&&allowSearch)found=trimmed.indexOf(phrase,searchFrom);
+    if(found>=0){events.push({eventId:uid('use'),cardId:item.cardId||null,source:item.source||'chat',textSnapshot:phrase,usedAt:Date.now()});searchFrom=found+phrase.length;}
+  }
+  return events;
 }
 function sendCurrentText(forceText){
   const input=$('#chatInput');
   const txt=(forceText!==undefined?String(forceText):String(input.value||'')).trim();
-  if(!txt) return;
+  if(!txt) return false;
+  const usageEvents=getPendingCardUsageEvents(input,txt,forceText!==undefined);
+  const previousLastChatAt=state.offline.lastChatAt;
   state.offline.lastChatAt=Date.now();
-  const msg=appendChatMessage({sender:'me',type:'text',text:txt,time:formatHM(),read:false});
+  const msg=appendChatMessage({sender:'me',type:'text',text:txt,time:formatHM(),read:false},true,usageEvents);
+  if(!msg){state.offline.lastChatAt=previousLastChatAt;return false;}
+  delete input.dataset.pendingCardText;delete input.dataset.pendingCardId;delete input.dataset.pendingCardSource;delete input.dataset.pendingCardFragments;delete input.dataset.pendingCardSnapshot;
   if(forceText===undefined) input.value='';
   $('#inputHelper').classList.remove('show');
   $('#morePanel').classList.remove('show');
   const list=$('#chatList');
   const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
   triggerReply(row?row.querySelector('.meta'):null);
+  return true;
 }
+
 let wakeLock=null;
 let callTimerHandle=null;
 async function requestWakeLock(){
@@ -4736,21 +4908,34 @@ async function restoreCallIfNeeded(){
 function processOfflineCatchup(){
   const now=Date.now();
   const hiddenAt=Number(state.offline?.lastHiddenAt||0);
-  if(!hiddenAt) return;
-  if(state.offline?.chatEnabled && (state.cardPhrases||[]).some(v=>String(v||'').trim())){
+  if(!hiddenAt)return false;
+  const before=JSON.parse(JSON.stringify(state));
+  if(state.offline?.chatEnabled&&(state.cardPhrases||[]).some(v=>String(v||'').trim())){
     const minMs=Math.max(1,Number(state.offline.chatMin||30))*60000;
     const maxMs=Math.max(minMs,Number(state.offline.chatMax||180))*60000;
     const base=Math.max(Number(state.offline.lastChatAt||hiddenAt),hiddenAt);
     const passed=now-base;
     if(passed>=minMs){
-      const count=Math.min(3, Math.max(1, Math.floor(passed/maxMs)+1));
-      for(let i=0;i<count;i++){const reply=pickReplyText();if(reply)appendChatMessage({sender:'other',type:'text',text:reply,time:'离线后'});}
+      const count=Math.min(3,Math.max(1,Math.floor(passed/maxMs)+1));
+      for(let i=0;i<count;i++){
+        const reply=pickReplyCard();
+        if(reply)appendChatMessage({sender:'other',type:'text',text:reply.text,time:'离线后'},false,[{eventId:uid('use'),cardId:reply.cardId,source:'chat-offline',textSnapshot:reply.text,usedAt:Date.now()}]);
+      }
       state.offline.lastChatAt=now;
     }
   }
   state.offline.lastHiddenAt=0;
-  save();
+  if(save()===false){
+    Object.keys(state).forEach(key=>{if(!(key in before))delete state[key];});
+    Object.assign(state,before);
+    renderChatHistory();
+    showToast('离线补发未能保存，已保留原聊天状态');
+    return false;
+  }
+  flushChatCardUsageOutbox();
+  return true;
 }
+
 function initMiniCallDrag(){
   const mini=$('#miniCallWindow');
   const handle=$('#miniCallDragHandle');
@@ -4985,16 +5170,20 @@ function sendSticker(index){
   const stickerUrl=stickerObjectUrls.get(sticker.id);if(stickerUrl)mediaUrlCache.set(sticker.mediaId,stickerUrl);
   state.offline.lastChatAt=Date.now();
   const msg=appendChatMessage({sender:'me',type:'sticker',mediaId:sticker.mediaId,mediaMime:sticker.mimeType,mediaName:sticker.name,time:formatHM(),read:false});
-  closeEmojiPanel();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
+  if(!msg)return false;
+  closeEmojiPanel();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));return true;
 }
 async function addStickers(files){
+  const before=Array.isArray(state.stickers)?state.stickers.slice():[];
+  const addedMediaIds=[];
   for(const file of [...(files||[])]){
     if(!file.type.startsWith('image/')){showToast('表情包仅支持图片或 GIF');continue;}
     if(file.size>20*1024*1024){showToast('单张表情包不能超过 20 MB');continue;}
-    try{const id=await putMediaBlob(file,'sticker',file.name);state.stickers.push({id:uid('stk'),mediaId:id,mimeType:file.type,name:file.name,size:file.size});}
+    try{const id=await putMediaBlob(file,'sticker',file.name);addedMediaIds.push(id);state.stickers.push({id:uid('stk'),mediaId:id,mimeType:file.type,name:file.name,size:file.size});}
     catch(e){showToast('表情包保存失败，可能是存储空间不足');}
   }
-  save();await renderStickerList();
+  if(save()===false){state.stickers=before;for(const id of addedMediaIds)await deleteIfUnreferenced(id);showToast('表情包资料未能保存，已撤销本次上传');return false;}
+  await renderStickerList();return true;
 }
 function openLongText(){const modal=$('#longTextModal');$('#longTextArea').value=$('#chatInput').value||'';modal.classList.add('show');$('#longTextArea').focus();}
 function closeLongText(){ $('#longTextModal').classList.remove('show'); }
@@ -5015,6 +5204,7 @@ async function sendPendingMedia(){
     const url=URL.createObjectURL(item.file);mediaUrlCache.set(id,url);
     state.offline.lastChatAt=Date.now();
     const msg=appendChatMessage({sender:'me',type:item.kind,mediaId:id,mediaMime:item.file.type,mediaName:item.file.name,mediaSize:item.file.size,time:formatHM(),read:false});
+    if(!msg){await deleteIfUnreferenced(id);mediaUrlCache.delete(id);return;}
     closeMediaPreview();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
   }catch(e){showToast('媒体保存失败，可能是存储空间或浏览器权限不足');}
   finally{btn.disabled=false;}
@@ -5022,7 +5212,7 @@ async function sendPendingMedia(){
 function openEmojiPanel(){const p=$('#emojiPanel');p.classList.toggle('show');p.setAttribute('aria-hidden',p.classList.contains('show')?'false':'true');if(p.classList.contains('show'))renderEmojiPanel();}
 $('#chatInput').addEventListener('focus',()=>$('#inputHelper').classList.add('show'));
 $('#chatInput').addEventListener('click',()=>$('#inputHelper').classList.add('show'));
-$('#chatInput').addEventListener('input',resizeChatInput);
+$('#chatInput').addEventListener('input',()=>{const input=$('#chatInput');updatePendingCardFragmentsOnInput(input);resizeChatInput();});
 $('#chatInput').addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendCurrentText();resizeChatInput();}
 });
@@ -5037,7 +5227,24 @@ $('#stickerUploader').addEventListener('change',async e=>{await addStickers(e.ta
 $('#stickerList').addEventListener('click',async e=>{
   const send=e.target.closest('[data-sticker-send]');const del=e.target.closest('[data-sticker-del]');
   if(send){sendSticker(Number(send.dataset.stickerSend));return;}
-  if(del){const index=Number(del.dataset.stickerDel);if(!Number.isInteger(index)||index<0)return;const [removed]=state.stickers.splice(index,1);save();if(removed){const url=stickerObjectUrls.get(removed.id);const stillUsedByChat=(state.chatHistory||[]).some(msg=>msg.mediaId===removed.mediaId);if(url&&!stillUsedByChat)URL.revokeObjectURL(url);stickerObjectUrls.delete(removed.id);await deleteIfUnreferenced(removed.mediaId);}renderStickerList();}
+  if(del){
+    const index=Number(del.dataset.stickerDel);
+    if(!Number.isInteger(index)||index<0||index>=state.stickers.length)return;
+    const [removed]=state.stickers.splice(index,1);
+    if(save()===false){
+      state.stickers.splice(index,0,removed);
+      renderStickerList();
+      showToast('表情包删除未能保存，原表情包和图片均已保留');
+      return;
+    }
+    renderStickerList();
+    if(removed){
+      const url=stickerObjectUrls.get(removed.id);
+      if(url&&!referencedMediaIds().has(removed.mediaId))URL.revokeObjectURL(url);
+      stickerObjectUrls.delete(removed.id);
+      await deleteIfUnreferenced(removed.mediaId);
+    }
+  }
 });
 $('#plusBtn').addEventListener('click',()=>{closeEmojiPanel();$('#morePanel').classList.toggle('show');});
 $('#quickImageBtn').addEventListener('click',()=>{closeEmojiPanel();$('#morePanel').classList.remove('show');$('#chatImageUploader').click();});
@@ -5051,8 +5258,8 @@ $('#mediaPreviewModal').addEventListener('click',e=>{if(e.target===e.currentTarg
 $('#longTextBtn').addEventListener('click',openLongText);
 $('#longTextClose').addEventListener('click',closeLongText);$('#longTextCancel').addEventListener('click',closeLongText);
 $('#longTextModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLongText();});
-$('#longTextFill').addEventListener('click',()=>{const input=$('#chatInput');input.value=$('#longTextArea').value;resizeChatInput();closeLongText();input.focus();});
-$('#longTextSend').addEventListener('click',()=>{const t=$('#longTextArea').value;if(!t.trim()){showToast('长文本内容不能为空');return;}sendCurrentText(t);$('#chatInput').value='';resizeChatInput();closeLongText();});
+$('#longTextFill').addEventListener('click',()=>{const input=$('#chatInput');input.value=$('#longTextArea').value;delete input.dataset.pendingCardFragments;input.dataset.pendingCardSnapshot=input.value;resizeChatInput();closeLongText();input.focus();});
+$('#longTextSend').addEventListener('click',()=>{const t=$('#longTextArea').value;if(!t.trim()){showToast('长文本内容不能为空');return;}if(sendCurrentText(t)){ $('#chatInput').value='';resizeChatInput();closeLongText(); }});
 $('#clipboardBtn').addEventListener('click',async()=>{
   const input=$('#chatInput');
   if(input.value.trim()&&!confirm('输入框已有内容，读取剪贴板会替换它。继续吗？'))return;
@@ -5063,13 +5270,14 @@ $('#clipboardBtn').addEventListener('click',async()=>{
 $('#paramPhraseAddBtn').addEventListener('click',()=>{
   const input=$('#paramPhraseInput'),value=String(input.value||'').trim();
   if(!value){showToast('字卡内容不能为空');return;}
-  state.cardPhrases.unshift(value);input.value='';renderPhraseList();renderParamPhraseList();save();showToast('字卡已添加');
+  try{if(window.__duoCardSystem?.add)window.__duoCardSystem.add('chat',value);else{state.cardPhrases.unshift(value);if(save()===false)throw new Error('保存失败');renderPhraseList();renderParamPhraseList();}input.value='';showToast('字卡已添加');}catch(error){showToast(error.message||'字卡添加失败');}
 });
 $('#paramPhraseInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#paramPhraseAddBtn').click();}});
 $('#paramPhraseList').addEventListener('click',e=>{
   const btn=e.target.closest('[data-param-phrase-del]');if(!btn)return;
   const idx=Number(btn.dataset.paramPhraseDel);if(!Number.isInteger(idx)||idx<0||idx>=state.cardPhrases.length)return;
-  state.cardPhrases.splice(idx,1);renderPhraseList();renderParamPhraseList();save();showToast('字卡已删除');
+  try{if(window.__duoCardSystem?.remove)window.__duoCardSystem.remove('chat',idx);else{const removed=state.cardPhrases.splice(idx,1)[0];if(save()===false){state.cardPhrases.splice(idx,0,removed);throw new Error('保存失败');}renderPhraseList();renderParamPhraseList();}showToast('字卡已删除');}catch(error){showToast(error.message||'字卡删除失败');}
+
 });
 $('#audioCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-audio-call]');if(!btn)return;state.callSettings.audioEnabled=btn.dataset.audioCall==='on';syncCallSettings();save();});
 $('#videoCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-video-call]');if(!btn)return;state.callSettings.videoEnabled=btn.dataset.videoCall==='on';syncCallSettings();save();});
@@ -5117,11 +5325,11 @@ $('#incomingRejectBtn').addEventListener('click',rejectIncomingCall);
 $('#phraseBtn').addEventListener('click',openPhraseModal);
 $('#phraseCloseBtn').addEventListener('click',closePhraseModal);
 $('#phraseModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePhraseModal();});
-$('#phraseAddBtn').addEventListener('click',()=>{const inp=$('#phraseInput');const txt=String(inp.value||'').trim();if(!txt){showToast('字卡内容不能为空');return;}state.cardPhrases.unshift(txt);inp.value='';renderPhraseList();renderParamPhraseList();save();});
+$('#phraseAddBtn').addEventListener('click',()=>{const inp=$('#phraseInput');const txt=String(inp.value||'').trim();if(!txt){showToast('字卡内容不能为空');return;}try{if(window.__duoCardSystem?.add)window.__duoCardSystem.add('chat',txt);else{state.cardPhrases.unshift(txt);if(save()===false)throw new Error('保存失败');renderPhraseList();renderParamPhraseList();}inp.value='';}catch(error){showToast(error.message||'字卡添加失败');}});
 $('#phraseList').addEventListener('click',e=>{
   const fill=e.target.closest('[data-phrase-send]');const dele=e.target.closest('[data-phrase-del]');
-  if(fill){const idx=Number(fill.dataset.phraseSend);const txt=state.cardPhrases[idx];if(txt){insertAtCursor($('#chatInput'),txt);closePhraseModal();}}
-  if(dele){const idx=Number(dele.dataset.phraseDel);if(Number.isInteger(idx)&&idx>=0){state.cardPhrases.splice(idx,1);renderPhraseList();renderParamPhraseList();save();}}
+  if(fill){const idx=Number(fill.dataset.phraseSend);const txt=state.cardPhrases[idx];if(txt){const input=$('#chatInput');const start=Number.isInteger(input.selectionStart)?input.selectionStart:input.value.length;const end=Number.isInteger(input.selectionEnd)?input.selectionEnd:start;insertAtCursor(input,txt);addPendingCardFragment(input,start,end,txt,window.__duoCardSystem?.getCardIdAt?.('chat',idx)||window.__duoCardSystem?.getCardId?.(txt,'chat')||null,'chat');closePhraseModal();}}
+  if(dele){const idx=Number(dele.dataset.phraseDel);if(Number.isInteger(idx)&&idx>=0){try{if(window.__duoCardSystem?.remove)window.__duoCardSystem.remove('chat',idx);else{const removed=state.cardPhrases.splice(idx,1)[0];if(save()===false){state.cardPhrases.splice(idx,0,removed);throw new Error('保存失败');}renderPhraseList();renderParamPhraseList();}}catch(error){showToast(error.message||'字卡删除失败');}}}
 });
 $('#callEntry').addEventListener('click',()=>{syncCallSettings();openCallChoice();});
 $('#callChoiceCancel').addEventListener('click',closeCallChoice);
@@ -5290,10 +5498,10 @@ async function* backupJsonParts(kind){
   }else if(kind==='chat'){
     const ids=new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));
     (state.stickers||[]).forEach(s=>{if(s.mediaId)ids.add(s.mediaId);});
-    dataMeta={chatHistory:state.chatHistory,stickers:state.stickers,media: {'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline};
+    dataMeta={chatHistory:state.chatHistory,stickers:state.stickers,media: {'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,chatBeautifyPresetId:state.chatBeautifyPresetId};
     mediaIds=[...ids];
   }else if(kind==='param'){
-    dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings};
+    let circle={};try{circle=getCircleState();}catch(_){}const circleSettings={};for(const key of ['myName','otherName','myAvatar','otherAvatar','myCover','otherCover','autoPost','postMin','postMax','replyMin','replyMax','uiFontScale','notificationsEnabled','nextOtherPostAt'])if(circle[key]!==undefined)circleSettings[key]=circle[key];dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,chatBeautifyPresetId:state.chatBeautifyPresetId,circleSettings};
   }else throw new Error('不支持的备份类型');
   const head={kind,version:3,exportedAt,data:kind==='param'?dataMeta:{...dataMeta,mediaFiles:[]}};
   if(mediaIds.length){
@@ -5337,13 +5545,12 @@ async function buildBackup(kind){
 function triggerDownloadBlob(name,blob){
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
-async function applyBackupPayload(payload){
-  cancelPendingReplies();
+async function applyBackupPayloadInternal(payload){
   // Circle's own native backup is a plain Circle state object, separate from Duo storage.
   if(payload&&Array.isArray(payload.posts)&&('dynamicCards' in payload||'replyCards' in payload)){
-    setCircleState(payload);showToast('朋友圈备份已导入');return;
+    setCircleState(payload);showToast('朋友圈备份已导入');return true;
   }
-  if(!payload||!payload.kind||!payload.data){showToast('备份文件不对');return;}
+  if(!payload||!payload.kind||!payload.data){showToast('备份文件不对');return false;}
   const data=payload.data;
   let allRestoreInitialized=false;
   if(payload.kind==='all'){
@@ -5355,6 +5562,9 @@ async function applyBackupPayload(payload){
     const mediaItems=Array.isArray(data.mediaFiles)?data.mediaFiles.filter(x=>x&&x.id&&x.dataUrl):[];
     const oldMedia=new Map();
     for(const item of mediaItems)oldMedia.set(item.id,await getMediaRecord(item.id));
+    cancelPendingReplies();clearIncomingRingTimer();clearIncomingSchedule(true);
+    window.__duoStickerLibrary?.invalidate?.();
+    if(callTimerHandle){clearInterval(callTimerHandle);callTimerHandle=null;}
     let circleChanged=false;
     try{
       for(const item of mediaItems){
@@ -5367,7 +5577,6 @@ async function applyBackupPayload(payload){
         api.validateState(data.circleState);
         circleChanged=true;setCircleState(data.circleState);
       }
-      clearIncomingRingTimer();clearIncomingSchedule(true);
       Object.assign(state,incoming);
       state.incomingCallSettings=normalizeIncomingCallSettings(incoming.incomingCallSettings||null);
       state.incomingCallNextAt=incoming.incomingCallSettings?Math.max(0,Number(incoming.incomingCallNextAt)||0):0;
@@ -5400,7 +5609,8 @@ async function applyBackupPayload(payload){
       throw err;
     }
   }else if(payload.kind==='chat'){
-    if(!Array.isArray(data.chatHistory)){showToast('此旧版聊天备份不包含聊天记录，无法恢复消息');return;}
+    if(!Array.isArray(data.chatHistory)){showToast('此旧版聊天备份不包含聊天记录，无法恢复消息');return false;}
+    cancelPendingReplies();clearIncomingSchedule(true);window.__duoStickerLibrary?.invalidate?.();
     state.chatHistory=data.chatHistory;
     if(Array.isArray(data.stickers))state.stickers=data.stickers;
     if(Array.isArray(data.mediaFiles))await restoreMediaFiles(data.mediaFiles);
@@ -5412,19 +5622,54 @@ async function applyBackupPayload(payload){
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
     if(data.typing)state.typing=Object.assign(state.typing,data.typing);
     if(data.offline)state.offline=Object.assign(state.offline,data.offline);
+    if(data.chatBeautifyPresetId!==undefined)state.chatBeautifyPresetId=data.chatBeautifyPresetId;
   }else if(payload.kind==='param'){
     if(data.icons)state.icons=Object.assign(state.icons,data.icons);
     if(data.media)state.media=Object.assign(state.media,data.media);
-    for(const key of ['avatarShape','bubbleShape','customCSS'])if(data[key]!==undefined)state[key]=data[key];
+    for(const key of ['avatarShape','bubbleShape','customCSS','chatBeautifyPresetId'])if(data[key]!==undefined)state[key]=data[key];
     for(const key of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[key])state[key]=Object.assign(state[key]||{},data[key]);
     state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings||null);
     clearIncomingSchedule(true);
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
     if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
+    if(data.circleSettings&&typeof data.circleSettings==='object'){const current=getCircleState();const merged={...current,...data.circleSettings};window.__duoCircleApi.validateState(merged);setCircleState(merged);}
     if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
     if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
-  }else{showToast('不支持的备份类型');return;}
-  ensureChatState();if(!allRestoreInitialized){save();init();}showToast('备份已导入');
+  }else{showToast('不支持的备份类型');return false;}
+  ensureChatState();if(!allRestoreInitialized){save();init();renderStickerList();}showToast('备份已导入');return true;
+}
+let legacyRestoreInProgress=false;
+async function applyBackupPayload(payload){
+  if(legacyRestoreInProgress||window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('已有备份导出或恢复任务正在执行，请等待完成');
+  legacyRestoreInProgress=true;window.__duoRestoreInProgress=true;let overlay=null;
+  let oldState=null,oldStorage=null,oldCircle=null,circleCaptured=false;
+  const oldMedia=new Map();
+  try{
+    overlay=document.createElement('div');overlay.id='duoRestoreOverlay';overlay.textContent='正在校验并恢复旧版备份，请勿关闭页面…';overlay.style.cssText='position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,20,20,.72);color:#fff;font:600 15px/1.6 sans-serif;text-align:center;';document.body.appendChild(overlay);
+    window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+    oldState=JSON.stringify(state);oldStorage=localStorage.getItem(STORAGE_KEY);oldCircle=getCircleState();circleCaptured=true;
+    const mediaItems=payload?.data&&Array.isArray(payload.data.mediaFiles)?payload.data.mediaFiles.filter(x=>x&&x.id&&x.dataUrl):[];
+    for(const item of mediaItems)if(!oldMedia.has(item.id))oldMedia.set(item.id,await getMediaRecord(item.id));
+    const result=await applyBackupPayloadInternal(payload);
+    if(result!==false&&payload?.kind&&payload.kind!=='circle'){
+      const persisted=localStorage.getItem(STORAGE_KEY);
+      if(!persisted||JSON.stringify(JSON.parse(persisted))!==JSON.stringify(state))throw new Error('旧版备份主状态写入后回读校验失败');
+    }
+    return result;
+  }catch(error){
+    const rollbackErrors=[];
+    if(oldState!==null){try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);if(localStorage.getItem(STORAGE_KEY)!==oldStorage)throw new Error('主状态回读不一致');}catch(err){rollbackErrors.push('主状态：'+(err.message||err));}}
+    if(circleCaptured){try{if(JSON.stringify(getCircleState())!==JSON.stringify(oldCircle)){setCircleState(oldCircle);if(JSON.stringify(getCircleState())!==JSON.stringify(oldCircle))throw new Error('朋友圈回读不一致');}}catch(err){rollbackErrors.push('朋友圈：'+(err.message||err));}}
+    for(const [id,record] of oldMedia){try{if(record){await putMediaBlob(record.blob,record.kind||'image',record.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size)throw new Error('媒体回读不一致');}else await deleteMediaRecord(id);}catch(err){rollbackErrors.push('媒体 '+id+'：'+(err.message||err));}}
+    if(oldState!==null){
+      mediaLoadGeneration++;mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
+      try{init();renderStickerList();loadMessageMedia();}catch(err){rollbackErrors.push('界面重建：'+(err.message||err));}
+    }
+    if(rollbackErrors.length)throw new Error((error.message||'旧版备份恢复失败')+'；回滚未完全通过：'+rollbackErrors.join('；'));
+    throw error;
+  }finally{
+    overlay?.remove();legacyRestoreInProgress=false;window.__duoRestoreInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();
+  }
 }
 async function downloadBackup(kind){
   try{const blob=await buildBackup(kind);triggerDownloadBlob('双人空间_'+kind+'_backup.json',blob);showToast(kind==='all'?'总备份已导出（含朋友圈）':'备份已导出');}
@@ -5441,16 +5686,98 @@ $('#backupImporter').addEventListener('change',e=>{
 });
 async function clearChatOnly(){
   if(!confirm('确定清空全部聊天记录吗？文字、图片、视频、语音和其他聊天消息都会删除；头像、背景、外观、字卡和表情包会保留。'))return;
-  const ids=[...new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId))];
-  cancelPendingReplies();state.chatHistory=[];save();renderChatHistory();
+  const previousHistory=state.chatHistory;
+  const ids=[...new Set((previousHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId))];
+  state.chatHistory=[];
+  if(save()===false){
+    state.chatHistory=previousHistory;
+    renderChatHistory(false);
+    showToast('清空聊天未能保存，原聊天记录和附件均已保留');
+    return;
+  }
+  cancelPendingReplies();
+  renderChatHistory();
   for(const id of ids)await deleteIfUnreferenced(id);
   showToast('聊天记录已清空');
+}
+async function snapshotMediaRecords(){
+  const db=await openMediaDB();
+  return await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MEDIA_STORE_NAME,'readonly');
+    const request=tx.objectStore(MEDIA_STORE_NAME).getAll();
+    request.onsuccess=()=>resolve(Array.isArray(request.result)?request.result:[]);
+    request.onerror=()=>reject(request.error||new Error('读取媒体快照失败'));
+    tx.onabort=()=>reject(tx.error||new Error('读取媒体快照中断'));
+  });
+}
+async function restoreMediaSnapshot(records){
+  const db=await openMediaDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');
+    const store=tx.objectStore(MEDIA_STORE_NAME);
+    store.clear();
+    for(const record of records||[])store.put(record);
+    tx.oncomplete=resolve;
+    tx.onerror=()=>reject(tx.error||new Error('恢复媒体快照失败'));
+    tx.onabort=()=>reject(tx.error||new Error('恢复媒体快照中断'));
+  });
+  const restored=await snapshotMediaRecords();
+  if(restored.length!==(records||[]).length)throw new Error('媒体快照恢复数量校验失败');
+  const byId=new Map(restored.map(item=>[item.id,item]));
+  for(const original of records||[]){
+    const current=byId.get(original.id);
+    if(!current?.blob||!original?.blob||current.blob.size!==original.blob.size||current.kind!==original.kind||current.name!==original.name)throw new Error('媒体快照恢复内容校验失败：'+original.id);
+  }
 }
 async function resetWholeDuoSpace(){
   if(!confirm('重置将删除双人空间的聊天记录、图片/视频/语音、头像、背景、首页图片、自定义外观、字卡、表情包及全部参数。朋友圈存档不会被删除。建议先导出总备份。确定继续吗？'))return;
   if(!confirm('最后确认：此操作不可撤销。将只重置双人空间，不触碰 Circle 朋友圈存储。现在重置？'))return;
-  try{cancelPendingReplies();await clearMediaDatabase();localStorage.removeItem(STORAGE_KEY);location.reload();}
-  catch(e){showToast('重置未完成：媒体数据库无法清理，双人空间数据暂未删除');}
+  const resetKeys=[STORAGE_KEY,'twodeers_mailbox_letters_v1','twodeers_mailbox_drafts_v1','twodeers_card_system_v1'];
+  const oldStorage=new Map(resetKeys.map(key=>[key,localStorage.getItem(key)]));
+  const oldState=JSON.stringify(state);
+  let oldFonts=null,fontsCaptured=false,mediaSnapshot=null,mediaSnapshotCaptured=false,tasksPaused=false;
+  try{
+    if(window.__duoCircleApi?.pauseTasks)window.__duoCircleApi.pauseTasks();
+    window.__duoMailbox?.pauseTasks?.();
+    tasksPaused=true;
+    // Prepare and verify rollback material before deleting any persistent data.
+    mediaSnapshot=await snapshotMediaRecords();
+    mediaSnapshotCaptured=true;
+    if(window.ChuanXunFontManager){oldFonts=await window.ChuanXunFontManager.exportData();fontsCaptured=true;}
+    for(const key of resetKeys)localStorage.removeItem(key);
+    if(resetKeys.some(key=>localStorage.getItem(key)!==null))throw new Error('本地状态清理回读校验失败');
+    await clearMediaDatabase();
+    if((await snapshotMediaRecords()).length!==0)throw new Error('媒体数据库清理回读校验失败');
+    if(window.ChuanXunFontManager){
+      await window.ChuanXunFontManager.importData({currentFontId:null,fonts:[]},{replace:true});
+      const check=await window.ChuanXunFontManager.exportData();
+      if(Array.isArray(check?.fonts)&&check.fonts.length!==0)throw new Error('字体库清理回读校验失败');
+    }
+    cancelPendingReplies();clearIncomingRingTimer();clearIncomingSchedule(true);
+    location.reload();
+  }catch(e){
+    const rollbackErrors=[];
+    try{Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,JSON.parse(oldState));}catch(err){rollbackErrors.push('内存状态：'+(err.message||err));}
+    for(const [key,value] of oldStorage){
+      try{
+        if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);
+        if(localStorage.getItem(key)!==value)throw new Error('回读不一致');
+      }catch(err){rollbackErrors.push(key+'：'+(err.message||err));}
+    }
+    if(mediaSnapshotCaptured){
+      try{await restoreMediaSnapshot(mediaSnapshot);}
+      catch(err){rollbackErrors.push('媒体：'+(err.message||err));}
+    }
+    if(fontsCaptured&&window.ChuanXunFontManager){
+      try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});}
+      catch(err){rollbackErrors.push('字体：'+(err.message||err));}
+    }
+    if(tasksPaused){window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
+    try{mediaLoadGeneration++;init();renderStickerList();loadMessageMedia();}catch(err){rollbackErrors.push('界面恢复：'+(err.message||err));}
+    try{initializeIncomingCallScheduler();}catch(_){}
+    if(rollbackErrors.length)showToast('重置失败，且回滚存在异常：'+rollbackErrors.join('；'));
+    else showToast('重置未完成，已恢复重置前的数据：'+(e.message||e));
+  }
 }
 $('#clearChatBtn')?.addEventListener('click',clearChatOnly);
 $('#resetAppBtn')?.addEventListener('click',resetWholeDuoSpace);
@@ -5496,6 +5823,7 @@ async function finishVoiceRecord(cancelled=false){
     const duration=Math.max(1,Math.round(durationSec));
     state.offline.lastChatAt=Date.now();
     const msg=appendChatMessage({sender:'me',type:'audio',mediaId:id,mediaMime:blob.type,durationSec:duration,durationLabel:formatAudioSec(duration),time:formatHM(),read:false});
+    if(!msg){await deleteIfUnreferenced(id);mediaUrlCache.delete(id);return;}
     triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));
   }catch(e){showToast('语音文件保存失败，可能是存储空间不足');}
 }
@@ -5512,21 +5840,26 @@ window.addEventListener('focus',()=>{ processOfflineCatchup(); checkIncomingCall
 window.addEventListener('resize',()=>{ if(state.call?.mini) applyMiniCallPosition(); });
 
 $('#hiddenUploader').addEventListener('change', async e=>{
-  const file=e.target.files[0];
-  if(!file || !pendingUploadKey) return;
-  const url=await fileToDataURL(file);
-  if(pendingUploadKey==='home-cover'){
-    state.media['home-cover']=url; applyHomeCover(url);
-  }else if(state.icons[pendingUploadKey]!==undefined){
-    state.icons[pendingUploadKey]=url; applyIcon(pendingUploadKey,url);
-  }else{
-    state.media[pendingUploadKey]=url;
-    if(pendingUploadKey==='avatar-me' || pendingUploadKey==='avatar-other') applyAvatar(pendingUploadKey,url);
-    if(pendingUploadKey==='bg-chat') applyBackground('bg-chat',url);
-  }
-  save(); showToast('已更新');
+  const file=e.target.files&&e.target.files[0];
+  const targetKey=pendingUploadKey;
   pendingUploadKey='';
-  e.target.value='';
+  if(!file || !targetKey){e.target.value='';return;}
+  const previousValue=targetKey==='home-cover'?state.media['home-cover']:(state.icons[targetKey]!==undefined?state.icons[targetKey]:state.media[targetKey]);
+  try{
+    const url=await fileToDataURL(file);
+    if(targetKey==='home-cover'){
+      state.media['home-cover']=url; applyHomeCover(url);
+    }else if(state.icons[targetKey]!==undefined){
+      state.icons[targetKey]=url; applyIcon(targetKey,url);
+    }else{
+      state.media[targetKey]=url;
+      if(targetKey==='avatar-me' || targetKey==='avatar-other') applyAvatar(targetKey,url);
+      if(targetKey==='bg-chat') applyBackground('bg-chat',url);
+    }
+    if(save()===false){if(targetKey==='home-cover'){state.media['home-cover']=previousValue;applyHomeCover(previousValue||'');}else if(state.icons[targetKey]!==undefined){state.icons[targetKey]=previousValue;applyIcon(targetKey,previousValue||'');}else{state.media[targetKey]=previousValue;if(targetKey==='avatar-me'||targetKey==='avatar-other')applyAvatar(targetKey,previousValue||'');if(targetKey==='bg-chat')applyBackground('bg-chat',previousValue||'');}throw new Error('本地存储写入失败，已恢复原图片');}
+    showToast('已更新');
+  }catch(error){showToast('图片读取或保存失败：'+(error.message||error));}
+  finally{e.target.value='';}
 });
 function openUpload(key){ pendingUploadKey=key; $('#hiddenUploader').click(); }
 
@@ -5567,7 +5900,7 @@ function init(){
   restoreCallIfNeeded();
   initializeIncomingCallScheduler();
   if(!state.offline.lastChatAt) state.offline.lastChatAt=Date.now();
-  goto(['homePage','chatPage','circlePage','settingsPage'].includes(state.currentPage)?state.currentPage:'homePage');
+  goto(['homePage','chatPage','circlePage','settingsPage','mailPage'].includes(state.currentPage)?state.currentPage:'homePage');
 }
 init();
 loadMessageMedia();
@@ -5582,5 +5915,8 @@ migrateLegacyChatMedia();
 <script src="backup-v4.js"></script>
 <script src="chat-beautify-presets.js"></script>
 <script src="chat-beautify-manager.js"></script>
+<script src="card-system.js"></script>
+<script src="mailbox-manager.js"></script>
+<script src="settings-pages.js"></script>
 </body>
 </html>
