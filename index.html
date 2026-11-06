@@ -4205,6 +4205,7 @@ window.__duoCircleApi = {
 <button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
 <button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
 
+<button type="button" data-settings-category="stickers"><strong>表情包管理</strong><small>批量选择、删除与导出清单</small></button>
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
 </div>
 <div class="panel-card">
@@ -4703,6 +4704,25 @@ function deleteStickerFromLibrary(id){
   });
   return removed;
 }
+function deleteStickerBatch(ids){
+  const requested=[...new Set((Array.isArray(ids)?ids:[]).filter(id=>typeof id==='string'&&id))];
+  if(!requested.length)return [];
+  const chosen=new Set(requested),removed=[];
+  mutateStickerLibrary(next=>{
+    const keep=[];
+    next.items.forEach(item=>{
+      if(!chosen.has(item.id)){keep.push(item);return;}
+      removed.push(item);
+      if(!next.tombstones.some(entry=>entry.id===item.id))next.tombstones.push({id:item.id,deletedAt:Date.now(),revision:next.revision+1});
+    });
+    if(!removed.length)return false;
+    const removedIds=new Set(removed.map(item=>item.id));
+    next.items=keep;
+    next.favorites=next.favorites.filter(id=>!removedIds.has(id));
+    return true;
+  });
+  return removed;
+}
 function setStickerFavorite(id,enabled){
   let changed=false;
   mutateStickerLibrary(next=>{
@@ -4781,7 +4801,8 @@ window.__duoStickerState={
   applyImportedState:(items,favorites,tombstones)=>applyImportedStickerLibrary(items,favorites,tombstones),
   exportSnapshot:()=>readStickerLibraryStore(),
   restoreSnapshot:snapshot=>restoreStickerLibrarySnapshot(snapshot),
-  isSendable:id=>isStickerSendable(id)
+  isSendable:id=>isStickerSendable(id),
+  deleteBatch:ids=>deleteStickerBatch(ids)
 };
 
 const $=s=>document.querySelector(s);
@@ -6492,6 +6513,7 @@ migrateLegacyChatMedia();
 <script src="custom-font-manager.js"></script>
 <script src="font-panel.js"></script>
 <script src="sticker-library.js"></script>
+<script src="sticker-admin.js"></script>
 <script src="backup-v4.js"></script>
 <script src="chat-beautify-presets.js"></script>
 <script src="chat-beautify-manager.js"></script>

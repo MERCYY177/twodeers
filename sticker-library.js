@@ -10,11 +10,13 @@
     const head=$('#emojiPanel .sticker-head');if(!head)return;
     let bar=$('#duoStickerTabs');
     if(!bar){bar=document.createElement('div');bar.id='duoStickerTabs';bar.className='duo-sticker-tabs';head.insertAdjacentElement('afterend',bar);}
+    let manage=head.querySelector('[data-open-sticker-admin]');
+    if(!manage){manage=document.createElement('button');manage.type='button';manage.className='mini-btn duo-sticker-manage-btn';manage.dataset.openStickerAdmin='1';manage.textContent='管理';head.appendChild(manage);}
     // Normalize both static and dynamically-created markup to exactly these two tabs.
     bar.innerHTML='<button type="button" data-duo-sticker-tab="builtin" class="active">内置</button><button type="button" data-duo-sticker-tab="uploads">我的上传</button><button type="button" data-duo-sticker-tab="favorites">收藏</button>';
     let style=$('#duoStickerLibraryStyle');
     if(!style){style=document.createElement('style');style.id='duoStickerLibraryStyle';document.head.appendChild(style);}
-    style.textContent='.duo-sticker-tabs{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}.duo-sticker-tabs button{flex:1;min-width:0;padding:7px 4px;border:1px solid var(--line);border-radius:9px;background:var(--soft);color:var(--text);font-size:12px}.duo-sticker-tabs button.active{background:var(--accent);border-color:var(--theme-color);color:var(--text);font-weight:700}.duo-sticker-item{position:relative}.duo-sticker-fav{position:absolute;right:7px;top:7px;width:27px;height:27px;border-radius:50%;background:rgba(20,20,20,.58);color:#fff;font-size:15px;display:grid;place-items:center}.duo-sticker-fav.active{color:#ffd36a}';
+    style.textContent='.duo-sticker-tabs{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel)}.duo-sticker-tabs button{flex:1;min-width:0;padding:7px 4px;border:1px solid var(--line);border-radius:9px;background:var(--soft);color:var(--text);font-size:12px}.duo-sticker-tabs button.active{background:var(--accent);border-color:var(--theme-color);color:var(--text);font-weight:700}.duo-sticker-item{position:relative}.duo-sticker-fav{position:absolute;right:7px;top:7px;width:27px;height:27px;border-radius:50%;background:rgba(20,20,20,.58);color:#fff;font-size:15px;display:grid;place-items:center}.duo-sticker-fav.active{color:#ffd36a}.duo-sticker-manage-btn{padding:6px 9px!important;font-size:11px!important}';
   }
   async function render(){
     const generation=++renderGeneration;
@@ -44,6 +46,8 @@
   window.renderStickerList=render;
   window.__duoStickerLibrary={invalidate(){renderGeneration++;stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();}};
   document.addEventListener('click',function(e){
+    const manage=e.target&&e.target.closest?e.target.closest('[data-open-sticker-admin]'):null;
+    if(manage){e.preventDefault();e.stopImmediatePropagation();if(window.__duoOpenSettingsCategory)window.__duoOpenSettingsCategory('stickers');else if(typeof showToast==='function')showToast('表情包管理入口尚未加载');return;}
     const tab=e.target&&e.target.closest?e.target.closest('[data-duo-sticker-tab]'):null;
     if(tab){e.preventDefault();e.stopImmediatePropagation();const next=tab.dataset.duoStickerTab;if(!['builtin','uploads','favorites'].includes(next))return;activeTab=next;render();return;}
     const fav=e.target&&e.target.closest?e.target.closest('[data-duo-sticker-fav]'):null;

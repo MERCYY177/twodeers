@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const start = html.indexOf('function normalizeStickerLibrary(raw){');
+const start = html.indexOf('function isSafeBuiltinStickerAssetUrl(value){');
 const finish = html.indexOf('initializeStickerLibraryStore();', start) + 'initializeStickerLibraryStore();'.length;
 assert.ok(start >= 0 && finish > start, 'sticker library state manager must exist');
 const managerSource = html.slice(start, finish);
