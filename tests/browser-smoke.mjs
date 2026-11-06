@@ -965,10 +965,14 @@ try {
   await page.evaluate(() => goto('chatPage'));
   await page.locator('#chatMoreBtn').click();
   await page.locator('[data-chat-menu="settings"]').click();
-  await page.locator('#circleNoticeEnabled').uncheck();
-  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),false,'the in-app Circle notification switch should persist to Circle state');
-  await page.locator('#circleNoticeEnabled').check();
-  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),true,'Circle notification switch should be reversible');
+  await page.locator('#audioCallSeg [data-audio-call="off"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.audioEnabled),false,'audio call setting should persist through the chat menu');
+  await page.locator('#audioCallSeg [data-audio-call="on"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.audioEnabled),true,'audio call setting should be reversible');
+  await page.locator('#videoCallSeg [data-video-call="off"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.videoEnabled),false,'video call setting should persist through the chat menu');
+  await page.locator('#videoCallSeg [data-video-call="on"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.videoEnabled),true,'video call setting should be reversible');
   await page.locator('#settingsCategoryBack').click();
   await page.evaluate(() => goto('mailPage'));
   await page.locator('#mailComposeBtn').click();
