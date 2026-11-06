@@ -707,8 +707,18 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.waitForFunction(() => state.stickerFavorites.length === 1);
+  const favoriteStoreBeforeReload = await page.evaluate(() => ({
+    stateFavorites: state.stickerFavorites,
+    library: localStorage.getItem('dual_space_sticker_library_v1')
+  }));
+  console.log('STICKER_FAVORITES_BEFORE_RELOAD', JSON.stringify(favoriteStoreBeforeReload));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
+  const favoriteStoreAfterReload = await page.evaluate(() => ({
+    stateFavorites: state.stickerFavorites,
+    library: localStorage.getItem('dual_space_sticker_library_v1')
+  }));
+  console.log('STICKER_FAVORITES_AFTER_RELOAD', JSON.stringify(favoriteStoreAfterReload));
   await page.evaluate(() => document.getElementById('emojiBtn').click());
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
