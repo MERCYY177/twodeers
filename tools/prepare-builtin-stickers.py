@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import shutil
@@ -14,8 +13,7 @@ from collections import Counter
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote
 
-EXPECTED_COUNTS = {"jpeg": 199, "gif": 132, "png": 4, "heif": 18}
-EXTRA_GIF_SHA256 = "efcf43188bb01cf086b851da4cc108327fa5733d588d347b689e5d2f5b836216"
+EXPECTED_COUNTS = {"jpeg": 199, "gif": 131, "png": 4, "heif": 18}
 
 
 def detect_format(data: bytes) -> str | None:
@@ -73,7 +71,6 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive-one", required=True, type=Path)
     parser.add_argument("--archive-two", required=True, type=Path)
-    parser.add_argument("--extra-gif-b64-dir", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args()
 
@@ -139,45 +136,11 @@ def main() -> int:
                     "archiveEntry": entry,
                 })
 
-    if not args.extra_gif_b64_dir.is_dir():
-        raise RuntimeError("Missing additional GIF Base64 directory: " + str(args.extra_gif_b64_dir))
-    parts = sorted(args.extra_gif_b64_dir.glob("part-*.b64"))
-    if not parts:
-        raise RuntimeError("No additional GIF Base64 parts were found")
-    encoded = "".join(part.read_text(encoding="ascii").strip() for part in parts)
-    try:
-        extra = base64.b64decode(encoded, validate=True)
-    except Exception as error:
-        raise RuntimeError("Additional GIF Base64 parts are corrupt: " + str(error)) from error
-    if len(extra) != 91645 or detect_format(extra) != "gif" or sha256(extra) != EXTRA_GIF_SHA256:
-        raise RuntimeError("The reconstructed additional GIF does not match the audited 91,645-byte source")
-    extra_id = "builtin-" + EXTRA_GIF_SHA256[:24]
-    if extra_id in seen_ids:
-        raise RuntimeError("Additional GIF duplicates an existing sticker")
-    relative = "extra/wmqt-6-efcf4318.gif"
-    destination = output_root / "assets" / "builtin-stickers" / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(extra)
-    counts["gif"] += 1
-    total_source_bytes += len(extra)
-    items.append({
-        "id": extra_id,
-        "name": "wmqt (6).gif",
-        "assetUrl": encoded_asset_url(relative),
-        "mimeType": "image/gif",
-        "size": destination.stat().st_size,
-        "sourceBytes": len(extra),
-        "sourceSha256": EXTRA_GIF_SHA256,
-        "format": "gif",
-        "archive": None,
-        "archiveEntry": "wmqt (6).gif",
-    })
-
     actual_counts = {key: counts.get(key, 0) for key in sorted(EXPECTED_COUNTS)}
     if actual_counts != EXPECTED_COUNTS:
         raise RuntimeError(f"Sticker format counts differ from the audited set: {actual_counts}; expected {EXPECTED_COUNTS}")
-    if len(items) != 353:
-        raise RuntimeError(f"Expected 353 built-in stickers, found {len(items)}")
+    if len(items) != 352:
+        raise RuntimeError(f"Expected 352 built-in stickers, found {len(items)}")
     items.sort(key=lambda x: x["id"])
 
     manifest = {

@@ -719,8 +719,13 @@ try {
     library: localStorage.getItem('dual_space_sticker_library_v1')
   }));
   console.log('STICKER_FAVORITES_AFTER_RELOAD', JSON.stringify(favoriteStoreAfterReload));
-  await page.evaluate(() => document.getElementById('emojiBtn').click());
+  await page.evaluate(() => {
+    const panel=document.getElementById('emojiPanel');
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden','false');
+  });
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 1);
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.locator('#stickerList [data-sticker-send]').first().click();

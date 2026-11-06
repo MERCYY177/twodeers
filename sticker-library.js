@@ -61,7 +61,7 @@
     const response=await fetch('assets/builtin-stickers/manifest.json',{cache:'force-cache'});
     if(!response.ok)throw new Error('manifest HTTP '+response.status);
     const manifest=await response.json();
-    if(manifest?.version!==1||manifest.totalCount!==353||!Array.isArray(manifest.items)||manifest.items.length!==353)throw new Error('内置表情包清单数量或版本不匹配');
+    if(manifest?.version!==1||manifest.totalCount!==352||!Array.isArray(manifest.items)||manifest.items.length!==352)throw new Error('内置表情包清单数量或版本不匹配');
     const result=window.__duoStickerState?.registerBuiltins?.(manifest.items);
     if(!result)throw new Error('内置表情包索引接口不可用');
     if(result.added||result.updated)save();

@@ -7,20 +7,17 @@ val stagedAssets = layout.buildDirectory.dir("generated/twodeers-assets")
 val generatedBuiltinStickerSite = layout.buildDirectory.dir("generated/builtin-sticker-site")
 val prepareBuiltinStickers by tasks.registering(Exec::class) {
     group = "build"
-    description = "Prepare all 353 offline built-in stickers, converting HEIF to JPEG."
+    description = "Prepare all 352 offline built-in stickers, converting HEIF to JPEG."
     val archiveOne = repoRoot.resolve("sticker-source/表情包1.zip")
     val archiveTwo = repoRoot.resolve("sticker-source/表情包2.zip")
-    val extraGifParts = repoRoot.resolve("sticker-source/extra-gif-b64")
     val script = repoRoot.resolve("tools/prepare-builtin-stickers.py")
     inputs.files(archiveOne, archiveTwo, script)
-    inputs.dir(extraGifParts)
     outputs.dir(generatedBuiltinStickerSite)
     doFirst { generatedBuiltinStickerSite.get().asFile.deleteRecursively() }
     commandLine(
         "python3", script.absolutePath,
         "--archive-one", archiveOne.absolutePath,
         "--archive-two", archiveTwo.absolutePath,
-        "--extra-gif-b64-dir", extraGifParts.absolutePath,
         "--output-root", generatedBuiltinStickerSite.get().asFile.absolutePath
     )
 }
