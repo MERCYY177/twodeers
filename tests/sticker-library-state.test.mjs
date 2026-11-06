@@ -67,7 +67,8 @@ test('send controls carry stable sticker IDs and send path revalidates the ID af
   assert.match(html, /data-sticker-del-id=/);
   const send = html.match(/async function sendSticker\(stickerId\)\{[\s\S]*?\n\}/)?.[0] || '';
   assert.match(send, /isStickerSendable\(stickerId\)/);
-  assert.match(send, /await getMediaRecord\(sticker\.mediaId\)/);
+  assert.match(send, /await ensureStickerMedia\(sticker\)/);
+  assert.match(send, /current\.mediaId!==resolved\.mediaId/);
   assert.match(send, /const latest=readStickerLibraryStore\(\)/);
   assert.match(send, /latest\.tombstones\.some\(item=>item\.id===stickerId\)/);
 });
