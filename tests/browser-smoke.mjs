@@ -71,12 +71,14 @@ try {
   assert.equal(baseline.twoColumns, 2, 'the original two-column emoji panel must remain');
   const stickerPanel = await page.locator('#emojiPanel').innerText();
   assert.match(stickerPanel, /常用 Emoji/);
+  assert.match(stickerPanel, /内置/);
   assert.match(stickerPanel, /我的上传/);
   assert.match(stickerPanel, /收藏/);
-  assert.doesNotMatch(stickerPanel, /内置表情/);
-  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 0);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="uploads"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="favorites"]').count(), 1);
   assert.equal(await page.locator('.duo-sticker-notice').count(), 0);
-  assert.equal(baseline.tabs, 2, 'only uploads and favorites tabs should be mounted');
+  assert.equal(baseline.tabs, 3, 'builtin, uploads, and favorites tabs should be mounted');
   assert.equal(baseline.backupVersion, 4);
 
   const exposeBeautifySettings = () => page.evaluate(() => {
