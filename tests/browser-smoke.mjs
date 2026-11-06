@@ -684,14 +684,52 @@ try {
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   await page.locator('#stickerUploader').setInputFiles([
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
-    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
+    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif },
+    { name: 'smoke-batch.png', mimeType: 'image/png', buffer: png }
   ]);
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
-  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
-  assert.equal(uploaded.length, 2);
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 3);
+  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType, name:s.name })));
+  assert.equal(uploaded.length, 3);
   assert.ok(uploaded.some(x => x.mimeType === 'image/png'));
   assert.ok(uploaded.some(x => x.mimeType === 'image/gif'));
   await page.waitForFunction(() => [...document.querySelectorAll('#stickerList img')].every(img => img.complete && img.naturalWidth > 0));
+
+  // Exercise the dedicated manager using three real IndexedDB-backed uploads.
+  await page.locator('#emojiPanel [data-open-sticker-admin]').click();
+  await page.waitForSelector('.duo-sticker-admin');
+  await page.waitForFunction(() => document.querySelectorAll('.duo-sticker-admin__item').length === 3);
+  assert.match(await page.locator('[data-sticker-admin-count]').textContent(), /3 张/);
+  await page.evaluate(() => {
+    window.__lastStickerExport = null;
+    window.triggerDownloadBlob = (name,blob) => { window.__lastStickerExport = {name,blob}; };
+  });
+  await page.locator('[data-sticker-admin-export-all-json]').click();
+  const allJson = await page.evaluate(async () => ({name:window.__lastStickerExport.name,data:JSON.parse(await window.__lastStickerExport.blob.text())}));
+  assert.equal(allJson.data.count,3);
+  assert.equal(allJson.data.items.length,3);
+  assert.ok(allJson.data.items.every(item => item.source === 'upload' && item.mediaId));
+  await page.locator('[data-sticker-admin-export-all-csv]').click();
+  const allCsv = await page.evaluate(async () => window.__lastStickerExport.blob.text());
+  assert.match(allCsv,/id,name,mediaId,mimeType,sizeBytes,source,favorite/);
+  const batchSticker = uploaded.find(item => item.name === 'smoke-batch.png');
+  assert.ok(batchSticker);
+  await page.locator('.duo-sticker-admin__item').filter({hasText:'smoke-batch.png'}).locator('[data-sticker-admin-select]').check();
+  assert.match(await page.locator('[data-sticker-admin-selected]').textContent(),/已选 1 张/);
+  await page.locator('[data-sticker-admin-export-selected-json]').click();
+  const selectedJson = await page.evaluate(async () => JSON.parse(await window.__lastStickerExport.blob.text()));
+  assert.equal(selectedJson.count,1);
+  assert.equal(selectedJson.items[0].name,'smoke-batch.png');
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('[data-sticker-admin-delete]').click();
+  await page.waitForFunction(async id => state.stickers.length === 2 && !(await getMediaRecord(id)), batchSticker.mediaId);
+  const batchDeleteAudit = await page.evaluate(id => ({
+    itemStillListed:state.stickers.some(item=>item.id===id),
+    tombstonePresent:(window.__duoStickerState.exportSnapshot().tombstones||[]).some(item=>item.id===id)
+  }),batchSticker.id);
+  assert.deepEqual(batchDeleteAudit,{itemStillListed:false,tombstonePresent:true});
+  await page.locator('#settingsCategoryBack').click();
+  await page.evaluate(() => { const panel=document.getElementById('emojiPanel');panel.classList.add('show');panel.setAttribute('aria-hidden','false'); });
+
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show only the saved upload');
@@ -913,7 +951,7 @@ try {
   }));
   assert.deepEqual(cardAudit,{chat:true,dynamic:true,reply:true,recent:true,previewOnlyDoesNotCount:true},'the three card pools must remain distinct and actual use must be recorded');
   await page.locator('#settingsCategoryBack').click();
-  assert.equal(await page.locator('[data-settings-category]').count(),7,'all seven independent settings categories must be available');
+  assert.equal(await page.locator('[data-settings-category]').count(),8,'all eight independent settings categories must be available');
   await page.locator('[data-settings-category="appearance"]').click();
   const appearanceCategory = await page.evaluate(() => ({theme:!document.getElementById('duoAppearancePanel').hidden,font:!document.getElementById('duoFontPanel').hidden,beautify:!document.getElementById('duoChatBeautifyPanel').hidden}));
   assert.deepEqual(appearanceCategory,{theme:true,font:true,beautify:true},'theme, font and CSS beautification controls should live in the appearance subpage');
