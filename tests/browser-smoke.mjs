@@ -624,10 +624,10 @@ try {
   assert.equal(migratedPreset.storedId,'ink-minimal','legacy ID must be rewritten in persisted state');
   await page.evaluate(id => id ? window.DuoChatBeautify.apply(id) : window.DuoChatBeautify.reset(),previousPresetId);
   await page.evaluate(() => {
-    const p = document.getElementById('settingsPage');
-    const card = document.getElementById('settingsParam');
-    if (p) p.style.display = 'block';
-    if (card) card.style.display = 'block';
+    if (typeof goto === 'function') goto('settingsPage');
+    if (typeof window.__duoOpenSettingsCategory === 'function') {
+      window.__duoOpenSettingsCategory('appearance');
+    }
   });
   await page.locator('#duoThemeMode').selectOption('dark');
   await page.locator('[data-duo-palette="ocean"]').click();
