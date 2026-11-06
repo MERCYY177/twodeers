@@ -28,6 +28,11 @@ test('清单支持全部和已选 JSON / CSV，并标明不包含图片原文件
   }
 });
 
+test('管理页监听共享表情库的跨标签页更新', () => {
+  assert.match(admin,/addEventListener\\('storage'/);
+  assert.match(admin,/dual_space_sticker_library_v1/);
+});
+
 test('批量删除先提交权威库墓碑，再清理未被引用媒体', () => {
   const deleteStart = admin.indexOf('async function deleteItems');
   const deleteEnd = admin.indexOf('function onClick', deleteStart);
