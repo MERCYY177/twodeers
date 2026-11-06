@@ -714,7 +714,7 @@ try {
   assert.ok(allJson.data.items.every(item => item.source === 'upload' && item.mediaId));
   await page.locator('[data-sticker-admin-export-all-csv]').click();
   const allCsv = await page.evaluate(async () => window.__lastStickerExport.blob.text());
-  assert.match(allCsv,/id,name,mediaId,mimeType,sizeBytes,source,favorite/);
+  assert.match(allCsv,/"id","name","mediaId","mimeType","sizeBytes","source","favorite"/);
   const batchSticker = uploaded.find(item => item.name === 'smoke-batch.png');
   assert.ok(batchSticker);
   await page.locator('.duo-sticker-admin__item').filter({hasText:'smoke-batch.png'}).locator('[data-sticker-admin-select]').check();
