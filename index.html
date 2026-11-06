@@ -1591,7 +1591,7 @@ button,input,textarea,select{
           <button class="btn ghost" id="importBtn">导入备份</button>
           <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
-        <div class="small" style="margin-top:8px">会备份文字动态、评论、字卡、昵称、头像、背景图和自动互动设置。</div>
+        <div class="small" style="margin-top:8px">会备份文字动态、评论、访客记录、字卡、昵称、头像、背景图和自动互动设置。</div>
       </div>
     </div>
   </div>
@@ -4104,9 +4104,7 @@ window.__duoCircleApi = {
   ackUsageOutbox(ids){const wanted=new Set((ids||[]).map(String));const before=state.usageOutbox.slice();state.usageOutbox=before.filter(x=>!wanted.has(String(x.eventId)));if(save()===false){state.usageOutbox=before;return false;}return true;},
   validateState(data){
     if(!data || typeof data !== 'object' || !Array.isArray(data.posts)) throw new Error('朋友圈备份数据格式无效');
-    const next = Object.assign({}, DEFAULT_STATE, data);
-    normalizeStateShape(next);
-    return next;
+    return buildSanitizedState(data);
   },
   importState(data){
     const next = this.validateState(data);
