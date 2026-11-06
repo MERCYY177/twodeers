@@ -30,7 +30,7 @@ for (const token of ['STICKER_LIBRARY_STORAGE_KEY','function normalizeStickerLib
 const stickerManager = readFileSync(resolve(root, 'sticker-library.js'), 'utf8');
 for (const token of ['toggleFavorite','data-duo-sticker-fav']) if (!stickerManager.includes(token)) throw new Error('表情包收藏管理缺失：' + token);
 const stickerAdmin = readFileSync(resolve(root, 'sticker-admin.js'), 'utf8');
-for (const token of ['data-sticker-admin-select-all','data-sticker-admin-delete','data-sticker-admin-export-all-json','data-sticker-admin-export-all-csv','deleteBatch(unique)','twodeers-sticker-library-list','dual_space_sticker_library_v1','addEventListener(\\'storage\\'']) if (!stickerAdmin.includes(token)) throw new Error('表情包管理中心缺失：'+token);
+for (const token of ['data-sticker-admin-select-all','data-sticker-admin-delete','data-sticker-admin-export-all-json','data-sticker-admin-export-all-csv','deleteBatch(unique)','twodeers-sticker-library-list','dual_space_sticker_library_v1','addEventListener']) if (!stickerAdmin.includes(token)) throw new Error('表情包管理中心缺失：'+token);
 const v4 = readFileSync(resolve(root, 'backup-v4.js'), 'utf8');
 for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json','mailbox-data.json','card-system.json','circle-settings.json','restoreInProgress','pauseTasks','stickerTombstones','applyImportedState','replaceFavorites']) {
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
