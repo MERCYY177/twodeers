@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import shutil
@@ -72,7 +73,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive-one", required=True, type=Path)
     parser.add_argument("--archive-two", required=True, type=Path)
-    parser.add_argument("--extra-gif", required=True, type=Path)
+    parser.add_argument("--extra-gif-b64-dir", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
     args = parser.parse_args()
 
@@ -138,11 +139,18 @@ def main() -> int:
                     "archiveEntry": entry,
                 })
 
-    if not args.extra_gif.is_file():
-        raise RuntimeError("Missing additional GIF: " + str(args.extra_gif))
-    extra = args.extra_gif.read_bytes()
-    if detect_format(extra) != "gif" or sha256(extra) != EXTRA_GIF_SHA256:
-        raise RuntimeError("The additional GIF does not match the audited 91,645-byte source")
+    if not args.extra_gif_b64_dir.is_dir():
+        raise RuntimeError("Missing additional GIF Base64 directory: " + str(args.extra_gif_b64_dir))
+    parts = sorted(args.extra_gif_b64_dir.glob("part-*.b64"))
+    if not parts:
+        raise RuntimeError("No additional GIF Base64 parts were found")
+    encoded = "".join(part.read_text(encoding="ascii").strip() for part in parts)
+    try:
+        extra = base64.b64decode(encoded, validate=True)
+    except Exception as error:
+        raise RuntimeError("Additional GIF Base64 parts are corrupt: " + str(error)) from error
+    if len(extra) != 91645 or detect_format(extra) != "gif" or sha256(extra) != EXTRA_GIF_SHA256:
+        raise RuntimeError("The reconstructed additional GIF does not match the audited 91,645-byte source")
     extra_id = "builtin-" + EXTRA_GIF_SHA256[:24]
     if extra_id in seen_ids:
         raise RuntimeError("Additional GIF duplicates an existing sticker")
