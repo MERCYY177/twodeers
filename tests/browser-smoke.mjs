@@ -688,6 +688,7 @@ try {
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
     { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
   ]);
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
   const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
   assert.equal(uploaded.length, 2);
@@ -726,9 +727,9 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
   await page.evaluate(() => document.getElementById('emojiBtn').click());
-  assert.match(await page.locator('#stickerList').innerText(), /还没有表情包/);
+  assert.match(await page.locator('#stickerList').innerText(), /内置表情包尚未载入/);
   assert.equal(await page.locator('[data-duo-sticker-tab="favorites"]').count(), 1);
-  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 0);
+  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 1);
 
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;
