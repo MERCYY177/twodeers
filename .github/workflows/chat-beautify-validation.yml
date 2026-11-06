@@ -12,6 +12,9 @@ on:
       - "package-lock.json"
       - "index.html"
       - "appearance-manager.js"
+      - "sticker-library.js"
+      - "sticker-admin.js"
+      - "settings-pages.js"
       - ".github/workflows/chat-beautify-validation.yml"
   push:
     branches:
@@ -25,6 +28,9 @@ on:
       - "package-lock.json"
       - "index.html"
       - "appearance-manager.js"
+      - "sticker-library.js"
+      - "sticker-admin.js"
+      - "settings-pages.js"
       - ".github/workflows/chat-beautify-validation.yml"
 
 permissions:
@@ -64,13 +70,13 @@ jobs:
       - name: Package modified source
         if: always()
         run: |
-          git archive --format=zip --output=twodeers-visitors-minute-intervals-20261106.zip HEAD
+          git archive --format=zip --output=twodeers-sticker-management-center-20261106.zip HEAD
       - name: Upload modified source ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-visitors-minute-intervals-20261106
-          path: twodeers-visitors-minute-intervals-20261106.zip
+          name: twodeers-sticker-management-center-20261106
+          path: twodeers-sticker-management-center-20261106.zip
           if-no-files-found: error
           retention-days: 14
       - name: Upload desktop/mobile screenshots and audit reports

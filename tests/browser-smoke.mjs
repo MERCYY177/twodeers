@@ -622,10 +622,14 @@ try {
   assert.equal(migratedPreset.storedId,'ink-minimal','legacy ID must be rewritten in persisted state');
   await page.evaluate(id => id ? window.DuoChatBeautify.apply(id) : window.DuoChatBeautify.reset(),previousPresetId);
   await page.evaluate(() => {
-    const p = document.getElementById('settingsPage');
-    const card = document.getElementById('settingsParam');
-    if (p) p.style.display = 'block';
-    if (card) card.style.display = 'block';
+    if (typeof window.__duoOpenSettingsCategory === 'function') {
+      window.__duoOpenSettingsCategory('appearance');
+    } else {
+      const p = document.getElementById('settingsPage');
+      const card = document.getElementById('settingsParam');
+      if (p) p.style.display = 'block';
+      if (card) card.style.display = 'block';
+    }
   });
   await page.locator('#duoThemeMode').selectOption('dark');
   await page.locator('[data-duo-palette="ocean"]').click();
@@ -684,14 +688,52 @@ try {
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   await page.locator('#stickerUploader').setInputFiles([
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
-    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
+    { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif },
+    { name: 'smoke-batch.png', mimeType: 'image/png', buffer: png }
   ]);
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
-  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
-  assert.equal(uploaded.length, 2);
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 3);
+  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType, name:s.name })));
+  assert.equal(uploaded.length, 3);
   assert.ok(uploaded.some(x => x.mimeType === 'image/png'));
   assert.ok(uploaded.some(x => x.mimeType === 'image/gif'));
   await page.waitForFunction(() => [...document.querySelectorAll('#stickerList img')].every(img => img.complete && img.naturalWidth > 0));
+
+  // Exercise the dedicated manager using three real IndexedDB-backed uploads.
+  await page.locator('#emojiPanel [data-open-sticker-admin]').click();
+  await page.waitForSelector('.duo-sticker-admin');
+  await page.waitForFunction(() => document.querySelectorAll('.duo-sticker-admin__item').length === 3);
+  assert.match(await page.locator('[data-sticker-admin-count]').textContent(), /3 张/);
+  await page.evaluate(() => {
+    window.__lastStickerExport = null;
+    window.triggerDownloadBlob = (name,blob) => { window.__lastStickerExport = {name,blob}; };
+  });
+  await page.locator('[data-sticker-admin-export-all-json]').click();
+  const allJson = await page.evaluate(async () => ({name:window.__lastStickerExport.name,data:JSON.parse(await window.__lastStickerExport.blob.text())}));
+  assert.equal(allJson.data.count,3);
+  assert.equal(allJson.data.items.length,3);
+  assert.ok(allJson.data.items.every(item => item.source === 'upload' && item.mediaId));
+  await page.locator('[data-sticker-admin-export-all-csv]').click();
+  const allCsv = await page.evaluate(async () => window.__lastStickerExport.blob.text());
+  assert.match(allCsv,/"id","name","mediaId","mimeType","sizeBytes","source","favorite"/);
+  const batchSticker = uploaded.find(item => item.name === 'smoke-batch.png');
+  assert.ok(batchSticker);
+  await page.locator('.duo-sticker-admin__item').filter({hasText:'smoke-batch.png'}).locator('[data-sticker-admin-select]').check();
+  assert.match(await page.locator('[data-sticker-admin-selected]').textContent(),/已选 1 张/);
+  await page.locator('[data-sticker-admin-export-selected-json]').click();
+  const selectedJson = await page.evaluate(async () => JSON.parse(await window.__lastStickerExport.blob.text()));
+  assert.equal(selectedJson.count,1);
+  assert.equal(selectedJson.items[0].name,'smoke-batch.png');
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('[data-sticker-admin-delete]').click();
+  await page.waitForFunction(async id => state.stickers.length === 2 && !(await getMediaRecord(id)), batchSticker.mediaId);
+  const batchDeleteAudit = await page.evaluate(id => ({
+    itemStillListed:state.stickers.some(item=>item.id===id),
+    tombstonePresent:(window.__duoStickerState.exportSnapshot().tombstones||[]).some(item=>item.id===id)
+  }),batchSticker.id);
+  assert.deepEqual(batchDeleteAudit,{itemStillListed:false,tombstonePresent:true});
+  await page.locator('#settingsCategoryBack').click();
+  await page.evaluate(() => { const panel=document.getElementById('emojiPanel');panel.classList.add('show');panel.setAttribute('aria-hidden','false'); });
+
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show only the saved upload');
@@ -900,8 +942,10 @@ try {
   assert.equal(afterPreview,recentBeforeDraw,'previewing a random card must not count as actual use');
   assert.equal(await page.locator('[data-card-preview="chat"]').textContent(),'浏览器验收字卡','random draw preview should show the selected card');
   await page.locator('[data-card-use="chat"]').click();
+  await page.locator('[data-card-tab="moments-dynamic"]').click();
   await page.locator('[data-card-input="moments-dynamic"]').fill('朋友圈动态验收字卡');
   await page.locator('[data-card-add="moments-dynamic"]').click();
+  await page.locator('[data-card-tab="moments-reply"]').click();
   await page.locator('[data-card-input="moments-reply"]').fill('朋友圈回复验收字卡');
   await page.locator('[data-card-add="moments-reply"]').click();
   const cardAudit = await page.evaluate(() => ({
@@ -918,11 +962,17 @@ try {
   const appearanceCategory = await page.evaluate(() => ({theme:!document.getElementById('duoAppearancePanel').hidden,font:!document.getElementById('duoFontPanel').hidden,beautify:!document.getElementById('duoChatBeautifyPanel').hidden}));
   assert.deepEqual(appearanceCategory,{theme:true,font:true,beautify:true},'theme, font and CSS beautification controls should live in the appearance subpage');
   await page.locator('#settingsCategoryBack').click();
-  await page.locator('[data-settings-category="calls"]').click();
-  await page.locator('#circleNoticeEnabled').uncheck();
-  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),false,'the in-app Circle notification switch should persist to Circle state');
-  await page.locator('#circleNoticeEnabled').check();
-  assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),true,'Circle notification switch should be reversible');
+  await page.evaluate(() => goto('chatPage'));
+  await page.locator('#chatMoreBtn').click();
+  await page.locator('[data-chat-menu="settings"]').click();
+  await page.locator('#audioCallSeg [data-audio-call="off"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.audioEnabled),false,'audio call setting should persist through the chat menu');
+  await page.locator('#audioCallSeg [data-audio-call="on"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.audioEnabled),true,'audio call setting should be reversible');
+  await page.locator('#videoCallSeg [data-video-call="off"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.videoEnabled),false,'video call setting should persist through the chat menu');
+  await page.locator('#videoCallSeg [data-video-call="on"]').click();
+  assert.equal(await page.evaluate(() => state.callSettings.videoEnabled),true,'video call setting should be reversible');
   await page.locator('#settingsCategoryBack').click();
   await page.evaluate(() => goto('mailPage'));
   await page.locator('#mailComposeBtn').click();

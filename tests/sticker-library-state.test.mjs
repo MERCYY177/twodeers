@@ -21,7 +21,7 @@ function makeTab(storage, initialItems = [], initialFavorites = []) {
   };
   const sandbox = { state, localStorage, window: {}, Date, console, setTimeout, showToast() {}, STICKER_LIBRARY_STORAGE_KEY:'dual_space_sticker_library_v1', STORAGE_KEY:'dual_space_app_clean_test_v1' };
   vm.createContext(sandbox);
-  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot};this.doSave=save;', sandbox);
+  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,deleteStickerBatch,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot};this.doSave=save;', sandbox);
   return sandbox;
 }
 
@@ -162,4 +162,28 @@ test('backup replacement tombstones locally active items omitted by the imported
   const latest=JSON.parse(storage.get(KEY));
   assert.equal(latest.items.some(x=>x.id==='stk-removed-by-restore'),false);
   assert.equal(latest.tombstones.some(x=>x.id==='stk-removed-by-restore'),true);
+});
+
+test('batch deletion removes unique live IDs, favorites and writes all tombstones in one revision', () => {
+  const storage = new Map();
+  const tab = makeTab(storage, [
+    {id:'stk-batch-a',mediaId:'media-a',mimeType:'image/png',name:'a.png',size:1},
+    {id:'stk-batch-b',mediaId:'media-b',mimeType:'image/gif',name:'b.gif',size:2},
+    {id:'stk-batch-c',mediaId:'media-c',mimeType:'image/png',name:'c.png',size:3}
+  ], ['stk-batch-a','stk-batch-b']);
+  const removed = tab.api.deleteStickerBatch(['stk-batch-a','stk-batch-b','stk-batch-a','missing']);
+  assert.deepEqual(Array.from(removed, item=>item.id), ['stk-batch-a','stk-batch-b']);
+  const stored = JSON.parse(storage.get(KEY));
+  assert.equal(stored.items.length, 1);
+  assert.equal(stored.items[0].id, 'stk-batch-c');
+  assert.deepEqual(Array.from(stored.favorites), []);
+  assert.equal(stored.tombstones.length, 2);
+  assert.equal(stored.revision, 1);
+});
+
+test('batch deletion with no live IDs does not create an empty revision', () => {
+  const storage = new Map();
+  const tab = makeTab(storage, [{id:'stk-live',mediaId:'media-live',mimeType:'image/png',name:'live.png',size:1}]);
+  assert.equal(tab.api.deleteStickerBatch(['missing','missing']).length, 0);
+  assert.equal(JSON.parse(storage.get(KEY)).revision, 0);
 });
