@@ -69,7 +69,7 @@ test('朋友圈访客入口、访客列表和自动记录逻辑已恢复',()=>{
 });
 
 test('访客记录从独立备份恢复，旧备份导入不会覆盖已有访客',()=>{
-  assert.match(html,/moments_site_blank_v49_rebuild_baseline_same_layout_visitor_backup_step01b/);
+  assert.match(html,/VISITOR_BACKUP_KEY = STORE_KEY \+ '_visitor_backup_step01b'/);
   assert.match(html,/if\(backupCount>primaryCount\)/);
   assert.match(html,/visitorHadRecords&&\(!Array\.isArray\(state\.visitorRecords\)\|\|!state\.visitorRecords\.length\)&&!allowEmptyVisitorWrite/);
   assert.match(html,/return buildSanitizedState\(data\)/);
