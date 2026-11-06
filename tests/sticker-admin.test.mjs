@@ -11,7 +11,7 @@ test('管理中心从独立设置分类和聊天表情面板入口打开', () =>
   assert.match(html, /data-settings-category="stickers"/);
   assert.match(html, /src="sticker-admin\.js"/);
   assert.match(settings, /stickers:\{title:'表情包管理'/);
-  assert.match(settings, /window\.__duoStickerAdmin\?\.mount\(content\)/);
+  assert.match(settings, /window\.__duoStickerAdmin\.mount\(content\)/);
   assert.match(admin, /data-open-sticker-admin/);
 });
 
