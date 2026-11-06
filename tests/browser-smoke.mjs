@@ -71,12 +71,14 @@ try {
   assert.equal(baseline.twoColumns, 2, 'the original two-column emoji panel must remain');
   const stickerPanel = await page.locator('#emojiPanel').innerText();
   assert.match(stickerPanel, /常用 Emoji/);
+  assert.match(stickerPanel, /内置/);
   assert.match(stickerPanel, /我的上传/);
   assert.match(stickerPanel, /收藏/);
-  assert.doesNotMatch(stickerPanel, /内置表情/);
-  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 0);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="uploads"]').count(), 1);
+  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="favorites"]').count(), 1);
   assert.equal(await page.locator('.duo-sticker-notice').count(), 0);
-  assert.equal(baseline.tabs, 2, 'only uploads and favorites tabs should be mounted');
+  assert.equal(baseline.tabs, 3, 'builtin, uploads, and favorites tabs should be mounted');
   assert.equal(baseline.backupVersion, 4);
 
   const exposeBeautifySettings = () => page.evaluate(() => {
@@ -622,10 +624,10 @@ try {
   assert.equal(migratedPreset.storedId,'ink-minimal','legacy ID must be rewritten in persisted state');
   await page.evaluate(id => id ? window.DuoChatBeautify.apply(id) : window.DuoChatBeautify.reset(),previousPresetId);
   await page.evaluate(() => {
-    const p = document.getElementById('settingsPage');
-    const card = document.getElementById('settingsParam');
-    if (p) p.style.display = 'block';
-    if (card) card.style.display = 'block';
+    if (typeof goto === 'function') goto('settingsPage');
+    if (typeof window.__duoOpenSettingsCategory === 'function') {
+      window.__duoOpenSettingsCategory('appearance');
+    }
   });
   await page.locator('#duoThemeMode').selectOption('dark');
   await page.locator('[data-duo-palette="ocean"]').click();
@@ -686,6 +688,7 @@ try {
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
     { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
   ]);
+  await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
   const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
   assert.equal(uploaded.length, 2);
@@ -701,11 +704,28 @@ try {
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 0, 'unfavoriting should empty the favorites list');
   assert.match(await page.locator('#stickerList').innerText(), /还没有收藏表情包/);
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
   await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
+  await page.waitForFunction(() => state.stickerFavorites.length === 1);
+  const favoriteStoreBeforeReload = await page.evaluate(() => ({
+    stateFavorites: state.stickerFavorites,
+    library: localStorage.getItem('dual_space_sticker_library_v1')
+  }));
+  console.log('STICKER_FAVORITES_BEFORE_RELOAD', JSON.stringify(favoriteStoreBeforeReload));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
-  await page.evaluate(() => document.getElementById('emojiBtn').click());
+  const favoriteStoreAfterReload = await page.evaluate(() => ({
+    stateFavorites: state.stickerFavorites,
+    library: localStorage.getItem('dual_space_sticker_library_v1')
+  }));
+  console.log('STICKER_FAVORITES_AFTER_RELOAD', JSON.stringify(favoriteStoreAfterReload));
+  await page.evaluate(() => {
+    const panel=document.getElementById('emojiPanel');
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden','false');
+  });
   await page.locator('[data-duo-sticker-tab="favorites"]').click();
+  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 1);
   assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
   await page.locator('[data-duo-sticker-tab="uploads"]').click();
   await page.locator('#stickerList [data-sticker-send]').first().click();
@@ -724,9 +744,9 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
   await page.evaluate(() => document.getElementById('emojiBtn').click());
-  assert.match(await page.locator('#stickerList').innerText(), /还没有表情包/);
+  assert.match(await page.locator('#stickerList').innerText(), /内置表情包尚未载入/);
   assert.equal(await page.locator('[data-duo-sticker-tab="favorites"]').count(), 1);
-  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 0);
+  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 1);
 
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;

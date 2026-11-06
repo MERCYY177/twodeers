@@ -2,12 +2,13 @@ name: Android debug APKs
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/builtin-sticker-library"]
     paths:
       - "index.html"
       - "*.js"
       - "*.css"
       - "assets/**"
+      - "sticker-source/**"
       - "android-apps/**"
       - "tests/**"
       - "tools/**"
@@ -31,6 +32,10 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
+      - name: Install FFmpeg for HEIF conversion
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

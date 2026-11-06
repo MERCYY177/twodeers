@@ -4205,6 +4205,7 @@ window.__duoCircleApi = {
 <button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
 <button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
 
+<button type="button" data-settings-category="stickers"><strong>表情包管理</strong><small>批量选择、删除与导出清单</small></button>
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
 </div>
 <div class="panel-card">
@@ -4549,6 +4550,14 @@ try{
   }
  }catch(e){}
 
+function isSafeBuiltinStickerAssetUrl(value){
+  if(typeof value!=='string'||!value.startsWith('assets/builtin-stickers/')||value.includes('\\')||value.includes('?')||value.includes('#'))return false;
+  return value.split('/').every(part=>{
+    if(!part)return false;
+    try{const decoded=decodeURIComponent(part);return decoded!=='.'&&decoded!=='..'&&!decoded.includes('/')&&!decoded.includes('\\');}
+    catch(_){return false;}
+  });
+}
 function normalizeStickerLibrary(raw){
   const source=raw&&typeof raw==='object'?raw:{};
   const tombstoneMap=new Map();
@@ -4562,14 +4571,25 @@ function normalizeStickerLibrary(raw){
   const deleted=new Set(tombstones.map(item=>item.id));
   const seen=new Set(),items=[];
   (Array.isArray(source.items)?source.items:[]).forEach(item=>{
-    if(!item||typeof item.id!=='string'||!item.id||!item.mediaId||deleted.has(item.id)||seen.has(item.id))return;
+    if(!item||typeof item.id!=='string'||!item.id||deleted.has(item.id)||seen.has(item.id))return;
+    const builtin=item.source==='builtin';
+    const mediaId=typeof item.mediaId==='string'?item.mediaId:'';
+    const assetUrl=builtin&&isSafeBuiltinStickerAssetUrl(item.assetUrl)?item.assetUrl:'';
+    if(builtin?!assetUrl:!mediaId)return;
     seen.add(item.id);
-    items.push({id:item.id,mediaId:String(item.mediaId),mimeType:String(item.mimeType||'application/octet-stream'),name:String(item.name||''),size:Math.max(0,Number(item.size)||0)});
+    items.push({
+      id:item.id,mediaId,
+      mimeType:String(item.mimeType||'application/octet-stream'),
+      name:String(item.name||''),
+      size:Math.max(0,Number(item.size)||0),
+      ...(builtin?{source:'builtin',assetUrl}: {})
+    });
   });
   const live=new Set(items.map(item=>item.id));
   const favorites=[...new Set((Array.isArray(source.favorites)?source.favorites:[]).filter(id=>typeof id==='string'&&live.has(id)))];
   return {version:1,revision:Math.max(0,Number(source.revision)||0),items,tombstones,favorites};
 }
+
 function readStickerLibraryStore(){
   const raw=localStorage.getItem(STICKER_LIBRARY_STORAGE_KEY);
   if(raw===null)return null;
@@ -4622,6 +4642,55 @@ function addStickerToLibrary(sticker){
   if(current?.tombstones.some(item=>item.id===sticker.id))throw new Error('该表情包 ID 已删除，不能重新加入');
   return mutateStickerLibrary(next=>{if(!next.items.some(item=>item.id===sticker.id))next.items.push(sticker);});
 }
+function registerBuiltinStickerItems(items){
+  const catalog=(Array.isArray(items)?items:[]).map(item=>{
+    if(!item||typeof item.id!=='string'||!item.id.startsWith('builtin-')||!isSafeBuiltinStickerAssetUrl(item.assetUrl))return null;
+    return {
+      id:item.id,source:'builtin',assetUrl:item.assetUrl,mediaId:'',
+      mimeType:String(item.mimeType||'application/octet-stream'),
+      name:String(item.name||''),size:Math.max(0,Number(item.size)||0)
+    };
+  }).filter(Boolean);
+  let added=0,updated=0;
+  const result=mutateStickerLibrary(next=>{
+    const deleted=new Set(next.tombstones.map(item=>item.id));
+    for(const item of catalog){
+      if(deleted.has(item.id))continue;
+      const existing=next.items.find(current=>current.id===item.id);
+      if(existing){
+        if(existing.source!=='builtin')continue;
+        const merged={...item,mediaId:existing.mediaId||''};
+        if(existing.assetUrl!==merged.assetUrl||existing.mimeType!==merged.mimeType||existing.name!==merged.name||existing.size!==merged.size){
+          Object.assign(existing,merged);updated++;
+        }
+      }else{next.items.push(item);added++;}
+    }
+    return added+updated>0;
+  });
+  return {added,updated,total:result.items.filter(item=>item.source==='builtin').length};
+}
+function attachBuiltinStickerMedia(id,assetUrl,mediaId){
+  let resolved=null;
+  mutateStickerLibrary(next=>{
+    if(next.tombstones.some(item=>item.id===id))return false;
+    const item=next.items.find(current=>current.id===id);
+    if(!item||item.source!=='builtin'||item.assetUrl!==assetUrl)return false;
+    if(item.mediaId){resolved=item.mediaId;return false;}
+    item.mediaId=String(mediaId||'');
+    resolved=item.mediaId||null;
+    return !!resolved;
+  });
+  return resolved;
+}
+function clearBuiltinStickerMedia(id,expectedMediaId){
+  let changed=false;
+  mutateStickerLibrary(next=>{
+    const item=next.items.find(current=>current.id===id);
+    if(!item||item.source!=='builtin'||!item.mediaId||item.mediaId!==expectedMediaId)return false;
+    item.mediaId='';changed=true;return true;
+  });
+  return changed;
+}
 function deleteStickerFromLibrary(id){
   if(typeof id!=='string'||!id)return null;
   let removed=null;
@@ -4631,6 +4700,25 @@ function deleteStickerFromLibrary(id){
     removed=next.items.splice(index,1)[0];
     next.favorites=next.favorites.filter(itemId=>itemId!==id);
     if(!next.tombstones.some(item=>item.id===id))next.tombstones.push({id,deletedAt:Date.now(),revision:next.revision+1});
+    return true;
+  });
+  return removed;
+}
+function deleteStickerBatch(ids){
+  const requested=[...new Set((Array.isArray(ids)?ids:[]).filter(id=>typeof id==='string'&&id))];
+  if(!requested.length)return [];
+  const chosen=new Set(requested),removed=[];
+  mutateStickerLibrary(next=>{
+    const keep=[];
+    next.items.forEach(item=>{
+      if(!chosen.has(item.id)){keep.push(item);return;}
+      removed.push(item);
+      if(!next.tombstones.some(entry=>entry.id===item.id))next.tombstones.push({id:item.id,deletedAt:Date.now(),revision:next.revision+1});
+    });
+    if(!removed.length)return false;
+    const removedIds=new Set(removed.map(item=>item.id));
+    next.items=keep;
+    next.favorites=next.favorites.filter(id=>!removedIds.has(id));
     return true;
   });
   return removed;
@@ -4672,14 +4760,26 @@ function replaceStickerFavorites(ids){
 }
 function applyImportedStickerLibrary(items,favorites,tombstones){
   const existing=readStickerLibraryStore()||normalizeStickerLibrary({});
-  const incomingItems=Array.isArray(items)?items:existing.items;
+  const incomingRaw=Array.isArray(items)?items:existing.items;
+  const incomingBuiltins=new Map(incomingRaw.filter(item=>item&&item.source==='builtin').map(item=>[item.id,item]));
+  const preservedBuiltins=[];
+  for(const current of existing.items.filter(item=>item.source==='builtin')){
+    const incoming=incomingBuiltins.get(current.id);
+    preservedBuiltins.push(incoming?{...current,...incoming,mediaId:current.mediaId||incoming.mediaId||''}:current);
+    incomingBuiltins.delete(current.id);
+  }
+  for(const incoming of incomingBuiltins.values())preservedBuiltins.push({...incoming,mediaId:incoming.mediaId||''});
+  const incomingItems=[...incomingRaw.filter(item=>item&&item.source!=='builtin'),...preservedBuiltins];
   const incomingIds=new Set(incomingItems.map(item=>item?.id).filter(id=>typeof id==='string'&&id));
   const now=Date.now();
-  const removedItems=existing.items.filter(item=>!incomingIds.has(item.id)).map(item=>({id:item.id,deletedAt:now,revision:existing.revision+1}));
+  // Older backups do not know about the built-in catalogue: their omission must never
+  // be interpreted as a deletion or create tombstones for the current built-ins.
+  const removedItems=existing.items.filter(item=>item.source!=='builtin'&&!incomingIds.has(item.id)).map(item=>({id:item.id,deletedAt:now,revision:existing.revision+1}));
   const mergedTombstones=[...existing.tombstones,...(Array.isArray(tombstones)?tombstones:[]),...removedItems];
   const candidate=normalizeStickerLibrary({version:1,revision:existing.revision+1,items:incomingItems,tombstones:mergedTombstones,favorites:Array.isArray(favorites)?favorites:[]});
   return writeStickerLibraryStore(candidate);
 }
+
 function restoreStickerLibrarySnapshot(snapshot){
   if(!snapshot||typeof snapshot!=='object')throw new Error('表情包回滚快照无效');
   const current=readStickerLibraryStore()||normalizeStickerLibrary({});
@@ -4695,10 +4795,14 @@ window.__duoStickerState={
   setFavorite:(id,enabled)=>setStickerFavorite(id,enabled),
   toggleFavorite:id=>toggleStickerFavorite(id),
   replaceFavorites:ids=>replaceStickerFavorites(ids),
+  registerBuiltins:items=>registerBuiltinStickerItems(items),
+  attachBuiltinMedia:(id,assetUrl,mediaId)=>attachBuiltinStickerMedia(id,assetUrl,mediaId),
+  clearBuiltinMedia:(id,mediaId)=>clearBuiltinStickerMedia(id,mediaId),
   applyImportedState:(items,favorites,tombstones)=>applyImportedStickerLibrary(items,favorites,tombstones),
   exportSnapshot:()=>readStickerLibraryStore(),
   restoreSnapshot:snapshot=>restoreStickerLibrarySnapshot(snapshot),
-  isSendable:id=>isStickerSendable(id)
+  isSendable:id=>isStickerSendable(id),
+  deleteBatch:ids=>deleteStickerBatch(ids)
 };
 
 const $=s=>document.querySelector(s);
@@ -4715,6 +4819,8 @@ let pendingChatMedia=null;
 let pendingVoicePress=false;
 let voiceCancelRequested=false;
 let stickerObjectUrls=new Map();
+let builtinStickerMediaJobs=new Map();
+let builtinStickerMediaGeneration=0;
 function openMediaDB(){
   if(mediaDbPromise) return mediaDbPromise;
   mediaDbPromise=new Promise((resolve,reject)=>{
@@ -4756,6 +4862,7 @@ async function deleteMediaRecord(id,dbOverride=null){
 async function clearMediaDatabase(){
   const db=await openMediaDB();
   await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('媒体数据库清理失败'));tx.onabort=()=>reject(tx.error||new Error('媒体数据库清理中断'));});
+  builtinStickerMediaGeneration++;builtinStickerMediaJobs.clear();
   mediaUrlCache.forEach(url=>{if(url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.clear();
 }
 function referencedMediaIds(){
@@ -5575,25 +5682,81 @@ function renderStickerList(){
   if(!state.stickers.length){list.innerHTML='<div class="empty-stickers">还没有表情包，点击“添加图片 / GIF”。</div>';return;}
   list.innerHTML=state.stickers.map((s,i)=>{const url=stickerObjectUrls.get(s.id)||'';const safeId=String(s.id).replace(/["&<>]/g,'');return `<div class="sticker-item" data-sticker-index="${i}"><img src="${url}" alt="表情包"><button class="sticker-send" type="button" data-sticker-send="${i}" data-sticker-send-id="${safeId}" aria-label="发送表情包">发送</button><button class="sticker-del" type="button" data-sticker-del="${i}" data-sticker-del-id="${safeId}" aria-label="删除表情包">×</button></div>`;}).join('');
 }
+async function ensureStickerMedia(sticker){
+  if(!sticker||typeof sticker.id!=='string')return null;
+  if(sticker.source!=='builtin'){
+    if(!sticker.mediaId)return null;
+    const record=await getMediaRecord(sticker.mediaId);
+    return record?.blob?{mediaId:sticker.mediaId,record}:null;
+  }
+  let library=readStickerLibraryStore();
+  let current=library?.items.find(item=>item.id===sticker.id);
+  if(!current||current.source!=='builtin'||library.tombstones.some(item=>item.id===sticker.id))return null;
+  if(current.mediaId){
+    const existing=await getMediaRecord(current.mediaId);
+    if(existing?.blob)return {mediaId:current.mediaId,record:existing};
+    window.__duoStickerState?.clearBuiltinMedia?.(current.id,current.mediaId);
+  }
+  if(builtinStickerMediaJobs.has(sticker.id))return builtinStickerMediaJobs.get(sticker.id);
+  const generation=builtinStickerMediaGeneration;
+  const task=(async()=>{
+    library=readStickerLibraryStore();
+    current=library?.items.find(item=>item.id===sticker.id);
+    if(!current||current.source!=='builtin'||library.tombstones.some(item=>item.id===sticker.id))return null;
+    const response=await fetch(current.assetUrl,{cache:'force-cache'});
+    if(!response.ok)throw new Error('内置表情包资源读取失败（HTTP '+response.status+'）');
+    const fetchedBlob=await response.blob();
+    if(!fetchedBlob.size||fetchedBlob.size!==current.size)throw new Error('内置表情包资源大小校验失败：'+current.name);
+    const head=new Uint8Array(await fetchedBlob.slice(0,16).arrayBuffer());
+    const valid=current.mimeType==='image/gif'
+      ?String.fromCharCode(...head.slice(0,6)).startsWith('GIF8')
+      :current.mimeType==='image/png'
+        ?head.length>=8&&head[0]===137&&head[1]===80&&head[2]===78&&head[3]===71
+        :current.mimeType==='image/jpeg'&&head.length>=3&&head[0]===255&&head[1]===216&&head[2]===255;
+    if(!valid)throw new Error('内置表情包格式校验失败：'+current.name);
+    const beforeWrite=readStickerLibraryStore();
+    const live=beforeWrite?.items.find(item=>item.id===sticker.id);
+    if(generation!==builtinStickerMediaGeneration||window.__duoRestoreInProgress||!live||live.source!=='builtin'||live.assetUrl!==current.assetUrl||beforeWrite.tombstones.some(item=>item.id===sticker.id))return null;
+    const blob=fetchedBlob.type===current.mimeType?fetchedBlob:new Blob([fetchedBlob],{type:current.mimeType});
+    const newMediaId=await putMediaBlob(blob,'sticker',current.name);
+    if(generation!==builtinStickerMediaGeneration||window.__duoRestoreInProgress){
+      try{await deleteIfUnreferenced(newMediaId);}catch(_){}
+      return null;
+    }
+    const attached=window.__duoStickerState?.attachBuiltinMedia?.(sticker.id,current.assetUrl,newMediaId);
+    if(!attached){
+      try{await deleteIfUnreferenced(newMediaId);}catch(_){}
+      return null;
+    }
+    if(attached!==newMediaId){try{await deleteIfUnreferenced(newMediaId);}catch(_){}}
+    if(save()===false)showToast('内置表情包已接入媒体库，但主状态镜像暂未同步');
+    const record=await getMediaRecord(attached);
+    return record?.blob?{mediaId:attached,record}:null;
+  })();
+  builtinStickerMediaJobs.set(sticker.id,task);
+  try{return await task;}
+  finally{if(builtinStickerMediaJobs.get(sticker.id)===task)builtinStickerMediaJobs.delete(sticker.id);}
+}
 async function sendSticker(stickerId){
   if(typeof stickerId!=='string'||!stickerId||!isStickerSendable(stickerId)){showToast('这张表情包已删除或不可用，无法发送');renderStickerList();return false;}
   const library=readStickerLibraryStore();
   const sticker=library?.items.find(item=>item.id===stickerId);
   if(!sticker||library.tombstones.some(item=>item.id===stickerId))return false;
-  let mediaRecord;
-  try{mediaRecord=await getMediaRecord(sticker.mediaId);}catch(_){mediaRecord=null;}
-  // The list may have changed while IndexedDB was being read. Validate the stable ID again immediately before send.
+  let resolved;
+  try{resolved=await ensureStickerMedia(sticker);}catch(error){showToast('表情包图片读取失败：'+(error.message||error));return false;}
+  if(!resolved?.record?.blob){showToast('表情包图片文件不存在，无法发送');return false;}
+  // Revalidate both the stable sticker ID and media binding after any asynchronous fetch / IndexedDB work.
   const latest=readStickerLibraryStore();
   const current=latest?.items.find(item=>item.id===stickerId);
-  if(!current||current.mediaId!==sticker.mediaId||latest.tombstones.some(item=>item.id===stickerId)){showToast('这张表情包已删除，无法发送');renderStickerList();return false;}
-  if(!mediaRecord?.blob){showToast('表情包图片文件不存在，无法发送');return false;}
-  const stickerUrl=stickerObjectUrls.get(sticker.id);if(stickerUrl)mediaUrlCache.set(sticker.mediaId,stickerUrl);
+  if(!current||current.mediaId!==resolved.mediaId||latest.tombstones.some(item=>item.id===stickerId)){showToast('这张表情包已删除，无法发送');renderStickerList();return false;}
+  const stickerUrl=stickerObjectUrls.get(sticker.id);if(stickerUrl)mediaUrlCache.set(resolved.mediaId,stickerUrl);
   const previousLastChatAt=state.offline.lastChatAt;
   state.offline.lastChatAt=Date.now();
-  const msg=appendChatMessage({sender:'me',type:'sticker',mediaId:sticker.mediaId,mediaMime:sticker.mimeType,mediaName:sticker.name,time:formatHM(),read:false});
+  const msg=appendChatMessage({sender:'me',type:'sticker',mediaId:resolved.mediaId,mediaMime:current.mimeType,mediaName:current.name,time:formatHM(),read:false});
   if(!msg){state.offline.lastChatAt=previousLastChatAt;return false;}
   closeEmojiPanel();triggerReply($('#chatList [data-mid="'+msg.id+'"] .meta'));return true;
 }
+
 async function addStickers(files){
   for(const file of [...(files||[])]){
     if(!file.type.startsWith('image/')){showToast('表情包仅支持图片或 GIF');continue;}
@@ -6350,6 +6513,7 @@ migrateLegacyChatMedia();
 <script src="custom-font-manager.js"></script>
 <script src="font-panel.js"></script>
 <script src="sticker-library.js"></script>
+<script src="sticker-admin.js"></script>
 <script src="backup-v4.js"></script>
 <script src="chat-beautify-presets.js"></script>
 <script src="chat-beautify-manager.js"></script>

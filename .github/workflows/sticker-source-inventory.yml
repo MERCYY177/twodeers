@@ -1,0 +1,201 @@
+name: Sticker source inventory
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source archives
+        uses: actions/checkout@v4
+
+      - name: Install image scanner
+        run: python -m pip install --disable-pip-version-check Pillow
+
+      - name: Scan sticker archives and build contact sheets
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv
+          import hashlib
+          import io
+          import json
+          import math
+          import os
+          import zipfile
+          from collections import Counter, defaultdict
+          from pathlib import PurePosixPath
+          from PIL import Image, ImageDraw, ImageFile
+          
+          Image.MAX_IMAGE_PIXELS = 100_000_000
+          ImageFile.LOAD_TRUNCATED_IMAGES = False
+          source = "sticker-source"
+          out = "sticker-inventory"
+          os.makedirs(out, exist_ok=True)
+          archives = sorted(
+              os.path.join(source, name) for name in os.listdir(source)
+              if name.lower().endswith(".zip")
+          )
+          rows = []
+          duplicates = defaultdict(list)
+          format_counts = Counter()
+          errors = []
+          sheets = []
+          def sniff(data):
+              head = data[:64]
+              if head.startswith(bytes.fromhex("ffd8ff")): return "JPEG"
+              if head.startswith(b"\\x89PNG\\r\\n\\x1a\\n"): return "PNG"
+              if head.startswith((b"GIF87a", b"GIF89a")): return "GIF"
+              if head.startswith(b"RIFF") and head[8:12] == b"WEBP": return "WEBP"
+              if head.startswith(b"BM"): return "BMP"
+              if head.startswith((b"II*\\x00", b"MM\\x00*")): return "TIFF"
+              if head.startswith(b"%PDF-"): return "PDF"
+              if head.lstrip().lower().startswith((b"<!doctype html", b"<html")): return "HTML"
+              if head.lstrip().startswith(b"<?xml"): return "XML"
+              return "UNKNOWN"
+          total_uncompressed = 0
+          max_total = 2 * 1024 * 1024 * 1024
+          max_entries = 50000
+          thumb_w, thumb_h = 150, 150
+          cell_w, cell_h = 190, 190
+          per_sheet = 80
+          
+          for archive in archives:
+              archive_name = os.path.basename(archive)
+              with zipfile.ZipFile(archive) as zf:
+                  members = [m for m in zf.infolist() if not m.is_dir()]
+                  if len(members) > max_entries:
+                      raise RuntimeError(f"{archive_name}: entry count exceeds {max_entries}")
+                  images_for_sheet = []
+                  for member in members:
+                      total_uncompressed += member.file_size
+                      if total_uncompressed > max_total:
+                          raise RuntimeError("Total uncompressed size exceeds 2 GiB safety limit")
+                      name = member.filename
+                      path = PurePosixPath(name)
+                      if path.is_absolute() or ".." in path.parts:
+                          errors.append({"archive": archive_name, "file": name, "error": "unsafe archive path; skipped"})
+                          continue
+                      try:
+                          data = zf.read(member)
+                      except Exception as exc:
+                          errors.append({"archive": archive_name, "file": name, "error": f"read: {exc}"})
+                          continue
+                      digest = hashlib.sha256(data).hexdigest()
+                      duplicates[digest].append(f"{archive_name}:{name}")
+                      suffix = os.path.splitext(name)[1].lower()
+                      row = {
+                          "archive": archive_name, "path": name, "extension": suffix,
+                          "bytes": len(data), "sha256": digest, "is_image": False,
+                          "format": "", "width": "", "height": "", "frames": "",
+                          "status": "non-image"
+                      }
+                      try:
+                          with Image.open(io.BytesIO(data)) as im:
+                              fmt = im.format or ""
+                              width, height = im.size
+                              frames = getattr(im, "n_frames", 1)
+                              im.verify()
+                          with Image.open(io.BytesIO(data)) as im:
+                              im.seek(0)
+                              im.load()
+                              im.thumbnail((thumb_w, thumb_h))
+                              thumb = im.convert("RGBA")
+                          row.update(is_image=True, format=fmt, width=width, height=height,
+                                     frames=frames, status="ok")
+                          format_counts[fmt or suffix or "unknown"] += 1
+                          images_for_sheet.append((name, thumb.copy()))
+                      except Exception as exc:
+                          if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".apng"}:
+                              row["status"] = "image-error"
+                              errors.append({"archive": archive_name, "file": name, "error": str(exc)[:300],
+                                             "detected_by_signature": sniff(data),
+                                             "prefix_hex": data[:64].hex(),
+                                             "prefix_text": "".join(chr(b) if 32 <= b < 127 else "." for b in data[:64]),
+                                             "zip_crc32": f"{member.CRC:08x}",
+                                             "zip_compress_type": member.compress_type,
+                                             "zip_uncompressed_bytes": member.file_size,
+                                             "zip_compressed_bytes": member.compress_size})
+                      rows.append(row)
+                  for page_start in range(0, len(images_for_sheet), per_sheet):
+                      page = images_for_sheet[page_start:page_start + per_sheet]
+                      cols = 8
+                      count_rows = math.ceil(len(page) / cols)
+                      sheet = Image.new("RGB", (cols * cell_w, count_rows * cell_h), "white")
+                      draw = ImageDraw.Draw(sheet)
+                      for idx, (name, thumb) in enumerate(page):
+                          x, y = (idx % cols) * cell_w, (idx // cols) * cell_h
+                          px = x + (cell_w - thumb.width) // 2
+                          py = y + 4 + (thumb_h - thumb.height) // 2
+                          sheet.paste(thumb, (px, py), thumb if thumb.mode == "RGBA" else None)
+                          label = name.replace("\\", "/")
+                          draw.text((x + 5, y + 160), label[:34], fill="black")
+                          draw.text((x + 5, y + 176), label[34:68], fill="black")
+                      sheet_name = f"{os.path.splitext(archive_name)[0]}-contact-{page_start // per_sheet + 1:03d}.jpg"
+                      sheet.save(os.path.join(out, sheet_name), quality=82, optimize=True)
+                      sheets.append(sheet_name)
+          
+          fields = ["archive", "path", "extension", "bytes", "sha256", "is_image",
+                    "format", "width", "height", "frames", "status"]
+          with open(os.path.join(out, "files.csv"), "w", newline="", encoding="utf-8-sig") as f:
+              writer = csv.DictWriter(f, fieldnames=fields)
+              writer.writeheader()
+              writer.writerows(rows)
+          with open(os.path.join(out, "files.json"), "w", encoding="utf-8") as f:
+              json.dump(rows, f, ensure_ascii=False, indent=2)
+          duplicate_groups = [v for v in duplicates.values() if len(v) > 1]
+          with open(os.path.join(out, "errors.json"), "w", encoding="utf-8") as f:
+              json.dump(errors, f, ensure_ascii=False, indent=2)
+          error_report = ["# Unreadable image entry diagnostics", ""]
+          for item in errors:
+              error_report.extend([
+                  "## " + item["archive"] + " / " + item["file"],
+                  "- Signature: " + item.get("detected_by_signature", "n/a"),
+                  "- ZIP size: " + str(item.get("zip_uncompressed_bytes", "n/a")) + " bytes",
+                  "- ZIP CRC32: " + item.get("zip_crc32", "n/a"),
+                  "- Prefix hex: " + item.get("prefix_hex", ""),
+                  "- Prefix text: " + item.get("prefix_text", ""),
+                  "- Pillow: " + item["error"], ""
+              ])
+          with open(os.path.join(out, "ERROR-DIAGNOSTICS.md"), "w", encoding="utf-8") as f:
+              f.write("\\n".join(error_report) + "\\n")
+          with open(os.path.join(out, "duplicates.json"), "w", encoding="utf-8") as f:
+              json.dump(duplicate_groups, f, ensure_ascii=False, indent=2)
+          image_rows = [r for r in rows if r["is_image"]]
+          report = [
+              "# Sticker source scan",
+              "",
+              f"- Archives scanned: {len(archives)}",
+              f"- Total files: {len(rows)}",
+              f"- Readable images: {len(image_rows)}",
+              f"- Image errors: {sum(r['status'] == 'image-error' for r in rows)}",
+              f"- Non-image files: {sum(r['status'] == 'non-image' for r in rows)}",
+              f"- Duplicate hash groups: {len(duplicate_groups)}",
+              f"- Total uncompressed bytes scanned: {total_uncompressed}",
+              "",
+              "## Image formats",
+              ""
+          ]
+          report += [f"- {fmt}: {count}" for fmt, count in sorted(format_counts.items())]
+          report += ["", "## Archives", ""]
+          report += [f"- {os.path.basename(p)} ({os.path.getsize(p)} bytes)" for p in archives]
+          report += ["", "## Contact sheets", ""]
+          report += [f"- {name}" for name in sheets]
+          report += ["", "See files.csv / files.json for per-file dimensions, frame counts, hashes and status."]
+          with open(os.path.join(out, "REPORT.md"), "w", encoding="utf-8") as f:
+              f.write("\n".join(report) + "\n")
+          print("\n".join(report[:20]))
+          PY
+
+      - name: Upload inventory and contact sheets
+        uses: actions/upload-artifact@v4
+        with:
+          name: sticker-source-inventory
+          path: sticker-inventory/
+          if-no-files-found: error
+          retention-days: 14
