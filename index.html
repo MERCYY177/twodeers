@@ -373,6 +373,19 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .call-settings-note{margin-top:12px;padding:10px 12px;border-radius:10px;background:#f7f5f2;color:#756b62;font-size:12px;line-height:1.65}
 .call-choice-btn:disabled{opacity:.35;cursor:not-allowed}
 </style>
+<style id="uiLayoutFixes">
+.header-more-btn{width:40px;height:40px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:#555;font-size:28px;line-height:1;padding:0 0 7px}
+.chat-header-menu-host,.mail-header-menu-host{position:relative}
+.header-popup-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:80;min-width:148px;padding:6px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:13px;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.header-popup-menu[hidden]{display:none}
+.header-popup-menu button{display:block;width:100%;padding:12px 13px;text-align:left;border-radius:9px;color:var(--text);font-size:14px;white-space:nowrap}
+.header-popup-menu button:active{background:var(--soft)}
+.mail-settings-modal{position:absolute;inset:0;z-index:100;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.38);padding:12px}
+.mail-settings-modal[hidden]{display:none}
+.mail-settings-sheet{width:min(100%,560px);max-height:82%;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:16px 14px calc(18px + env(safe-area-inset-bottom));box-shadow:0 18px 48px rgba(0,0,0,.22)}
+.mail-settings-sheet .editor-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:16px}
+.mail-settings-sheet .panel-card{padding:0;border:0;box-shadow:none}
+</style>
 </head>
 <body>
 <div class="app" id="app">
@@ -419,13 +432,13 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <div class="icon-slot" id="icon-home-space"><img alt=""/><span>设置图标</span></div>
 <div class="label">朋友圈</div>
 </button>
+<button class="home-card" data-go="mailPage">
+<div class="icon-slot"><span>✉</span></div>
+<div class="label">信箱</div>
+</button>
 <button class="home-card" data-go="settingsPage">
 <div class="icon-slot" id="icon-home-settings"><img alt=""/><span>设置图标</span></div>
 <div class="label">参数区</div>
-</button>
-<button class="home-card" data-go="mailPage">
-<div class="icon-slot"><span>✉</span></div>
-<div class="label">信件</div>
 </button>
 </div>
 </div>
@@ -439,8 +452,13 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <div class="header-title">
 <h2>联系人</h2>
 </div>
-<div class="header-actions">
-<button aria-label="通话" class="call-header-btn" id="callEntry" title="通话" type="button">☎</button></div>
+<div class="header-actions chat-header-menu-host">
+<button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button">⋯</button>
+<div class="header-popup-menu" id="chatMoreMenu" hidden>
+<button type="button" data-chat-menu="call">发起通话</button>
+<button type="button" data-chat-menu="settings">通话设置</button>
+</div>
+</div>
 </div>
 <div class="chat-bg" id="chatList"></div>
 <div class="input-helper" id="inputHelper">
@@ -3971,10 +3989,10 @@ window.__duoCircleApi = {
 <div class="settings-category-grid" id="settingsCategoryGrid">
 <button type="button" data-settings-category="profile"><strong>空间资料</strong><small>头像、封面与首页入口</small></button>
 <button type="button" data-settings-category="chat"><strong>聊天设置</strong><small>回复节奏、已读与聊天规则</small></button>
-<button type="button" data-settings-category="cards"><strong>信件与字卡</strong><small>信箱、草稿、字卡池与最近抽过</small></button>
+<button type="button" data-settings-category="cards"><strong>字卡管理</strong><small>聊天、朋友圈字卡与最近抽过</small></button>
 <button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
 <button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
-<button type="button" data-settings-category="calls"><strong>通知与通话</strong><small>主动来电、语音与视频设置</small></button>
+
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
 </div>
 <div class="panel-card">
@@ -4040,8 +4058,7 @@ window.__duoCircleApi = {
 <div class="param-phrase-list" id="paramPhraseList"></div>
 </div>
 <div class="panel-card" id="paramCallSettingsPanel">
-<h3>通话与视频设置</h3>
-<p class="data-note">开关会控制聊天顶部“通话”菜单中对应的发起入口，并即时保存。此版本支持主动发起语音/视频通话及通话计时、最小化、恢复和结束。</p>
+<h3>通话设置</h3>
 <div class="item-row">
 <div><div class="lab">语音通话</div><div class="desc">允许从聊天顶部通话菜单发起语音通话</div></div>
 <div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div>
@@ -4087,10 +4104,7 @@ window.__duoCircleApi = {
 <div class="lab">输入辅助栏</div>
 <div class="desc">点输入框时先弹长文本 / 剪贴板，再决定怎么输入</div>
 </div>
-<div class="item-row">
-<div class="lab">通话入口</div>
-<div class="desc">语音与视频入口开关位于上方“通话与视频设置”模块。</div>
-</div>
+
 </div>
 </div>
 <div class="panel-card">
@@ -4163,15 +4177,15 @@ window.__duoCircleApi = {
 </section>
 <section class="page" id="mailPage">
 <div class="top-safe"></div>
-<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信件</h2><p>独立信箱 · 草稿与自动来信</p></div></div>
+<div class="header mail-header-menu-host"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div><div class="header-actions"><button aria-label="更多" class="header-more-btn" id="mailMoreBtn" title="更多" type="button">⋯</button><div class="header-popup-menu" id="mailMoreMenu" hidden><button type="button" data-mail-menu="settings">信箱设置</button></div></div></div>
 <div class="page-scroll">
-<div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
-<div class="panel-card"><h3>信件自动化设置</h3><div class="item-row"><label for="mailAutoIncoming">自动来信</label><input id="mailAutoIncoming" type="checkbox"/></div><div class="item-row"><label for="mailAutoReply">自动回信</label><input id="mailAutoReply" type="checkbox"/></div><div class="mail-setting-grid"><label>来信最短间隔（分钟）<input id="mailIncomingMin" type="number" min="1" max="10080"/></label><label>来信最长间隔（分钟）<input id="mailIncomingMax" type="number" min="1" max="10080"/></label><label>回信最短延迟（分钟）<input id="mailReplyMin" type="number" min="1" max="10080"/></label><label>回信最长延迟（分钟）<input id="mailReplyMax" type="number" min="1" max="10080"/></label></div><p class="data-note" id="mailAutoStatus"></p><button class="primary" id="mailSettingsSave" type="button">保存信件设置</button></div>
+<div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><h3 style="margin-top:18px">收件箱</h3><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
 </div>
+<div class="mail-settings-modal" id="mailSettingsModal" hidden><div class="mail-settings-sheet"><div class="editor-head"><strong>信箱设置</strong><button class="icon-close" id="mailSettingsClose" type="button" aria-label="关闭">×</button></div><div class="panel-card" id="mailSettingsPanel"><div class="item-row"><label for="mailAutoIncoming">自动来信</label><input id="mailAutoIncoming" type="checkbox"/></div><div class="item-row"><label for="mailAutoReply">自动回信</label><input id="mailAutoReply" type="checkbox"/></div><div class="mail-setting-grid"><label>来信最短间隔（分钟）<input id="mailIncomingMin" type="number" min="1" max="10080"/></label><label>来信最长间隔（分钟）<input id="mailIncomingMax" type="number" min="1" max="10080"/></label><label>回信最短延迟（分钟）<input id="mailReplyMin" type="number" min="1" max="10080"/></label><label>回信最长延迟（分钟）<input id="mailReplyMax" type="number" min="1" max="10080"/></label></div><p class="data-note" id="mailAutoStatus"></p><button class="primary" id="mailSettingsSave" type="button">保存设置</button></div></div></div>
 <div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-hint" id="mailImageHint">最多 6 张图片</div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
 <div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
 </section>
-<section class="page" id="settingsCategoryPage"><div class="top-safe"></div><div class="header"><button class="back" id="settingsCategoryBack" type="button">‹</button><div class="header-title"><h2 id="settingsCategoryTitle">设置</h2><p>独立设置页面</p></div></div><div class="page-scroll" id="settingsCategoryContent"></div></section>
+<section class="page" id="settingsCategoryPage"><div class="top-safe"></div><div class="header"><button class="back" id="settingsCategoryBack" type="button">‹</button><div class="header-title"><h2 id="settingsCategoryTitle">设置</h2></div></div><div class="page-scroll" id="settingsCategoryContent"></div></section>
 <div class="call-choice" id="callChoiceModal">
 <div class="call-choice-sheet">
 <div class="call-choice-title">选择通话方式</div>
@@ -5331,7 +5345,15 @@ $('#phraseList').addEventListener('click',e=>{
   if(fill){const idx=Number(fill.dataset.phraseSend);const txt=state.cardPhrases[idx];if(txt){const input=$('#chatInput');const start=Number.isInteger(input.selectionStart)?input.selectionStart:input.value.length;const end=Number.isInteger(input.selectionEnd)?input.selectionEnd:start;insertAtCursor(input,txt);addPendingCardFragment(input,start,end,txt,window.__duoCardSystem?.getCardIdAt?.('chat',idx)||window.__duoCardSystem?.getCardId?.(txt,'chat')||null,'chat');closePhraseModal();}}
   if(dele){const idx=Number(dele.dataset.phraseDel);if(Number.isInteger(idx)&&idx>=0){try{if(window.__duoCardSystem?.remove)window.__duoCardSystem.remove('chat',idx);else{const removed=state.cardPhrases.splice(idx,1)[0];if(save()===false){state.cardPhrases.splice(idx,0,removed);throw new Error('保存失败');}renderPhraseList();renderParamPhraseList();}}catch(error){showToast(error.message||'字卡删除失败');}}}
 });
-$('#callEntry').addEventListener('click',()=>{syncCallSettings();openCallChoice();});
+// Header overflow menus mirror the reference project's contextual settings entry points.
+function closeHeaderMenus(){['chatMoreMenu','mailMoreMenu'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=true;});}
+$('#chatMoreBtn').addEventListener('click',e=>{e.stopPropagation();const menu=$('#chatMoreMenu');const opening=menu.hidden;closeHeaderMenus();menu.hidden=!opening;});
+$('#chatMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-chat-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.chatMenu==='call'){syncCallSettings();openCallChoice();}else if(item.dataset.chatMenu==='settings'){if(typeof window.__duoOpenSettingsCategory==='function')window.__duoOpenSettingsCategory('calls');else showToast('通话设置尚未加载');}});
+$('#mailMoreBtn').addEventListener('click',e=>{e.stopPropagation();const menu=$('#mailMoreMenu');const opening=menu.hidden;closeHeaderMenus();menu.hidden=!opening;});
+$('#mailMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-mail-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.mailMenu==='settings')$('#mailSettingsModal').hidden=false;});
+$('#mailSettingsClose').addEventListener('click',()=>{$('#mailSettingsModal').hidden=true;});
+$('#mailSettingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.hidden=true;});
+document.addEventListener('click',e=>{if(!e.target.closest('.chat-header-menu-host,.mail-header-menu-host'))closeHeaderMenus();});
 $('#callChoiceCancel').addEventListener('click',closeCallChoice);
 $('#callChoiceModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCallChoice();});
 $$('[data-call-type]').forEach(btn=>btn.addEventListener('click',()=>startCall(btn.dataset.callType)));
