@@ -216,9 +216,9 @@ test('batch deletion removes selected builtin entries atomically and leaves perm
   ];
   tab.api.registerBuiltinStickerItems(assets);
   const removed = tab.api.deleteStickerBatch(assets.map(item=>item.id));
-  assert.deepEqual(removed.map(item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
+  assert.deepEqual(Array.from(removed, item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
   assert.equal(tab.state.stickers.length, 0);
-  assert.deepEqual(tab.state.stickerTombstones.map(item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
+  assert.deepEqual(Array.from(tab.state.stickerTombstones, item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
   assert.equal(tab.api.registerBuiltinStickerItems(assets).added, 0);
   assert.equal(tab.state.stickers.length, 0);
 });
