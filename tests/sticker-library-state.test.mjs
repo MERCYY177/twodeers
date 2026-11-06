@@ -21,7 +21,7 @@ function makeTab(storage, initialItems = [], initialFavorites = []) {
   };
   const sandbox = { state, localStorage, window: {}, Date, console, setTimeout, showToast() {}, STICKER_LIBRARY_STORAGE_KEY:'dual_space_sticker_library_v1', STORAGE_KEY:'dual_space_app_clean_test_v1' };
   vm.createContext(sandbox);
-  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot,registerBuiltinStickerItems,attachBuiltinStickerMedia,clearBuiltinStickerMedia};this.doSave=save;', sandbox);
+  vm.runInContext(managerSource + '\n' + saveSource + '\nthis.api={readStickerLibraryStore,applyImportedStickerLibrary,deleteStickerFromLibrary,deleteStickerBatch,setStickerFavorite,toggleStickerFavorite,replaceStickerFavorites,isStickerSendable,restoreStickerLibrarySnapshot,registerBuiltinStickerItems,attachBuiltinStickerMedia,clearBuiltinStickerMedia};this.doSave=save;', sandbox);
   return sandbox;
 }
 
@@ -205,4 +205,20 @@ test('built-in catalogue loader uses the packaged offline manifest and shows a s
   const send = html.match(/async function sendSticker\(stickerId\)\{[\s\S]*?\n\}/)?.[0] || '';
   assert.match(send, /ensureStickerMedia\(sticker\)/);
   assert.match(html, /async function ensureStickerMedia\(sticker\)/);
+});
+
+test('batch deletion removes selected builtin entries atomically and leaves permanent tombstones', () => {
+  const storage = new Map();
+  const tab = makeTab(storage);
+  const assets = [
+    {id:'builtin-batch-a',source:'builtin',assetUrl:'assets/builtin-stickers/demo/a.gif',mimeType:'image/gif',name:'a.gif',size:42},
+    {id:'builtin-batch-b',source:'builtin',assetUrl:'assets/builtin-stickers/demo/b.gif',mimeType:'image/gif',name:'b.gif',size:43}
+  ];
+  tab.api.registerBuiltinStickerItems(assets);
+  const removed = tab.api.deleteStickerBatch(assets.map(item=>item.id));
+  assert.deepEqual(removed.map(item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
+  assert.equal(tab.state.stickers.length, 0);
+  assert.deepEqual(tab.state.stickerTombstones.map(item=>item.id).sort(), ['builtin-batch-a','builtin-batch-b']);
+  assert.equal(tab.api.registerBuiltinStickerItems(assets).added, 0);
+  assert.equal(tab.state.stickers.length, 0);
 });

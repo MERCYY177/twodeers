@@ -12,7 +12,7 @@
     if(!bar){bar=document.createElement('div');bar.id='duoStickerTabs';bar.className='duo-sticker-tabs';head.insertAdjacentElement('afterend',bar);}
     let manage=head.querySelector('[data-open-sticker-admin]');
     if(!manage){manage=document.createElement('button');manage.type='button';manage.className='mini-btn duo-sticker-manage-btn';manage.dataset.openStickerAdmin='1';manage.textContent='管理';head.appendChild(manage);}
-    // Normalize both static and dynamically-created markup to exactly these two tabs.
+    // Normalize both static and dynamically-created markup to the same three tabs.
     bar.innerHTML='<button type="button" data-duo-sticker-tab="builtin" class="active">内置</button><button type="button" data-duo-sticker-tab="uploads">我的上传</button><button type="button" data-duo-sticker-tab="favorites">收藏</button>';
     let style=$('#duoStickerLibraryStyle');
     if(!style){style=document.createElement('style');style.id='duoStickerLibraryStyle';document.head.appendChild(style);}
