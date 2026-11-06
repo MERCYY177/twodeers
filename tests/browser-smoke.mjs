@@ -942,8 +942,10 @@ try {
   assert.equal(afterPreview,recentBeforeDraw,'previewing a random card must not count as actual use');
   assert.equal(await page.locator('[data-card-preview="chat"]').textContent(),'浏览器验收字卡','random draw preview should show the selected card');
   await page.locator('[data-card-use="chat"]').click();
+  await page.locator('[data-card-tab="moments-dynamic"]').click();
   await page.locator('[data-card-input="moments-dynamic"]').fill('朋友圈动态验收字卡');
   await page.locator('[data-card-add="moments-dynamic"]').click();
+  await page.locator('[data-card-tab="moments-reply"]').click();
   await page.locator('[data-card-input="moments-reply"]').fill('朋友圈回复验收字卡');
   await page.locator('[data-card-add="moments-reply"]').click();
   const cardAudit = await page.evaluate(() => ({
