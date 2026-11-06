@@ -957,12 +957,14 @@ try {
   }));
   assert.deepEqual(cardAudit,{chat:true,dynamic:true,reply:true,recent:true,previewOnlyDoesNotCount:true},'the three card pools must remain distinct and actual use must be recorded');
   await page.locator('#settingsCategoryBack').click();
-  assert.equal(await page.locator('[data-settings-category]').count(),8,'all eight independent settings categories must be available');
+  assert.equal(await page.locator('[data-settings-category]').count(),7,'all seven independent settings categories must be available');
   await page.locator('[data-settings-category="appearance"]').click();
   const appearanceCategory = await page.evaluate(() => ({theme:!document.getElementById('duoAppearancePanel').hidden,font:!document.getElementById('duoFontPanel').hidden,beautify:!document.getElementById('duoChatBeautifyPanel').hidden}));
   assert.deepEqual(appearanceCategory,{theme:true,font:true,beautify:true},'theme, font and CSS beautification controls should live in the appearance subpage');
   await page.locator('#settingsCategoryBack').click();
-  await page.locator('[data-settings-category="calls"]').click();
+  await page.evaluate(() => goto('chatPage'));
+  await page.locator('#chatMoreBtn').click();
+  await page.locator('[data-chat-menu="settings"]').click();
   await page.locator('#circleNoticeEnabled').uncheck();
   assert.equal(await page.evaluate(() => window.__duoCircleApi.exportState().notificationsEnabled),false,'the in-app Circle notification switch should persist to Circle state');
   await page.locator('#circleNoticeEnabled').check();
