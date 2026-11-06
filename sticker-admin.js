@@ -277,5 +277,6 @@
     root.addEventListener('input',onInput);
     void render();
   }
+  window.addEventListener('storage',event=>{if(event.key==='dual_space_sticker_library_v1')void render();});
   window.__duoStickerAdmin={mount,refresh:render};
 })();
