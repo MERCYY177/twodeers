@@ -1,0 +1,21 @@
+name: Package modified TwoDeers source
+on:
+  push:
+    branches:
+      - "fix/moments-visitors-minute-intervals-20261106"
+    paths:
+      - ".github/workflows/package-source.yml"
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source ZIP
+        run: git archive --format=zip --output=twodeers-visitors-minute-intervals-20261106.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-visitors-minute-intervals-20261106
+          path: twodeers-visitors-minute-intervals-20261106.zip
+          retention-days: 14
