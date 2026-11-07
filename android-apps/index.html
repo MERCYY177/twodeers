@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>双人空间 Android 壳工程 | twodeers</title>
+<meta name="generator" content="Jekyll v3.10.0" />
+<meta property="og:title" content="双人空间 Android 壳工程" />
+<meta property="og:locale" content="en_US" />
+<link rel="canonical" href="https://mercyy177.github.io/twodeers/android-apps/" />
+<meta property="og:url" content="https://mercyy177.github.io/twodeers/android-apps/" />
+<meta property="og:site_name" content="twodeers" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="双人空间 Android 壳工程" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","headline":"双人空间 Android 壳工程","url":"https://mercyy177.github.io/twodeers/android-apps/"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/twodeers/assets/css/style.css?v=2bae986e13f9427c4c3bbbbfd4002f1df3c3f852">
+    <!-- start custom head snippets, customize with your own _includes/head-custom.html file -->
+
+<!-- Setup Google Analytics -->
+
+
+
+<!-- You can set your favicon here -->
+<!-- link rel="shortcut icon" type="image/x-icon" href="/twodeers/favicon.ico" -->
+
+<!-- end custom head snippets -->
+
+  </head>
+  <body>
+    <div class="container-lg px-3 my-5 markdown-body">
+      
+      <h1><a href="https://mercyy177.github.io/twodeers/">twodeers</a></h1>
+      
+
+      <h1 id="双人空间-android-壳工程">双人空间 Android 壳工程</h1>
+
+<p>该工程只负责把仓库根目录当前网页应用封装进 Android WebView，不替换网页业务结构。</p>
+
+<h2 id="网页源码检查">网页源码检查</h2>
+
+<p>在仓库根目录使用 Node.js 22：</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npm ci
+npm run verify
+npm <span class="nb">test</span>
+</code></pre></div></div>
+
+<p>需要运行真实浏览器回归时，先启动本地 HTTP 服务，再执行 <code class="language-plaintext highlighter-rouge">npm run test:browser</code>；若使用系统安装的 Chromium，可设置 <code class="language-plaintext highlighter-rouge">CHROMIUM_PATH</code> 指向浏览器可执行文件。CI 使用锁定的 Playwright 版本并安装对应 Chromium。</p>
+
+<h2 id="gradle-版本">Gradle 版本</h2>
+
+<p>Android GitHub Actions 固定使用 Gradle 8.9。当前源码包未包含 Gradle Wrapper；本地构建仍需自行安装 Gradle 8.9。</p>
+
+<h2 id="构建">构建</h2>
+
+<p>需要 JDK 17、Android SDK Platform 35、Build Tools 35.x 与 Gradle 8.9：</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd </span>android-apps
+gradle :app:assembleDebug
+</code></pre></div></div>
+
+<p>Gradle 的 <code class="language-plaintext highlighter-rouge">stageWebProject</code> 任务会把仓库根目录的 <code class="language-plaintext highlighter-rouge">index.html</code>、JS/CSS/JSON 及 <code class="language-plaintext highlighter-rouge">assets/**</code> 暂存到 APK 的 <code class="language-plaintext highlighter-rouge">assets/site/</code>，入口为 <code class="language-plaintext highlighter-rouge">https://appassets.androidplatform.net/assets/site/index.html</code>。网页使用本地 HTTPS Origin，IndexedDB 与 localStorage 保存在该 APK 的 WebView 数据空间中；它们不会自动继承 GitHub Pages Origin 的数据。</p>
+
+<h2 id="文件处理">文件处理</h2>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">WebChromeClient.onShowFileChooser</code> 接通 Android 文件选择器，网页 <code class="language-plaintext highlighter-rouge">input[type=file]</code> 可读取用户选中的内容。</li>
+  <li>页面导出 Blob 时，原生桥接覆盖双人空间的 <code class="language-plaintext highlighter-rouge">triggerDownloadBlob(name, blob)</code>。用户点击“保存备份到手机”后，通过 <code class="language-plaintext highlighter-rouge">ACTION_CREATE_DOCUMENT</code> 选择目标位置，再以 24 KiB 分块传输。</li>
+  <li>Java 桥接核对实际写入字节数与请求 Blob 大小一致后才完成保存；超过 1 GiB 的单个备份被拒绝。</li>
+</ul>
+
+<h2 id="从网页迁移">从网页迁移</h2>
+
+<p>旧网页数据与 APK 本地 Origin 不同。请先在 GitHub Pages 网页导出“V4 总备份 ZIP”，再在 APK 中导入该 ZIP，并等待资源 SHA-256/CRC32 回读校验完成。相同包名的 APK 更新通常保留应用私有数据；卸载会清除本地数据库，需先导出备份。</p>
+
+<h2 id="验证边界">验证边界</h2>
+
+<p>此工程目前提供可由 GitHub Actions 构建的 debug APK 工程；本工作环境没有 Android SDK、模拟器或真机，未在本机执行 APK 构建、文件选择器真机验证、重启持久化或卸载重装恢复测试。CI workflow 产物为 debug APK，不是签名 release APK。</p>
+
+
+      
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/4.1.0/anchor.min.js" integrity="sha256-lZaRhKri35AyJSypXXs4o6OPFTbTmUoltBbDCbdzegg=" crossorigin="anonymous"></script>
+    <script>anchors.add();</script>
+  </body>
+</html>

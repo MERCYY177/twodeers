@@ -93,13 +93,8 @@
   }
 
   function buildCircleCard(){
-    if($('#duoCircleSettingsEntry'))return;
-    const card=document.createElement('section');
-    card.className='panel-card';
-    card.id='duoCircleSettingsEntry';
-    card.innerHTML='<h3>朋友圈设置</h3><p class="data-note">朋友圈内容和资料在朋友圈页面内管理。</p><button class="primary" type="button" id="openCircleSettingsFromParam">进入朋友圈</button>';
-    card.querySelector('#openCircleSettingsFromParam').addEventListener('click',()=>goto('circlePage'));
-    param()?.appendChild(card);
+    // The category itself is the entry point; do not insert a second placeholder card.
+    $('#duoCircleSettingsEntry')?.remove();
   }
 
   function targetFor(key){
@@ -111,7 +106,6 @@
       mail:'#paramMailSettingsMount .duo-mail-settings',
       stickers:'#paramStickerAdminMount .duo-sticker-admin',
       privacy:'#paramBackupPanel, .backup-management, .data-management',
-      circle:'#duoCircleSettingsEntry'
     };
     if(key==='profile')return $('#settingsIcon');
     const list=(selectors[key]||'').split(',').map(x=>x.trim()).filter(Boolean);
@@ -127,9 +121,11 @@
       return !!target;
     }
     if(key==='circle'){
-      const target=$('#duoCircleSettingsEntry');
-      target?.scrollIntoView({behavior:'smooth',block:'start'});
-      return !!target;
+      const trigger=window.__duoCircleRoot?.querySelector('#backBtn');
+      if(!trigger)return false;
+      goto('circlePage');
+      requestAnimationFrame(()=>{if(trigger.isConnected)trigger.click();});
+      return true;
     }
     const target=targetFor(key);
     if(!target)return false;
@@ -143,6 +139,10 @@
     const hub=$('#settingsCategoryGrid');
     if(!hub||!param())return;
 
+    // Keep the nine requested categories at the very top even when appearance/font
+    // managers injected their own panels before this script booted.
+    param().insertBefore(hub,param().firstElementChild);
+
     buildCardManager();
     if(window.__duoCardSystem?.render)window.__duoCardSystem.render();
     buildCircleCard();
@@ -151,6 +151,8 @@
     setPanelId('聊天规则','paramChatRulesPanel');
     setPanelId('聊天外观','paramAppearancePanel');
     setPanelId('备份与恢复','paramBackupPanel');
+    const legacyChatPool=$('#paramCardPoolPanel');
+    if(legacyChatPool){legacyChatPool.hidden=true;legacyChatPool.style.display='none';legacyChatPool.setAttribute('aria-hidden','true');}
     mountMailbox();
     mountStickerManager();
 

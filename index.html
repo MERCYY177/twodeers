@@ -419,21 +419,58 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .header-popup-menu button{display:block;width:100%;padding:12px 13px;text-align:left;border-radius:9px;color:var(--text);font-size:14px;white-space:nowrap}
 .header-popup-menu button:active{background:var(--soft)}
 </style>
+
+<style id="twodeers-reference-entry-and-picker-fix">
+.chat-header-menu-host{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0}
+.header-mail-btn{width:36px;height:36px;flex:0 0 36px;display:flex;align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:var(--text);font-size:20px;line-height:1;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.header-mail-btn:active{background:var(--soft);transform:scale(.96)}
+.header-more-btn{flex:0 0 36px}
+.header-popup-menu{min-width:148px;max-width:calc(100vw - 16px)}
+.kb-sticker-overlay{position:fixed!important;left:16px!important;right:16px!important;top:auto!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;width:auto!important;height:min(330px,46vh)!important;max-height:46vh!important;display:none!important;align-items:stretch!important;justify-content:stretch!important;padding:0!important;margin:0!important;background:transparent!important;z-index:2200!important;pointer-events:none!important;overflow:hidden!important;box-sizing:border-box!important}
+.kb-sticker-overlay.show{display:flex!important}
+.kb-sticker-sheet{width:100%!important;height:100%!important;max-height:100%!important;min-width:0!important;min-height:0!important;margin:0!important;padding:0!important;border:1px solid var(--line)!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text)!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;box-shadow:0 16px 44px rgba(0,0,0,.16)!important;box-sizing:border-box!important;pointer-events:auto!important}
+.combo-tabs-header{height:58px!important;min-height:58px!important;flex:0 0 58px!important;padding:8px 10px!important;gap:8px!important;display:flex!important;align-items:center!important;border-bottom:1px solid var(--line)!important;background:transparent!important;box-sizing:border-box!important}
+.combo-tab-btn{flex:1 1 0!important;min-width:0!important;height:42px!important;padding:0 6px!important;border:0!important;border-radius:14px!important;background:var(--soft)!important;color:var(--sub)!important;font-size:13px!important;font-weight:800!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.combo-tab-btn.active{background:var(--text)!important;color:var(--bg)!important;box-shadow:0 5px 14px rgba(0,0,0,.12)!important}
+.kb-sticker-add,.kb-sticker-close{width:34px!important;height:34px!important;min-width:34px!important;flex:0 0 34px!important;border:0!important;border-radius:10px!important;background:var(--soft)!important;color:var(--text)!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:20px!important;line-height:1!important}
+.kb-sticker-add[hidden]{display:none!important}
+.combo-content-area{flex:1 1 auto!important;min-height:0!important;width:100%!important;max-width:100%!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch!important;padding:12px!important;box-sizing:border-box!important}
+.combo-pane{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.combo-pane[hidden]{display:none!important}
+#emojiPanelContent .emoji-grid{display:grid!important;grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:8px!important;align-content:start!important;width:100%!important;min-width:0!important}
+#emojiPanelContent .emoji-grid button{height:38px!important;min-width:0!important;max-width:100%!important;padding:0!important;border:0!important;border-radius:10px!important;background:var(--soft)!important;color:var(--text)!important;font-size:24px!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}
+#stickerGrid.kb-sticker-grid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-auto-rows:auto!important;gap:9px!important;align-content:start!important;min-width:0!important;width:100%!important;max-width:100%!important;padding:0!important;overflow:visible!important;box-sizing:border-box!important}
+#stickerGrid .kb-sticker-item{width:100%!important;height:auto!important;min-width:0!important;min-height:0!important;aspect-ratio:1/1!important;box-sizing:border-box!important;padding:4px!important}
+#stickerGrid .kb-sticker-item img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important}
+@media(max-width:380px){
+  .chat-header-menu-host{gap:3px}
+  .header-mail-btn,.header-more-btn{width:34px;flex-basis:34px}
+  .kb-sticker-overlay{left:12px!important;right:12px!important;bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;height:min(330px,46vh)!important;max-height:46vh!important}
+  .combo-tabs-header{gap:6px!important;padding-left:8px!important;padding-right:8px!important}
+  .combo-tab-btn{font-size:12px!important;padding:0 4px!important}
+  .combo-content-area{padding:10px!important}
+}
+@media(min-width:700px){.kb-sticker-overlay{left:auto!important;right:18px!important;width:min(360px,calc(100vw - 36px))!important;height:330px!important;max-height:46vh!important}}
+</style>
 </head>
 <body>
 <div class="app" id="app">
-<div aria-hidden="true" class="emoji-panel" id="emojiPanel">
-<div class="emoji-panel-head"><strong>常用 Emoji</strong><button aria-label="关闭" id="emojiPanelClose" type="button">×</button></div>
-<div class="emoji-scroll"><div class="emoji-grid" id="emojiGrid"></div></div>
-</div>
 <div id="stickerOverlay" class="kb-sticker-overlay" aria-hidden="true">
-  <div class="kb-sticker-sheet" role="dialog" aria-modal="true" aria-label="表情包">
-    <div class="kb-sticker-head">
-      <button id="stickerAdd" class="kb-sticker-add" type="button" aria-label="添加表情包">＋</button>
-      <div class="kb-sticker-title">表情包</div>
-      <button id="stickerClose" class="kb-sticker-close" type="button" aria-label="关闭">✕</button>
+  <div class="kb-sticker-sheet" role="dialog" aria-modal="false" aria-label="表情选择面板">
+    <div class="combo-tabs-header" role="tablist" aria-label="表情分类">
+      <button type="button" class="combo-tab-btn active" data-combo-tab="emoji" role="tab" aria-selected="true">表情符号</button>
+      <button type="button" class="combo-tab-btn" data-combo-tab="stickers" role="tab" aria-selected="false">共享表情包</button>
+      <button id="stickerAdd" class="kb-sticker-add" type="button" aria-label="添加表情包" title="添加表情包" hidden>＋</button>
+      <button id="stickerClose" class="kb-sticker-close" type="button" aria-label="关闭表情面板">×</button>
     </div>
-    <div id="stickerGrid" class="kb-sticker-grid"><div class="kb-sticker-empty">表情包载入中…</div></div>
+    <div class="combo-content-area">
+      <div id="emojiPanelContent" class="combo-pane">
+        <div class="emoji-grid" id="emojiGrid"></div>
+      </div>
+      <div id="stickerPanelContent" class="combo-pane" hidden>
+        <div id="stickerGrid" class="kb-sticker-grid"><div class="kb-sticker-empty">表情包载入中…</div></div>
+      </div>
+    </div>
   </div>
 </div>
 <input accept="image/*,.gif" class="file-input" id="stickerUploader" multiple="" type="file"/><div class="editor-mask" id="longTextModal">
@@ -493,10 +530,12 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <h2>联系人</h2>
 </div>
 <div class="header-actions chat-header-menu-host">
-<button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button">⋯</button>
+<button aria-label="信箱" class="header-mail-btn" id="chatMailboxBtn" data-go="mailPage" title="信箱" type="button">✉</button>
+<button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button" aria-haspopup="true" aria-expanded="false">⋯</button>
 <div class="header-popup-menu" id="chatMoreMenu" hidden>
 <button type="button" data-chat-menu="audio">语音通话</button>
 <button type="button" data-chat-menu="video">视频通话</button>
+<button type="button" data-chat-menu="settings">通话设置</button>
 </div>
 </div>
 </div>
@@ -510,7 +549,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <div class="quick-grid media-quick-grid">
 <button class="quick-item" id="quickImageBtn" type="button"><span class="quick-icon">▧</span><span class="quick-lab">图片</span></button>
 <button class="quick-item" id="quickVideoBtn" type="button"><span class="quick-icon">▷</span><span class="quick-lab">视频</span></button>
-<button class="quick-item" id="quickEmojiBtn" type="button"><span class="quick-icon">☺</span><span class="quick-lab">Emoji</span></button>
 </div>
 </div>
 <div class="composer">
@@ -5745,15 +5783,36 @@ function insertAtCursor(input,text){
   input.value=input.value.slice(0,start)+text+input.value.slice(end);
   const pos=start+text.length;input.focus();input.setSelectionRange(pos,pos);resizeChatInput();
 }
-function closeEmojiPanel(){const panel=$('#emojiPanel');if(panel){panel.classList.remove('show');panel.setAttribute('aria-hidden','true');}}
-function closeStickerPanel(){const panel=$('#stickerOverlay');if(panel){panel.classList.remove('show');panel.setAttribute('aria-hidden','true');}}
-function openStickerPanel(){
-  closeEmojiPanel();$('#morePanel').classList.remove('show');
+function closeEmojiPanel(){
+  const panel=$('#stickerOverlay');
+  if(panel){panel.classList.remove('show');panel.setAttribute('aria-hidden','true');}
+}
+function closeStickerPanel(){closeEmojiPanel();}
+function setComboPickerTab(tab){
   const panel=$('#stickerOverlay');if(!panel)return;
+  const key=tab==='stickers'?'stickers':'emoji';
+  panel.querySelectorAll('[data-combo-tab]').forEach(button=>{
+    const active=button.dataset.comboTab===key;
+    button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));
+  });
+  const emojiPane=$('#emojiPanelContent'),stickerPane=$('#stickerPanelContent'),add=$('#stickerAdd');
+  if(emojiPane)emojiPane.hidden=key!=='emoji';
+  if(stickerPane)stickerPane.hidden=key!=='stickers';
+  if(add)add.hidden=key!=='stickers';
+  if(key==='emoji')renderEmojiPanel();
+  else if(typeof renderStickerList==='function')renderStickerList();
+}
+function showComboPicker(tab,toggle){
+  const panel=$('#stickerOverlay');if(!panel)return;
+  $('#morePanel').classList.remove('show');
+  const wasOpen=panel.classList.contains('show');
+  if(toggle&&wasOpen){closeEmojiPanel();return;}
   if(panel.parentNode!==document.body)document.body.appendChild(panel);
   panel.classList.add('show');panel.setAttribute('aria-hidden','false');
-  if(typeof renderStickerList==='function')renderStickerList();
+  setComboPickerTab(tab||'emoji');
 }
+function openEmojiPanel(){showComboPicker('emoji',true);}
+function openStickerPanel(){showComboPicker('stickers',false);}
 function renderEmojiPanel(){
   const emojis=['😀','😃','😄','😁','😆','😅','😂','🤣','🥹','😊','😇','🙂','🙃','😉','😍','🥰','😘','😗','😚','😋','😛','😜','🤪','😎','🥳','😭','😢','🥺','😤','😡','🤔','🤗','🤫','🤭','🫶','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💕','💞','💗','💓','💖','💘','💝','💌','👍','👎','👏','🙌','🙏','🤝','👌','✌️','🤞','🫰','👋','💪','🌹','🌷','🌸','🌼','✨','⭐','🌙','☀️','☁️','☔','☕','🍰','🎂','🍓','🐱','🐶','🐻','🐼','🐸','🦋','🐣','🎉','🎁','💐'];
   $('#emojiGrid').innerHTML=emojis.map(e=>`<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('');
@@ -5877,7 +5936,6 @@ async function sendPendingMedia(){
   }catch(e){showToast('媒体保存失败，可能是存储空间或浏览器权限不足');}
   finally{btn.disabled=false;}
 }
-function openEmojiPanel(){closeStickerPanel();const p=$('#emojiPanel');p.classList.toggle('show');p.setAttribute('aria-hidden',p.classList.contains('show')?'false':'true');if(p.classList.contains('show'))renderEmojiPanel();}
 $('#chatInput').addEventListener('focus',()=>$('#inputHelper').classList.add('show'));
 $('#chatInput').addEventListener('click',()=>$('#inputHelper').classList.add('show'));
 $('#chatInput').addEventListener('input',()=>{const input=$('#chatInput');updatePendingCardFragmentsOnInput(input);resizeChatInput();});
@@ -5887,13 +5945,12 @@ $('#chatInput').addEventListener('keydown',e=>{
 $('#voiceToggleBtn').addEventListener('click',()=>{
   $('#inputShell').classList.toggle('voice');$('#inputHelper').classList.remove('show');closeEmojiPanel();closeStickerPanel();
 });
-$('#emojiBtn').addEventListener('click',openStickerPanel);
-$('#emojiPanelClose').addEventListener('click',closeEmojiPanel);
+$('#emojiBtn').addEventListener('click',openEmojiPanel);
+$('#stickerClose').addEventListener('click',closeEmojiPanel);
+$('#stickerOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEmojiPanel();});
+$('#stickerOverlay').addEventListener('click',e=>{const tab=e.target.closest('[data-combo-tab]');if(tab)setComboPickerTab(tab.dataset.comboTab);});
 $('#emojiGrid').addEventListener('click',e=>{const b=e.target.closest('[data-emoji]');if(b)insertAtCursor($('#chatInput'),b.dataset.emoji);});
-$('#quickEmojiBtn').addEventListener('click',()=>{$('#morePanel').classList.remove('show');openEmojiPanel();});
 $('#stickerAdd').addEventListener('click',()=>$('#stickerUploader').click());
-$('#stickerClose').addEventListener('click',closeStickerPanel);
-$('#stickerOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeStickerPanel();});
 $('#stickerUploader').addEventListener('change',async e=>{await addStickers(e.target.files);e.target.value='';});
 $('#stickerGrid').addEventListener('click',e=>{
   const item=e.target.closest('[data-sticker-id]');
@@ -6037,6 +6094,15 @@ $('#chatMoreMenu').addEventListener('click',e=>{
   const action=item.dataset.chatMenu;closeHeaderMenus();
   if(action==='audio')void startCall('audio');
   else if(action==='video')void startCall('video');
+  else if(action==='settings'){
+    goto('settingsPage');
+    if(typeof setSettingsTab==='function')setSettingsTab('param');
+    requestAnimationFrame(()=>{
+      const target=$('#paramCallSettingsPanel');
+      target?.scrollIntoView({behavior:'smooth',block:'start'});
+      if(target){target.classList.remove('duo-settings-target-flash');requestAnimationFrame(()=>target.classList.add('duo-settings-target-flash'));}
+    });
+  }
 });
 document.addEventListener('click',e=>{if(!e.target.closest('#chatMoreMenu,.chat-header-menu-host'))closeHeaderMenus();});
 window.addEventListener('resize',closeHeaderMenus);
@@ -6061,8 +6127,7 @@ $('#chatList').addEventListener('pointerdown',e=>{const row=e.target.closest('.m
 ['pointerup','pointerleave','pointercancel'].forEach(name=>$('#chatList').addEventListener(name,()=>clearTimeout(pressTimer)));
 document.addEventListener('click',e=>{
   if(!e.target.closest('#plusBtn')&&!e.target.closest('#morePanel'))$('#morePanel').classList.remove('show');
-  if(!e.target.closest('#emojiBtn,#quickEmojiBtn,#emojiPanel'))closeEmojiPanel();
-  if(!e.target.closest('#emojiBtn')&&!e.target.closest('#stickerOverlay'))closeStickerPanel();
+  if(!e.target.closest('#emojiBtn,#stickerOverlay'))closeEmojiPanel();
   if(!e.target.closest('#chatInput')&&!e.target.closest('#inputHelper')&&!e.target.closest('#voiceToggleBtn'))$('#inputHelper').classList.remove('show');
 });
 $('#settingsTabs').addEventListener('click',e=>{
