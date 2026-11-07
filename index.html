@@ -420,14 +420,13 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .header-popup-menu button:active{background:var(--soft)}
 </style>
 
-<style id="twodeers-reference-entry-and-picker-fix">
-.chat-header-menu-host{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:0}
-.header-mail-btn{width:36px;height:36px;flex:0 0 36px;display:flex;align-items:center;justify-content:center;border:0;border-radius:11px;background:transparent;color:var(--text);font-size:20px;line-height:1;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.header-mail-btn:active{background:var(--soft);transform:scale(.96)}
-.header-more-btn{flex:0 0 36px}
-.header-popup-menu{min-width:148px;max-width:calc(100vw - 16px)}
-.kb-sticker-overlay{position:fixed!important;left:16px!important;right:16px!important;top:auto!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;width:auto!important;height:min(330px,46vh)!important;max-height:46vh!important;display:none!important;align-items:stretch!important;justify-content:stretch!important;padding:0!important;margin:0!important;background:transparent!important;z-index:2200!important;pointer-events:none!important;overflow:hidden!important;box-sizing:border-box!important}
-.kb-sticker-overlay.show{display:flex!important}
+<style id="twodeers-contextual-settings-and-chat-picker-fix">
+.chat-header-menu-host{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0}
+.header-more-btn{flex:0 0 40px}
+.header-popup-menu{min-width:164px;max-width:calc(100vw - 16px)}
+#chatPage{isolation:isolate}
+#chatPage .kb-sticker-overlay{position:absolute!important;left:16px!important;right:16px!important;top:auto!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;width:auto!important;height:min(330px,46vh)!important;height:min(330px,46dvh)!important;max-height:46vh!important;max-height:46dvh!important;display:none!important;align-items:stretch!important;justify-content:stretch!important;padding:0!important;margin:0!important;background:transparent!important;z-index:2200!important;pointer-events:none!important;overflow:hidden!important;box-sizing:border-box!important}
+#chatPage .kb-sticker-overlay.show{display:flex!important}
 .kb-sticker-sheet{width:100%!important;height:100%!important;max-height:100%!important;min-width:0!important;min-height:0!important;margin:0!important;padding:0!important;border:1px solid var(--line)!important;border-radius:18px!important;background:var(--panel,#fff)!important;color:var(--text)!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;box-shadow:0 16px 44px rgba(0,0,0,.16)!important;box-sizing:border-box!important;pointer-events:auto!important}
 .combo-tabs-header{height:58px!important;min-height:58px!important;flex:0 0 58px!important;padding:8px 10px!important;gap:8px!important;display:flex!important;align-items:center!important;border-bottom:1px solid var(--line)!important;background:transparent!important;box-sizing:border-box!important}
 .combo-tab-btn{flex:1 1 0!important;min-width:0!important;height:42px!important;padding:0 6px!important;border:0!important;border-radius:14px!important;background:var(--soft)!important;color:var(--sub)!important;font-size:13px!important;font-weight:800!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
@@ -442,37 +441,32 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 #stickerGrid.kb-sticker-grid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-auto-rows:auto!important;gap:9px!important;align-content:start!important;min-width:0!important;width:100%!important;max-width:100%!important;padding:0!important;overflow:visible!important;box-sizing:border-box!important}
 #stickerGrid .kb-sticker-item{width:100%!important;height:auto!important;min-width:0!important;min-height:0!important;aspect-ratio:1/1!important;box-sizing:border-box!important;padding:4px!important}
 #stickerGrid .kb-sticker-item img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important}
-@media(max-width:380px){
-  .chat-header-menu-host{gap:3px}
-  .header-mail-btn,.header-more-btn{width:34px;flex-basis:34px}
-  .kb-sticker-overlay{left:12px!important;right:12px!important;bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;height:min(330px,46vh)!important;max-height:46vh!important}
-  .combo-tabs-header{gap:6px!important;padding-left:8px!important;padding-right:8px!important}
-  .combo-tab-btn{font-size:12px!important;padding:0 4px!important}
-  .combo-content-area{padding:10px!important}
-}
-@media(min-width:700px){.kb-sticker-overlay{left:auto!important;right:18px!important;width:min(360px,calc(100vw - 36px))!important;height:330px!important;max-height:46vh!important}}
+@media(max-width:380px){#chatPage .kb-sticker-overlay{left:12px!important;right:12px!important;bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;height:min(330px,46vh)!important;height:min(330px,46dvh)!important;max-height:46vh!important;max-height:46dvh!important}.combo-tabs-header{gap:6px!important;padding-left:8px!important;padding-right:8px!important}.combo-tab-btn{font-size:12px!important;padding:0 4px!important}.combo-content-area{padding:10px!important}}
+.context-settings-overlay{position:fixed;inset:0;z-index:2147481200;display:none;align-items:center;justify-content:center;padding:calc(14px + env(safe-area-inset-top,0px)) 14px calc(14px + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.42)}
+.context-settings-overlay.show{display:flex}
+.context-settings-sheet{position:relative;width:min(520px,100%);max-height:100%;overflow:auto;border:1px solid var(--line);border-radius:20px;background:var(--bg);color:var(--text);box-shadow:0 18px 50px rgba(0,0,0,.24);padding:12px}
+.context-settings-head{position:sticky;top:-12px;z-index:2;display:flex;align-items:center;justify-content:space-between;min-height:42px;padding:2px 2px 9px;background:var(--bg);border-bottom:1px solid var(--line)}
+.context-settings-head strong{font-size:16px}.context-settings-head button{width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--text);font-size:22px;line-height:1}
+#callSettingsPanelMount>.panel-card{margin:10px 0 0;padding:0;border:0;box-shadow:none;background:transparent}
+#callSettingsPanelMount>.panel-card>h3{display:none}
+#mailSettingsModal{z-index:1300!important}
+.mail-settings-modal .mail-sheet{max-height:min(88dvh,760px);padding:16px}
+#mailSettingsMount>.duo-mail-settings{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
+.duo-appearance-overlay{position:fixed;inset:0;z-index:2147481000;display:none;flex-direction:column;background:var(--bg);color:var(--text)}
+.duo-appearance-overlay.show{display:flex}
+.duo-appearance-overlay-head{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-height:58px;padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;border-bottom:1px solid var(--line);background:var(--panel)}
+.duo-appearance-overlay-head button{width:38px;height:38px;border:1px solid var(--line);border-radius:50%;background:var(--soft);color:var(--text);font-size:23px}
+.duo-appearance-overlay-head strong{font-size:17px}
+.duo-appearance-overlay-content{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 14px calc(18px + env(safe-area-inset-bottom,0px))}
+.duo-appearance-overlay-content>.panel-card{margin:0 0 14px}
+.duo-appearance-overlay-content #duoAppearancePanel>.field{margin-top:14px}
+.duo-appearance-overlay-content #duoAppearancePanel .duo-appearance-custom-colors{margin-top:18px;padding-top:15px;border-top:1px solid var(--line)}
+.duo-appearance-overlay-content #duoAppearancePanel .duo-appearance-custom-colors h4{font-size:14px;margin:0 0 12px;color:var(--text)}
 </style>
 </head>
 <body>
 <div class="app" id="app">
-<div id="stickerOverlay" class="kb-sticker-overlay" aria-hidden="true">
-  <div class="kb-sticker-sheet" role="dialog" aria-modal="false" aria-label="表情选择面板">
-    <div class="combo-tabs-header" role="tablist" aria-label="表情分类">
-      <button type="button" class="combo-tab-btn active" data-combo-tab="emoji" role="tab" aria-selected="true">表情符号</button>
-      <button type="button" class="combo-tab-btn" data-combo-tab="stickers" role="tab" aria-selected="false">共享表情包</button>
-      <button id="stickerAdd" class="kb-sticker-add" type="button" aria-label="添加表情包" title="添加表情包" hidden>＋</button>
-      <button id="stickerClose" class="kb-sticker-close" type="button" aria-label="关闭表情面板">×</button>
-    </div>
-    <div class="combo-content-area">
-      <div id="emojiPanelContent" class="combo-pane">
-        <div class="emoji-grid" id="emojiGrid"></div>
-      </div>
-      <div id="stickerPanelContent" class="combo-pane" hidden>
-        <div id="stickerGrid" class="kb-sticker-grid"><div class="kb-sticker-empty">表情包载入中…</div></div>
-      </div>
-    </div>
-  </div>
-</div>
+
 <input accept="image/*,.gif" class="file-input" id="stickerUploader" multiple="" type="file"/><div class="editor-mask" id="longTextModal">
 <div class="editor-sheet"><div class="editor-head"><strong>长文本</strong><button class="icon-close" id="longTextClose" type="button">×</button></div>
 <textarea id="longTextArea" placeholder="在这里编辑长文本，支持换行……"></textarea>
@@ -530,7 +524,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <h2>联系人</h2>
 </div>
 <div class="header-actions chat-header-menu-host">
-<button aria-label="信箱" class="header-mail-btn" id="chatMailboxBtn" data-go="mailPage" title="信箱" type="button">✉</button>
 <button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button" aria-haspopup="true" aria-expanded="false">⋯</button>
 <div class="header-popup-menu" id="chatMoreMenu" hidden>
 <button type="button" data-chat-menu="audio">语音通话</button>
@@ -563,6 +556,25 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <button class="side-btn" id="plusBtn">＋</button>
 </div>
 </div>
+<div id="stickerOverlay" class="kb-sticker-overlay" aria-hidden="true">
+  <div class="kb-sticker-sheet" role="dialog" aria-modal="false" aria-label="表情选择面板">
+    <div class="combo-tabs-header" role="tablist" aria-label="表情分类">
+      <button type="button" class="combo-tab-btn active" data-combo-tab="emoji" role="tab" aria-selected="true">表情符号</button>
+      <button type="button" class="combo-tab-btn" data-combo-tab="stickers" role="tab" aria-selected="false">共享表情包</button>
+      <button id="stickerAdd" class="kb-sticker-add" type="button" aria-label="添加表情包" title="添加表情包" hidden>＋</button>
+      <button id="stickerClose" class="kb-sticker-close" type="button" aria-label="关闭表情面板">×</button>
+    </div>
+    <div class="combo-content-area">
+      <div id="emojiPanelContent" class="combo-pane">
+        <div class="emoji-grid" id="emojiGrid"></div>
+      </div>
+      <div id="stickerPanelContent" class="combo-pane" hidden>
+        <div id="stickerGrid" class="kb-sticker-grid"><div class="kb-sticker-empty">表情包载入中…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </section><section class="page circle-page" id="circlePage">
 <div class="top-safe"></div>
 <div class="header circle-host-header">
@@ -4283,8 +4295,6 @@ window.__duoCircleApi = {
 <button type="button" data-settings-category="cards"><strong>字卡管理</strong><small>聊天、朋友圈字卡与最近抽过</small></button>
 <button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
 <button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
-<button type="button" data-settings-category="mail"><strong>信箱设置</strong><small>主动来信、自动回信与每封信使用的字卡数量</small></button>
-<button type="button" data-settings-category="calls"><strong>模拟通话</strong><small>通话开关、主动来电与来电频率</small></button>
 <button type="button" data-settings-category="stickers"><strong>表情包管理</strong><small>批量选择、删除与导出清单</small></button>
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
 </div>
@@ -4349,41 +4359,6 @@ window.__duoCircleApi = {
 </div>
 <div class="param-card-count" id="paramPhraseCount" aria-live="polite">当前 0 条字卡</div>
 <div class="param-phrase-list" id="paramPhraseList"></div>
-</div>
-<div class="panel-card" id="paramCallSettingsPanel">
-<h3>模拟通话</h3>
-<div class="duo-call-setting-row">
-  <div><label for="callMasterEnabled">启用模拟通话</label><small>控制语音和视频通话功能</small></div>
-  <input id="callMasterEnabled" type="checkbox">
-</div>
-<div class="duo-call-setting-row">
-  <div><label for="callIncomingEnabled">允许对方主动来电</label><small>关闭后不会出现主动来电</small></div>
-  <input id="callIncomingEnabled" type="checkbox">
-</div>
-<div class="duo-call-setting-row">
-  <div><label for="callIncomingAudioEnabled">允许主动语音来电</label></div>
-  <input id="callIncomingAudioEnabled" type="checkbox">
-</div>
-<div class="duo-call-setting-row">
-  <div><label for="callIncomingVideoEnabled">允许主动视频来电</label></div>
-  <input id="callIncomingVideoEnabled" type="checkbox">
-</div>
-<div class="duo-call-setting-row">
-  <div><label for="incomingCallFrequency">来电频率</label><small>低 60～180 分钟 · 中 30～90 分钟 · 高 10～30 分钟</small></div>
-  <select id="incomingCallFrequency">
-    <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
-  </select>
-</div>
-<details class="duo-call-advanced">
-  <summary>高级选项</summary>
-  <div class="item-row"><div><div class="lab">主动语音拨出</div><div class="desc">允许从联系人菜单发起语音通话</div></div><div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div></div>
-  <div class="item-row"><div><div class="lab">主动视频拨出</div><div class="desc">允许从联系人菜单发起视频通话</div></div><div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div></div>
-  <div class="field"><label>视频来电概率（语音和视频均允许时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
-  <div class="field"><label for="incomingRingTimeout">无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
-</details>
-<div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
-<p class="call-settings-note">这里的通话为模拟通话，不会调用摄像头或麦克风。主动来电依赖页面运行，页面彻底关闭或系统强制停止时，网页无法保证唤醒。</p>
-<div class="duo-call-settings-actions"><button type="button" id="callSettingsCancel">取消</button><button type="button" id="callSettingsSave" class="primary">保存</button></div>
 </div>
 <div class="panel-card">
 <h3>聊天规则</h3>
@@ -4481,14 +4456,61 @@ window.__duoCircleApi = {
 </div></div>
 </div>
 </section>
+<div class="context-settings-overlay" id="callSettingsOverlay" aria-hidden="true">
+  <div class="context-settings-sheet" role="dialog" aria-modal="true" aria-label="通话设置">
+    <div class="context-settings-head"><strong>通话设置</strong><button type="button" id="callSettingsOverlayClose" aria-label="关闭通话设置">×</button></div>
+    <div id="callSettingsPanelMount"><div class="panel-card" id="paramCallSettingsPanel">
+<h3>模拟通话</h3>
+<div class="duo-call-setting-row">
+  <div><label for="callMasterEnabled">启用模拟通话</label><small>控制语音和视频通话功能</small></div>
+  <input id="callMasterEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingEnabled">允许对方主动来电</label><small>关闭后不会出现主动来电</small></div>
+  <input id="callIncomingEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingAudioEnabled">允许主动语音来电</label></div>
+  <input id="callIncomingAudioEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingVideoEnabled">允许主动视频来电</label></div>
+  <input id="callIncomingVideoEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="incomingCallFrequency">来电频率</label><small>低 60～180 分钟 · 中 30～90 分钟 · 高 10～30 分钟</small></div>
+  <select id="incomingCallFrequency">
+    <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
+  </select>
+</div>
+<details class="duo-call-advanced">
+  <summary>高级选项</summary>
+  <div class="item-row"><div><div class="lab">主动语音拨出</div><div class="desc">允许从联系人菜单发起语音通话</div></div><div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div></div>
+  <div class="item-row"><div><div class="lab">主动视频拨出</div><div class="desc">允许从联系人菜单发起视频通话</div></div><div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div></div>
+  <div class="field"><label>视频来电概率（语音和视频均允许时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
+  <div class="field"><label for="incomingRingTimeout">无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
+</details>
+<div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
+<p class="call-settings-note">这里的通话为模拟通话，不会调用摄像头或麦克风。主动来电依赖页面运行，页面彻底关闭或系统强制停止时，网页无法保证唤醒。</p>
+<div class="duo-call-settings-actions"><button type="button" id="callSettingsCancel">取消</button><button type="button" id="callSettingsSave" class="primary">保存</button></div>
+</div>
+</div>
+  </div>
+</div>
 <section class="page" id="mailPage">
 <div class="top-safe"></div>
-<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div></div>
+<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div><button class="round-btn" id="mailSettingsBtn" type="button" aria-label="信箱设置" aria-haspopup="dialog" aria-controls="mailSettingsModal" title="信箱设置">⚙</button></div>
 <div class="page-scroll">
 <div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><h3 style="margin-top:18px">收件箱</h3><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
 </div>
 <div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-hint" id="mailImageHint">最多 6 张图片</div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
 <div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
+<div class="mail-modal mail-settings-modal" id="mailSettingsModal" aria-hidden="true">
+  <div class="mail-sheet" role="dialog" aria-modal="true" aria-label="信箱设置">
+    <div class="editor-head"><strong>信箱设置</strong><button class="icon-close" id="mailSettingsClose" type="button" aria-label="关闭信箱设置">×</button></div>
+    <div id="mailSettingsMount"></div>
+  </div>
+</div>
 </section>
 <div class="call-choice" id="callChoiceModal">
 <div class="call-choice-sheet">
@@ -5507,7 +5529,7 @@ function openCallChoice(){
 function closeCallChoice(){$('#callChoiceModal').classList.remove('show');}
 async function startCall(type){
   if(type!=='audio'&&type!=='video')return;
-  if(!state.callSettings?.enabled){showToast('请先在参数区启用模拟通话');return;}
+  if(!state.callSettings?.enabled){showToast('请先在聊天页右上角的三个点中打开通话设置并启用模拟通话');return;}
   if(type==='audio'&&!state.callSettings.audioEnabled||type==='video'&&!state.callSettings.videoEnabled)return;
   if(incomingCallBusy())return;
   clearIncomingSchedule(true);closeCallChoice();
@@ -5621,6 +5643,7 @@ function setSettingsTab(key){
 function goto(id){
   $$('.page').forEach(p=>p.classList.remove('active'));
   const page=document.getElementById(id); if(!page) return;
+  if(id!=='chatPage')closeEmojiPanel();
   page.classList.add('active');
   state.currentPage=id; save();
   if(id==='settingsPage')setSettingsTab(state.settingsTab||'icon');
@@ -5807,7 +5830,6 @@ function showComboPicker(tab,toggle){
   $('#morePanel').classList.remove('show');
   const wasOpen=panel.classList.contains('show');
   if(toggle&&wasOpen){closeEmojiPanel();return;}
-  if(panel.parentNode!==document.body)document.body.appendChild(panel);
   panel.classList.add('show');panel.setAttribute('aria-hidden','false');
   setComboPickerTab(tab||'emoji');
 }
@@ -6052,10 +6074,12 @@ function saveCallSettingsFromForm(){
   syncCallSettings();syncIncomingCallSettings();save();
   showToast('模拟通话设置已保存');return true;
 }
-$('#callSettingsSave').addEventListener('click',saveCallSettingsFromForm);
+$('#callSettingsSave').addEventListener('click',()=>{if(saveCallSettingsFromForm()!==false)closeCallSettingsOverlay(false);});
 $('#callSettingsCancel').addEventListener('click',()=>{
-  window.__duoSyncCallSettings?.();showToast('已恢复未保存的通话设置');
+  window.__duoSyncCallSettings?.();showToast('已恢复未保存的通话设置');closeCallSettingsOverlay(false);
 });
+$('#callSettingsOverlayClose').addEventListener('click',()=>closeCallSettingsOverlay(true));
+$('#callSettingsOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCallSettingsOverlay(true);});
 $('#incomingAnswerBtn').addEventListener('click',answerIncomingCall);
 $('#incomingRejectBtn').addEventListener('click',rejectIncomingCall);
 
@@ -6072,6 +6096,17 @@ $('#phraseList').addEventListener('click',e=>{
 function closeHeaderMenus(){
   const menu=$('#chatMoreMenu');if(menu)menu.hidden=true;
   const button=$('#chatMoreBtn');if(button)button.setAttribute('aria-expanded','false');
+}
+function openCallSettingsOverlay(){
+  syncCallSettings();syncIncomingCallSettings();
+  const overlay=$('#callSettingsOverlay');if(!overlay)return false;
+  overlay.classList.add('show');overlay.setAttribute('aria-hidden','false');
+  return true;
+}
+function closeCallSettingsOverlay(restore=true){
+  const overlay=$('#callSettingsOverlay');if(!overlay)return;
+  if(restore){syncCallSettings();syncIncomingCallSettings();}
+  overlay.classList.remove('show');overlay.setAttribute('aria-hidden','true');
 }
 function positionHeaderMenu(button,menu){
   if(!button||!menu)return;
@@ -6094,15 +6129,7 @@ $('#chatMoreMenu').addEventListener('click',e=>{
   const action=item.dataset.chatMenu;closeHeaderMenus();
   if(action==='audio')void startCall('audio');
   else if(action==='video')void startCall('video');
-  else if(action==='settings'){
-    goto('settingsPage');
-    if(typeof setSettingsTab==='function')setSettingsTab('param');
-    requestAnimationFrame(()=>{
-      const target=$('#paramCallSettingsPanel');
-      target?.scrollIntoView({behavior:'smooth',block:'start'});
-      if(target){target.classList.remove('duo-settings-target-flash');requestAnimationFrame(()=>target.classList.add('duo-settings-target-flash'));}
-    });
-  }
+  else if(action==='settings')openCallSettingsOverlay();
 });
 document.addEventListener('click',e=>{if(!e.target.closest('#chatMoreMenu,.chat-header-menu-host'))closeHeaderMenus();});
 window.addEventListener('resize',closeHeaderMenus);

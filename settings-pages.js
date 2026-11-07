@@ -1,4 +1,4 @@
-/* Parameter-area navigation. Settings stay in the parameter page; no detached category pages. */
+/* Settings navigation with a consolidated personalization page and page-local settings entry points. */
 (function(){
   'use strict';
   if(window.__duoSettingsPagesInstalled)return;
@@ -68,17 +68,6 @@
     return host;
   }
 
-  function mountMailbox(){
-    const host=ensureMount('paramMailSettingsMount');
-    if(!host.dataset.mounted){
-      if(window.__duoMailbox?.mountSettings){
-        window.__duoMailbox.mountSettings(host);
-        host.dataset.mounted='true';
-      }else{
-        host.textContent='信箱设置模块尚未加载';
-      }
-    }
-  }
 
   function mountStickerManager(){
     const host=ensureMount('paramStickerAdminMount');
@@ -92,6 +81,54 @@
     }
   }
 
+  let appearanceOverlay=null;
+  function buildAppearanceSuite(){
+    if(appearanceOverlay)return appearanceOverlay;
+    const theme=$('#duoAppearancePanel');
+    const legacy=$('#paramAppearancePanel');
+    const font=$('#duoFontPanel');
+    const beautify=$('#duoChatBeautifyPanel');
+    const content=document.createElement('div');
+    content.className='duo-appearance-overlay-content';
+    // Merge the old bubble/accent/button color controls and custom CSS into the same theme card.
+    const panels=[];
+    if(theme&&legacy){
+      legacy.querySelector('h3')?.remove();
+      const group=document.createElement('section');
+      group.className='duo-appearance-custom-colors';
+      const heading=document.createElement('h4');heading.textContent='自定义颜色与 CSS';group.appendChild(heading);
+      while(legacy.firstChild)group.appendChild(legacy.firstChild);
+      theme.appendChild(group);
+      legacy.remove();
+    }else if(legacy){
+      panels.push(legacy);
+    }
+    [theme,font,beautify].forEach(panel=>{if(panel&&!panels.includes(panel))panels.push(panel);});
+    panels.forEach(panel=>content.appendChild(panel));
+    const overlay=document.createElement('section');
+    overlay.id='duoAppearanceSettingsOverlay';
+    overlay.className='duo-appearance-overlay';
+    overlay.setAttribute('aria-hidden','true');
+    overlay.innerHTML='<div class="duo-appearance-overlay-head"><button type="button" id="duoAppearanceBack" aria-label="返回参数区">‹</button><strong>显示与个性化</strong></div>';
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+    overlay.querySelector('#duoAppearanceBack').addEventListener('click',closeAppearanceSuite);
+    overlay.addEventListener('click',event=>{if(event.target===overlay)closeAppearanceSuite();});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&overlay.classList.contains('show'))closeAppearanceSuite();});
+    appearanceOverlay=overlay;
+    return overlay;
+  }
+  function openAppearanceSuite(){
+    const overlay=buildAppearanceSuite();
+    if(!overlay)return false;
+    overlay.classList.add('show');overlay.setAttribute('aria-hidden','false');
+    return true;
+  }
+  function closeAppearanceSuite(){
+    if(!appearanceOverlay)return;
+    appearanceOverlay.classList.remove('show');appearanceOverlay.setAttribute('aria-hidden','true');
+  }
+
   function buildCircleCard(){
     // The category itself is the entry point; do not insert a second placeholder card.
     $('#duoCircleSettingsEntry')?.remove();
@@ -102,8 +139,6 @@
       chat:'#paramReplySettingsPanel',
       cards:'#duoUnifiedCardPanel',
       appearance:'#duoAppearancePanel, #duoFontPanel, #duoChatBeautifyPanel, .duo-chat-beautify-manager',
-      calls:'#paramCallSettingsPanel',
-      mail:'#paramMailSettingsMount .duo-mail-settings',
       stickers:'#paramStickerAdminMount .duo-sticker-admin',
       privacy:'#paramBackupPanel, .backup-management, .data-management',
     };
@@ -127,6 +162,7 @@
       requestAnimationFrame(()=>{if(trigger.isConnected)trigger.click();});
       return true;
     }
+    if(key==='appearance')return openAppearanceSuite();
     const target=targetFor(key);
     if(!target)return false;
     target.scrollIntoView({behavior:'smooth',block:'start'});
@@ -139,7 +175,7 @@
     const hub=$('#settingsCategoryGrid');
     if(!hub||!param())return;
 
-    // Keep the nine requested categories at the very top even when appearance/font
+    // Keep the category hub at the very top even when appearance/font
     // managers injected their own panels before this script booted.
     param().insertBefore(hub,param().firstElementChild);
 
@@ -150,10 +186,10 @@
     setPanelId('聊天节奏','paramChatRhythmPanel');
     setPanelId('聊天规则','paramChatRulesPanel');
     setPanelId('聊天外观','paramAppearancePanel');
+    buildAppearanceSuite();
     setPanelId('备份与恢复','paramBackupPanel');
     const legacyChatPool=$('#paramCardPoolPanel');
     if(legacyChatPool){legacyChatPool.hidden=true;legacyChatPool.style.display='none';legacyChatPool.setAttribute('aria-hidden','true');}
-    mountMailbox();
     mountStickerManager();
 
     hub.addEventListener('click',event=>{
