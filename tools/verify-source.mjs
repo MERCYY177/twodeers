@@ -28,7 +28,7 @@ for (const token of ['STICKER_LIBRARY_STORAGE_KEY','function normalizeStickerLib
   if (!html.includes(token)) throw new Error('表情包删除安全机制缺失：' + token);
 }
 const stickerManager = readFileSync(resolve(root, 'sticker-library.js'), 'utf8');
-for (const token of ['toggleFavorite','data-sticker-favorite']) if (!stickerManager.includes(token)) throw new Error('表情包收藏管理缺失：' + token);
+for (const token of ['toggleFavorite','data-sticker-id','data-sticker-favorite']) if (!stickerManager.includes(token)) throw new Error('表情包收藏管理缺失：' + token);
 const v4 = readFileSync(resolve(root, 'backup-v4.js'), 'utf8');
 for (const token of ['SHA-256','crc32','manifest.json','applyBackupPayload','font-library.json','mailbox-data.json','card-system.json','circle-settings.json','restoreInProgress','pauseTasks','stickerTombstones','applyImportedState','replaceFavorites']) {
   if (!v4.includes(token)) throw new Error('V4 备份关键能力缺失：' + token);
