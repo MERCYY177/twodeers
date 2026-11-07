@@ -17,6 +17,11 @@ on:
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
+# Keep only the newest validation run per branch; main and feature refs are isolated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
