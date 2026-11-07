@@ -332,6 +332,8 @@ try {
         const avatarRect=avatar.getBoundingClientRect();
         const bubbleRect=bubble.getBoundingClientRect();
         return {
+          rowPosition:getComputedStyle(row).position,
+          rowIsolation:getComputedStyle(row).isolation,
           lineDisplay:getComputedStyle(line).display,
           metaIsRowSibling:meta.parentElement===row,
           metaInsideBubbleWrap:!!row.querySelector('.bubble-wrap .meta'),
@@ -343,6 +345,8 @@ try {
     };
   });
   assert.equal(baselineMedia.rows, 9, 'all seven message types, a special card and the system row must be constructed');
+  assert.equal(baselineMedia.messageLayout.rowPosition,'relative','each message row must establish its own positioning context');
+  assert.equal(baselineMedia.messageLayout.rowIsolation,'isolate','each message row must confine theme decoration z-index');
   assert.equal(baselineMedia.messageLayout.lineDisplay,'flex','avatar and bubble must share one flex line');
   assert.equal(baselineMedia.messageLayout.metaIsRowSibling,true,'time/read metadata must sit below the avatar-bubble line');
   assert.equal(baselineMedia.messageLayout.metaInsideBubbleWrap,false,'metadata must not affect avatar alignment');
@@ -468,6 +472,7 @@ try {
         }
         return {
           id,
+          rowIsolation:getComputedStyle(row('own')).isolation,
           liveClass:chat.classList.contains('duo-chat-beautify--' + id),
           pageClass:document.getElementById('chatPage').classList.contains('duo-chat-beautify--' + id),
           previewClass:preview?.classList.contains('duo-chat-beautify--' + id) || false,
@@ -485,6 +490,7 @@ try {
           videoPseudo:media.video.beforeContent + '|' + media.video.afterContent
         };
       }, {id,baselineMedia});
+      assert.equal(audit.rowIsolation,'isolate',id + ' must keep message decorations in a local stacking context');
       assert.equal(audit.liveClass,true,id + ' must scope the live chat list');
       assert.equal(audit.pageClass,true,id + ' must scope the live chat page');
       assert.equal(audit.previewClass,true,id + ' must scope its preview');
