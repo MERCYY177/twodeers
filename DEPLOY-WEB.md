@@ -8,7 +8,12 @@
 
 ## 生成可直接部署的网页目录
 
-在项目根目录安装 Python 3 和 FFmpeg 后运行：
+在项目根目录安装 Python 3、Pillow 和 pillow-heif 后运行：
+
+```bash
+python3 -m pip install Pillow pillow-heif
+```
+
 
 ```bash
 python3 tools/build-web-site.py --output-dir dist
@@ -24,8 +29,10 @@ npm run build:web
 1. 复制网页入口、运行时 JS/CSS/JSON 和原有 assets；
 2. 从两个源 ZIP 提取 352 张图片；
 3. 将 18 张 HEIF 转成 JPEG；
-4. 生成 `assets/builtin-stickers/manifest.json`；
-5. 检查清单中的 352 个资源全部存在且文件大小匹配。
+4. 使用原生 HEIF 解码读取完整显示区域和方向信息，保持原图宽高比例；
+5. 为每张图片写入源尺寸、输出尺寸和帧数元数据；
+6. 检查清单中的 352 个资源全部存在、可解码、尺寸匹配；
+7. 对 GIF 检查动画帧数，防止构建时静默丢帧。
 
 ## 部署
 
@@ -38,7 +45,7 @@ npm run build:web
 - JPEG：199
 - GIF：131
 - PNG：4
-- HEIF：18（构建后转成 JPEG）
+- HEIF：18（使用 pillow-heif 原生解码，构建后转成 JPEG）
 - 合计：352
 
 `wmqt (6).gif` 已按确认排除。
