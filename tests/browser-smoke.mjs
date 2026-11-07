@@ -65,14 +65,18 @@ try {
     circleApi: !!window.__duoCircleApi?.validateState,
     stickerOverlay: !!document.getElementById('stickerOverlay'),
     stickerGrid: !!document.getElementById('stickerGrid'),
-    emojiCount: document.querySelectorAll('#emojiGrid [data-emoji]').length,
+    emojiButton: !!document.getElementById('quickEmojiBtn'),
     stickerTabs: document.querySelectorAll('#duoStickerTabs [data-duo-sticker-tab]').length,
     backupVersion: window.__duoBackupV4.version
   }));
   assert.equal(baseline.circleApi, true, 'Circle Shadow DOM API should be available');
   assert.equal(baseline.stickerOverlay, true, 'the sticker selector must be a separate bottom sheet');
   assert.equal(baseline.stickerGrid, true, 'the sticker sheet must own one full-width grid');
-  assert.ok(baseline.emojiCount > 0, 'the separate Emoji picker must remain available');
+  assert.equal(baseline.emojiButton,true,'the separate Emoji entry must remain available');
+  await page.locator('#plusBtn').click();
+  await page.locator('#quickEmojiBtn').click();
+  await page.waitForFunction(() => document.querySelector('#emojiPanel')?.classList.contains('show') && document.querySelectorAll('#emojiGrid [data-emoji]').length > 0);
+  await page.locator('#emojiPanelClose').click();
   assert.equal(baseline.stickerTabs, 0, 'the send surface must not add filter or management tabs');
   assert.equal(await page.locator('#stickerGrid .sticker-send').count(), 0, 'stickers must not have redundant Send buttons');
   assert.equal(await page.locator('#stickerGrid [data-open-sticker-admin]').count(), 0, 'management must not appear in the send surface');
