@@ -620,12 +620,10 @@ try {
       image.onerror = () => {clearTimeout(timer);resolve({loaded:false,naturalWidth:0,naturalHeight:0,error:'image-error'});};
       image.src = url;
     });
-    const results=[];
-    for (const asset of assets) {
-      const image = await loadImage(asset.url);
-      results.push({...asset,browser:image});
-    }
-    return results;
+    return await Promise.all(assets.map(async asset => ({
+      ...asset,
+      browser:await loadImage(asset.url)
+    })));
   }, await page.evaluate(() => {
     const urls = new Map();
     for (const item of window.DuoChatBeautify.presets) {
@@ -651,16 +649,15 @@ try {
   }));
   assert.equal(resourceAudit.filter(item=>item.kind==='remote').length,6,'all six remaining remote image URLs must be audited');
   assert.equal(resourceAudit.filter(item=>item.kind==='local').length,10,'all ten active local image assets must be audited');
-  const resourceHttpAudit = [];
-  for (const asset of resourceAudit) {
+  const resourceHttpAudit = await Promise.all(resourceAudit.map(async asset => {
     const url = asset.kind === 'local' ? 'http://127.0.0.1:8080' + asset.url : asset.url;
     try {
       const response = await page.request.get(url,{timeout:20000});
-      resourceHttpAudit.push({...asset,status:response.status(),contentType:response.headers()['content-type'] || '',contentLength:response.headers()['content-length'] || null});
+      return {...asset,status:response.status(),contentType:response.headers()['content-type'] || '',contentLength:response.headers()['content-length'] || null};
     } catch (error) {
-      resourceHttpAudit.push({...asset,status:null,contentType:'',error:error.message});
+      return {...asset,status:null,contentType:'',error:error.message};
     }
-  }
+  }));
   const remoteResourceFailures = resourceAudit.filter(item => item.kind === 'remote' && (
     !item.browser.loaded || !resourceHttpAudit.some(http => http.url === item.url && http.status === 200 && /^image\//i.test(http.contentType))
   )).map(item => ({url:item.url,presets:item.presets || [],browser:item.browser,http:resourceHttpAudit.find(http => http.url === item.url)}));
