@@ -1,4 +1,4 @@
-/* Settings navigation: the parameter home is a category hub; each category opens its own page. */
+/* Settings navigation: the parameter area is a category home with real in-page second-level views. */
 (function(){
   'use strict';
   if(window.__duoSettingsPagesInstalled)return;
@@ -98,35 +98,31 @@
     }
   }
 
-  let categoryOverlay=null;
-  const categoryNodes={};
+  let subpageRoot=null;
+  let currentCategory='';
   const categoryPages={};
 
-  function createCategoryOverlay(){
-    if(categoryOverlay)return categoryOverlay;
-    const overlay=document.createElement('section');
-    overlay.id='duoSettingsCategoryOverlay';
-    overlay.className='duo-settings-category-overlay';
-    overlay.setAttribute('aria-hidden','true');
-    overlay.innerHTML=`
-      <header class="duo-settings-category-head">
-        <button type="button" data-category-back aria-label="返回参数区">‹</button>
+  function createSubpageRoot(){
+    if(subpageRoot)return subpageRoot;
+    const root=document.createElement('section');
+    root.id='duoSettingsSubpage';
+    root.className='duo-settings-subpage';
+    root.hidden=true;
+    root.innerHTML=`
+      <header class="duo-settings-subpage-head">
+        <button type="button" data-category-back aria-label="返回参数区"><span aria-hidden="true">‹</span><span>参数区</span></button>
         <strong data-category-title></strong>
       </header>
-      <div class="duo-settings-category-pages" data-category-pages></div>`;
-    document.body.appendChild(overlay);
-    overlay.querySelector('[data-category-back]').addEventListener('click',closeCategoryPage);
-    overlay.addEventListener('click',event=>{if(event.target===overlay)closeCategoryPage();});
-    document.addEventListener('keydown',event=>{
-      if(event.key==='Escape'&&overlay.classList.contains('show'))closeCategoryPage();
-    });
-    overlay.querySelector('[data-category-pages]').addEventListener('click',event=>{
+      <div class="duo-settings-subpage-pages" data-category-pages></div>`;
+    param()?.appendChild(root);
+    root.querySelector('[data-category-back]').addEventListener('click',closeCategoryPage);
+    root.querySelector('[data-category-pages]').addEventListener('click',event=>{
       const button=event.target.closest('[data-category-tab]');
       if(!button)return;
       activateCategoryTab(button.closest('[data-category-page]'),button.dataset.categoryTab);
     });
-    categoryOverlay=overlay;
-    return overlay;
+    subpageRoot=root;
+    return root;
   }
 
   function activateCategoryTab(page,key){
@@ -139,17 +135,17 @@
       button.setAttribute('aria-selected',String(active));
     });
     content?.querySelectorAll('[data-category-pane]').forEach(pane=>pane.hidden=pane.dataset.categoryPane!==key);
-    if(content)content.scrollTop=0;
   }
 
   function defineCategory(key,title,sections){
-    const overlay=createCategoryOverlay();
-    const pages=overlay.querySelector('[data-category-pages]');
+    const root=createSubpageRoot();
+    const pages=root.querySelector('[data-category-pages]');
     const liveSections=sections.filter(section=>section.nodes.some(node=>node&&node.isConnected));
     if(!liveSections.length)return false;
     const page=document.createElement('section');
     page.className='duo-settings-category-page';
     page.dataset.categoryPage=key;
+    page.setAttribute('aria-label',title);
     page.hidden=true;
     const tabs=document.createElement('nav');
     tabs.className='duo-settings-subtabs';
@@ -165,25 +161,33 @@
       const tabKey=section.key||('section-'+index);
       if(liveSections.length>1){
         const button=document.createElement('button');
-        button.type='button';button.className='duo-settings-subtab'+(index===0?' active':'');
-        button.dataset.categoryTab=tabKey;button.setAttribute('role','tab');
-        button.setAttribute('aria-selected',String(index===0));button.textContent=section.label;
+        button.type='button';
+        button.className='duo-settings-subtab'+(index===0?' active':'');
+        button.dataset.categoryTab=tabKey;
+        button.setAttribute('role','tab');
+        button.setAttribute('aria-selected',String(index===0));
+        button.textContent=section.label;
         tabs.appendChild(button);
       }
       const pane=document.createElement('section');
       pane.className='duo-settings-category-pane';
       pane.dataset.categoryPane=tabKey;
       pane.hidden=index!==0;
-      section.nodes.forEach(node=>{if(node&&node.isConnected)pane.appendChild(node);});
+      section.nodes.forEach(node=>{
+        if(!node||!node.isConnected)return;
+        const heading=node.querySelector?.('h3');
+        if(heading&&heading.textContent.trim()===section.label)heading.remove();
+        pane.appendChild(node);
+      });
       content.appendChild(pane);
     });
     pages.appendChild(page);
     categoryPages[key]=page;
-    categoryNodes[key]=true;
     return true;
   }
 
   function buildCategoryPages(){
+    const profilePanels=Array.from($('#settingsIcon')?.children||[]).filter(node=>node.classList?.contains('panel-card'));
     const reply=$('#paramReplySettingsPanel');
     const rhythm=$('#paramChatRhythmPanel');
     const rules=$('#paramChatRulesPanel');
@@ -193,8 +197,13 @@
     const beautify=$('#duoChatBeautifyPanel');
     const stickerHost=$('#paramStickerAdminMount');
     const backup=$('#paramBackupPanel')||$('.backup-management');
-    const data=$('.data-management');
+    const data=$('#paramDataManagementPanel')||$('.data-management');
 
+    defineCategory('profile','空间资料',[
+      {key:'entrance',label:'首页入口',nodes:[profilePanels[0]]},
+      {key:'personal',label:'头像与封面',nodes:[profilePanels[1]]},
+      {key:'background',label:'背景图',nodes:[profilePanels[2]]}
+    ]);
     defineCategory('chat','聊天设置',[
       {key:'reply',label:'回复与已读',nodes:[reply]},
       {key:'rhythm',label:'聊天节奏',nodes:[rhythm]},
@@ -217,40 +226,42 @@
     ]);
   }
 
+  const categoryTitles={
+    profile:'空间资料',chat:'聊天设置',cards:'字卡管理',appearance:'显示与个性化',
+    stickers:'表情包管理',privacy:'隐私与数据管理'
+  };
+
   function openCategoryPage(key){
     const page=categoryPages[key];
-    if(!categoryNodes[key]||!categoryOverlay||!page)return false;
-    categoryOverlay.querySelector('[data-category-title]').textContent=(
-      {chat:'聊天设置',cards:'字卡管理',appearance:'显示与个性化',stickers:'表情包管理',privacy:'隐私与数据管理'}[key]||'设置'
-    );
-    categoryOverlay.querySelectorAll('[data-category-page]').forEach(item=>item.hidden=item!==page);
+    const hub=$('#settingsCategoryGrid');
+    if(!page||!subpageRoot||!hub)return false;
+    currentCategory=key;
+    hub.hidden=true;
+    subpageRoot.hidden=false;
+    subpageRoot.querySelector('[data-category-title]').textContent=categoryTitles[key]||'设置';
+    subpageRoot.querySelectorAll('[data-category-page]').forEach(item=>item.hidden=item!==page);
     const tabs=page.querySelector('[data-category-tabs]');
     const firstTab=tabs?.querySelector('[data-category-tab]');
     if(firstTab)activateCategoryTab(page,firstTab.dataset.categoryTab);
     else page.querySelectorAll('[data-category-pane]').forEach((pane,index)=>pane.hidden=index!==0);
-    categoryOverlay.classList.add('show');
-    categoryOverlay.setAttribute('aria-hidden','false');
-    categoryOverlay.querySelector('[data-category-back]')?.focus({preventScroll:true});
+    const scroll=$('#settingsPage .page-scroll');
+    if(scroll)scroll.scrollTop=0;
     return true;
   }
 
   function closeCategoryPage(){
-    if(!categoryOverlay)return;
-    categoryOverlay.classList.remove('show');
-    categoryOverlay.setAttribute('aria-hidden','true');
+    if(!subpageRoot)return;
+    subpageRoot.hidden=true;
+    $('#settingsCategoryGrid')?.removeAttribute('hidden');
+    currentCategory='';
+    const scroll=$('#settingsPage .page-scroll');
+    if(scroll)scroll.scrollTop=0;
   }
 
   function open(key){
-    if(key==='profile'){
-      closeCategoryPage();
-      if(typeof setSettingsTab==='function')setSettingsTab('icon');
-      $('#settingsIcon')?.scrollTo?.({top:0,behavior:'instant'});
-      return !!$('#settingsIcon');
-    }
     if(key==='circle'){
       const trigger=window.__duoCircleRoot?.querySelector('#backBtn');
       if(!trigger)return false;
-      closeCategoryPage();
       goto('circlePage');
       requestAnimationFrame(()=>{if(trigger.isConnected)trigger.click();});
       return true;
@@ -260,10 +271,9 @@
 
   function boot(){
     const hub=$('#settingsCategoryGrid');
-    if(!hub||!param())return;
+    const settingsParam=param();
+    if(!hub||!settingsParam)return;
 
-    // The parameter home is deliberately only a category grid. All setting panels move to their own second-level page.
-    param().insertBefore(hub,param().firstElementChild);
     buildCardManager();
     if(window.__duoCardSystem?.render)window.__duoCardSystem.render();
     setPanelId('回复与已读','paramReplySettingsPanel');
@@ -279,6 +289,10 @@
     mountStickerManager();
     buildCategoryPages();
 
+    const tabs=$('#settingsTabs');
+    if(tabs)tabs.hidden=true;
+    if(typeof setSettingsTab==='function')setSettingsTab('param');
+
     hub.addEventListener('click',event=>{
       const button=event.target.closest('[data-settings-category]');
       if(!button||!hub.contains(button))return;
@@ -289,35 +303,35 @@
     const style=document.createElement('style');
     style.id='duoSettingsInlineStyles';
     style.textContent=`
-      .duo-settings-mount{display:contents}
+      #settingsTabs[hidden]{display:none!important}
       .settings-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+      .settings-category-grid[hidden]{display:none!important}
       .settings-category-grid button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:76px;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);text-align:left}
       .settings-category-grid strong{font-size:14px}.settings-category-grid small{font-size:11px;line-height:1.5;color:var(--sub)}
       .settings-category-grid button:active{transform:scale(.99)}
-      .duo-settings-category-overlay{position:fixed;inset:0;z-index:2147481000;display:none;flex-direction:column;background:var(--bg);color:var(--text)}
-      .duo-settings-category-overlay.show{display:flex}
-      .duo-settings-category-head{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-height:58px;padding:calc(8px + env(safe-area-inset-top,0px)) 14px 8px;border-bottom:1px solid var(--line);background:var(--panel)}
-      .duo-settings-category-head button{width:38px;height:38px;flex:0 0 38px;border:1px solid var(--line);border-radius:50%;background:var(--soft);color:var(--text);font-size:25px;line-height:1}
-      .duo-settings-category-head strong{font-size:17px}
-      .duo-settings-category-pages{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-      .duo-settings-category-page{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+      .duo-settings-subpage[hidden]{display:none!important}
+      .duo-settings-subpage{display:block;min-width:0}
+      .duo-settings-subpage-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;min-height:48px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--line);background:var(--bg)}
+      .duo-settings-subpage-head [data-category-back]{display:inline-flex;align-items:center;gap:5px;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);font-size:13px;white-space:nowrap}
+      .duo-settings-subpage-head [data-category-back] span:first-child{font-size:25px;line-height:1}
+      .duo-settings-subpage-head>strong{min-width:0;font-size:17px;font-weight:650}
+      .duo-settings-subpage-pages{min-width:0}
       .duo-settings-category-page[hidden]{display:none!important}
-      .duo-settings-subtabs{display:flex;flex:0 0 auto;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+      .duo-settings-subtabs[hidden]{display:none!important}
+      .duo-settings-subtabs{display:flex;gap:8px;margin:0 0 14px;padding:0 0 10px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
       .duo-settings-subtabs::-webkit-scrollbar{display:none}
-      .duo-settings-subtab{flex:0 0 auto;min-height:36px;padding:8px 13px;border:1px solid var(--line);border-radius:999px;background:var(--soft);color:var(--sub);font-size:12px;white-space:nowrap}
+      .duo-settings-subtab{flex:0 0 auto;min-height:36px;padding:8px 13px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--sub);font-size:12px;white-space:nowrap}
       .duo-settings-subtab.active{background:var(--text);border-color:var(--text);color:var(--bg)}
-      .duo-settings-category-content{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:14px 14px calc(20px + env(safe-area-inset-bottom,0px))}
       .duo-settings-category-pane[hidden]{display:none!important}
-      .duo-settings-category-pane>.panel-card{margin:0;padding:14px}
+      .duo-settings-category-pane>.panel-card{margin:0 0 14px;padding:14px}
       .duo-settings-category-pane>.duo-settings-mount{display:block}
       .duo-settings-category-pane>.duo-settings-mount>.duo-sticker-admin{margin:0}
       .duo-settings-category-pane>.duo-appearance-custom-colors{margin-top:18px}
       .duo-appearance-custom-colors h4{font-size:14px;margin:0 0 12px;color:var(--text)}
       .duo-settings-category-pane .duo-chat-beautify-manager{margin:0}
       .duo-settings-category-pane .duo-font-list{max-width:100%}
-      .duo-settings-category-pane .backup-management,.duo-settings-category-pane .data-management{margin:0}
-      .duo-settings-category-overlay [hidden]{display:none!important}
-      @media(max-width:360px){.settings-category-grid{grid-template-columns:1fr}}
+      .duo-settings-category-pane .backup-management,.duo-settings-category-pane .data-management{margin:0 0 14px}
+      @media(max-width:360px){.settings-category-grid{grid-template-columns:1fr}.duo-settings-subpage-head{gap:8px}}
     `;
     document.head.appendChild(style);
 

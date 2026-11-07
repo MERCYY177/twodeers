@@ -5648,7 +5648,7 @@ function goto(id){
   if(id!=='chatPage')closeEmojiPanel();
   page.classList.add('active');
   state.currentPage=id; save();
-  if(id==='settingsPage')setSettingsTab(state.settingsTab||'icon');
+  if(id==='settingsPage')setSettingsTab('param');
   $('#morePanel').classList.remove('show');
   $('#inputHelper').classList.remove('show');
 }

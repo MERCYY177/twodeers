@@ -257,7 +257,6 @@
   function mountSettings(root){
     if(!root)return false;
     root.innerHTML=`<section class="panel-card duo-mail-settings" data-mail-settings-form>
-      <p class="data-note">设置只影响以后新生成的主动来信和自动回信。</p>
       <div class="item-row"><label for="mailAutoIncoming">允许主动来信</label><input id="mailAutoIncoming" type="checkbox"></div>
       <label class="duo-mail-setting-row"><span>主动来信间隔</span><span><input id="mailIncomingMin" type="number" min="1" max="168" step="0.01" inputmode="decimal"> ～ <input id="mailIncomingMax" type="number" min="1" max="168" step="0.01" inputmode="decimal"> 小时</span></label>
       <div class="item-row"><label for="mailAutoReply">自动回信</label><input id="mailAutoReply" type="checkbox"></div>
@@ -267,6 +266,9 @@
       <div id="mailSettingsError" class="duo-mail-settings-error" aria-live="polite"></div>
       <div class="duo-mail-settings-actions"><button type="button" id="mailSettingsSave" class="primary">保存</button><button type="button" id="mailSettingsDefault" class="mini-btn">恢复默认值</button><button type="button" id="mailSettingsCancel" class="mini-btn">取消</button></div>
     </section>`;
+    // Keep the modal's single header as the only visible title; remove any legacy inner headings or helper copy.
+    root.querySelectorAll('h1,h2,h3,h4,h5,h6,strong').forEach(node=>{if(node.textContent.trim()==='信箱设置')node.remove();});
+    root.querySelectorAll('.data-note,.help-text,.hint,.code-help,p,small').forEach(node=>node.remove());
     syncSettings();return true;
   }
   function exportData(){return {mailbox:clone(box),drafts:clone(drafts)};}
