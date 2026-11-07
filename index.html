@@ -466,8 +466,8 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <div class="header-actions chat-header-menu-host">
 <button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button">⋯</button>
 <div class="header-popup-menu" id="chatMoreMenu" hidden>
-<button type="button" data-chat-menu="call">发起通话</button>
-<button type="button" data-chat-menu="settings">通话设置</button>
+<button type="button" data-chat-menu="audio">语音通话</button>
+<button type="button" data-chat-menu="video">视频通话</button>
 </div>
 </div>
 </div>
@@ -4216,7 +4216,8 @@ window.__duoCircleApi = {
 <button type="button" data-settings-category="cards"><strong>字卡管理</strong><small>聊天、朋友圈字卡与最近抽过</small></button>
 <button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
 <button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
-
+<button type="button" data-settings-category="mail"><strong>信箱设置</strong><small>主动来信、自动回信与每封信使用的字卡数量</small></button>
+<button type="button" data-settings-category="calls"><strong>模拟通话</strong><small>通话开关、主动来电与来电频率</small></button>
 <button type="button" data-settings-category="stickers"><strong>表情包管理</strong><small>批量选择、删除与导出清单</small></button>
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
 </div>
@@ -4402,11 +4403,10 @@ window.__duoCircleApi = {
 </section>
 <section class="page" id="mailPage">
 <div class="top-safe"></div>
-<div class="header mail-header-menu-host"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div><div class="header-actions"><button aria-label="更多" class="header-more-btn" id="mailMoreBtn" title="更多" type="button">⋯</button><div class="header-popup-menu" id="mailMoreMenu" hidden><button type="button" data-mail-menu="settings">信箱设置</button></div></div></div>
+<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div></div>
 <div class="page-scroll">
 <div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><h3 style="margin-top:18px">收件箱</h3><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
 </div>
-<div class="mail-settings-modal" id="mailSettingsModal" hidden><div class="mail-settings-sheet"><div class="editor-head"><strong>信箱设置</strong><button class="icon-close" id="mailSettingsClose" type="button" aria-label="关闭">×</button></div><div class="panel-card" id="mailSettingsPanel"><div class="item-row"><label for="mailAutoIncoming">自动来信</label><input id="mailAutoIncoming" type="checkbox"/></div><div class="item-row"><label for="mailAutoReply">自动回信</label><input id="mailAutoReply" type="checkbox"/></div><div class="mail-setting-grid"><label>来信最短间隔（分钟）<input id="mailIncomingMin" type="number" min="1" max="10080"/></label><label>来信最长间隔（分钟）<input id="mailIncomingMax" type="number" min="1" max="10080"/></label><label>回信最短延迟（分钟）<input id="mailReplyMin" type="number" min="1" max="10080"/></label><label>回信最长延迟（分钟）<input id="mailReplyMax" type="number" min="1" max="10080"/></label></div><p class="data-note" id="mailAutoStatus"></p><button class="primary" id="mailSettingsSave" type="button">保存设置</button></div></div></div>
 <div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-hint" id="mailImageHint">最多 6 张图片</div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
 <div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
 </section>
@@ -5933,8 +5933,8 @@ $('#phraseList').addEventListener('click',e=>{
 });
 // Header overflow menus mirror the reference project's contextual settings entry points.
 function closeHeaderMenus(){
-  ['chatMoreMenu','mailMoreMenu'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=true;});
-  ['chatMoreBtn','mailMoreBtn'].forEach(id=>{const btn=$('#'+id);if(btn)btn.setAttribute('aria-expanded','false');});
+  const menu=$('#chatMoreMenu');if(menu)menu.hidden=true;
+  const button=$('#chatMoreBtn');if(button)button.setAttribute('aria-expanded','false');
 }
 function positionHeaderMenu(button,menu){
   if(!button||!menu)return;
@@ -5952,12 +5952,13 @@ function toggleHeaderMenu(buttonId,menuId){
   positionHeaderMenu(button,menu);button.setAttribute('aria-expanded','true');
 }
 $('#chatMoreBtn').addEventListener('click',e=>{e.stopPropagation();toggleHeaderMenu('chatMoreBtn','chatMoreMenu');});
-$('#chatMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-chat-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.chatMenu==='call'){syncCallSettings();openCallChoice();}else if(item.dataset.chatMenu==='settings'){if(typeof window.__duoOpenSettingsCategory==='function')window.__duoOpenSettingsCategory('calls');else showToast('通话设置尚未加载');}});
-$('#mailMoreBtn').addEventListener('click',e=>{e.stopPropagation();toggleHeaderMenu('mailMoreBtn','mailMoreMenu');});
-$('#mailMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-mail-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.mailMenu==='settings')$('#mailSettingsModal').hidden=false;});
-$('#mailSettingsClose').addEventListener('click',()=>{$('#mailSettingsModal').hidden=true;});
-$('#mailSettingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.hidden=true;});
-document.addEventListener('click',e=>{if(!e.target.closest('#chatMoreMenu,#mailMoreMenu,.chat-header-menu-host,.mail-header-menu-host'))closeHeaderMenus();});
+$('#chatMoreMenu').addEventListener('click',e=>{
+  const item=e.target.closest('[data-chat-menu]');if(!item)return;
+  const action=item.dataset.chatMenu;closeHeaderMenus();
+  if(action==='audio')void startCall('audio');
+  else if(action==='video')void startCall('video');
+});
+document.addEventListener('click',e=>{if(!e.target.closest('#chatMoreMenu,.chat-header-menu-host'))closeHeaderMenus();});
 window.addEventListener('resize',closeHeaderMenus);
 document.addEventListener('scroll',closeHeaderMenus,true);
 $('#callChoiceCancel').addEventListener('click',closeCallChoice);

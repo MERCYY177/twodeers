@@ -38,17 +38,22 @@ test('最近抽过是字卡顶部分类，不需要滚动到三个字卡池下�
   assert.match(tabs,/data-card-pane="recent" hidden/);
 });
 
-test('参数区不再展示独立通话设置入口，通话设置由聊天菜单调起',()=>{
-  assert.doesNotMatch(html,/data-settings-category="calls"/);
-  assert.match(settings,/calls:\{title:'通话设置'/);
-  assert.match(html,/__duoOpenSettingsCategory\('calls'\)/);
+test('信箱与模拟通话设置都从参数区入口打开',()=>{
+  assert.match(html,/data-settings-category="mail"/);
+  assert.match(html,/data-settings-category="calls"/);
+  assert.doesNotMatch(html,/id="mailMoreBtn"|id="mailMoreMenu"|id="mailSettingsModal"/);
+  assert.match(settings,/mail:\{title:'信箱设置'/);
+  assert.match(settings,/window\.__duoMailbox\?\.mountSettings/);
+  assert.match(settings,/calls:\{title:'模拟通话'/);
 });
 
-test('从聊天右上角打开通话设置后，返回会回到聊天页',()=>{
-  assert.match(settings,/returnPage=\(typeof state!=='undefined'&&state\.currentPage\)\|\|'settingsPage'/);
-  assert.match(settings,/const target=returnPage;goto\(target\);if\(target==='settingsPage'\)setSettingsTab\('param'\)/);
+test('聊天更多菜单只提供直接语音与视频通话操作',()=>{
+  assert.match(html,/data-chat-menu="audio">语音通话/);
+  assert.match(html,/data-chat-menu="video">视频通话/);
+  assert.doesNotMatch(html,/data-chat-menu="settings"|data-chat-menu="call"/);
+  assert.match(html,/action==='audio'[\s\S]*?startCall\('audio'\)/);
+  assert.match(html,/action==='video'[\s\S]*?startCall\('video'\)/);
 });
-
 
 test('来电间隔改为分钟显示，保存时换算回秒，超时仍保持秒',()=>{
   assert.match(html,/最短来电间隔（分钟）/);

@@ -10,7 +10,8 @@
     cards:{title:'字卡管理',match:()=>panels().filter(p=>p.id==='duoUnifiedCardPanel')},
     circle:{title:'朋友圈设置',match:()=>[]},
     appearance:{title:'显示与个性化',match:()=>panels().filter(p=>heading(p)==='聊天外观'||p.id==='duoAppearancePanel'||p.id==='duoFontPanel'||p.classList.contains('duo-chat-beautify-manager'))},
-    calls:{title:'通话设置',match:()=>panels().filter(p=>heading(p)==='通话设置'||heading(p)==='通话与视频设置')},
+    calls:{title:'模拟通话',match:()=>panels().filter(p=>heading(p)==='通话设置'||heading(p)==='模拟通话'||heading(p)==='通话与视频设置')},
+    mail:{title:'信箱设置',match:()=>[]},
     stickers:{title:'表情包管理',match:()=>[]},
     privacy:{title:'隐私与数据管理',match:()=>panels().filter(p=>['备份与恢复','数据管理'].includes(heading(p)))}
   };
@@ -69,12 +70,14 @@
     $('#settingsCategoryTitle').textContent=cfg.title;
     let nodes=cfg.match();
     if(key==='stickers'){if(window.__duoStickerAdmin?.mount)window.__duoStickerAdmin.mount(content);else content.textContent='表情包管理模块尚未加载';goto('settingsCategoryPage');return;}
+    if(key==='mail'){if(window.__duoMailbox?.mountSettings)window.__duoMailbox.mountSettings(content);else content.textContent='信箱设置模块尚未加载';goto('settingsCategoryPage');return;}
     if(key==='circle'){content.appendChild(buildCircleCard());nodes=[];}
     nodes.forEach(node=>{const placeholder=document.createComment('settings-slot');node.parentNode.insertBefore(placeholder,node);moved.push({node,placeholder,wasHidden:node.hidden});node.hidden=false;content.appendChild(node);});
     if(window.__duoCardSystem)window.__duoCardSystem.render();
     goto('settingsCategoryPage');
   }
   window.__duoOpenSettingsCategory=open;
+  window.__duoCloseSettingsCategory=function(){restoreMoved();const target=returnPage;goto(target);if(target==='settingsPage')setSettingsTab('param');};
   function boot(){
     const hub=$('#settingsCategoryGrid');if(!hub||!$('#settingsCategoryContent'))return;
     buildCardManager();
