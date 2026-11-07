@@ -111,7 +111,7 @@ test('页面浮层层级统一走命名 token，备份与恢复遮罩保持最�
     assert.ok(html.includes(token),'missing layer token '+token);
   }
   assert.ok(html.includes('z-index:var(--z-header-menu,12000)'));
-  assert.equal((html.match(/\\.more-panel\\{z-index:var\\(--z-more-panel,34\\)\\}/g)||[]).length,1,'more-panel must have one authoritative stacking rule');
+  assert.equal((html.match(/\.more-panel\{z-index:var\(--z-more-panel,34\)\}/g)||[]).length,1,'more-panel must have one authoritative stacking rule');
   assert.ok(html.includes('z-index:var(--z-sticker-overlay,1000)'));
   assert.ok(html.includes('z-index:var(--z-incoming-call,110)'));
   assert.ok(mailbox.includes('z-index:var(--z-mail-modal,80)'));
