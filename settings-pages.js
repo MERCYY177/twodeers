@@ -71,6 +71,7 @@
     let nodes=cfg.match();
     if(key==='stickers'){if(window.__duoStickerAdmin?.mount)window.__duoStickerAdmin.mount(content);else content.textContent='表情包管理模块尚未加载';goto('settingsCategoryPage');return;}
     if(key==='mail'){if(window.__duoMailbox?.mountSettings)window.__duoMailbox.mountSettings(content);else content.textContent='信箱设置模块尚未加载';goto('settingsCategoryPage');return;}
+    if(key==='calls')window.__duoSyncCallSettings?.();
     if(key==='circle'){content.appendChild(buildCircleCard());nodes=[];}
     nodes.forEach(node=>{const placeholder=document.createComment('settings-slot');node.parentNode.insertBefore(placeholder,node);moved.push({node,placeholder,wasHidden:node.hidden});node.hidden=false;content.appendChild(node);});
     if(window.__duoCardSystem)window.__duoCardSystem.render();

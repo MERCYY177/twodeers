@@ -375,6 +375,17 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .param-phrase-delete{flex-shrink:0;padding:7px 11px;border-radius:9px;background:#f8eeee;color:#a33;font-size:12px}
 .param-phrase-empty{padding:16px 12px;border:1px dashed #d8d2cc;border-radius:12px;color:#8a8179;text-align:center;font-size:13px}
 .call-settings-note{margin-top:12px;padding:10px 12px;border-radius:10px;background:#f7f5f2;color:#756b62;font-size:12px;line-height:1.65}
+.duo-call-setting-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--text)}
+.duo-call-setting-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.duo-call-setting-row small{font-size:12px;color:var(--sub);line-height:1.45}
+.duo-call-setting-row input[type="checkbox"]{width:20px;height:20px;flex:0 0 auto;accent-color:var(--theme-color)}
+.duo-call-setting-row select{min-width:84px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--text)}
+.duo-call-advanced{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:0 12px}
+.duo-call-advanced summary{padding:12px 0;color:var(--sub);font-size:13px;cursor:pointer}
+.duo-call-advanced[open] summary{border-bottom:1px solid var(--line)}
+.duo-call-settings-actions{display:flex;gap:10px;margin-top:16px}
+.duo-call-settings-actions button{flex:1;min-height:42px;border-radius:11px;background:var(--soft);color:var(--text)}
+.duo-call-settings-actions .primary{background:var(--button-bg);color:var(--button-text)}
 .call-choice-btn:disabled{opacity:.35;cursor:not-allowed}
 </style>
 <style id="uiLayoutFixes">
@@ -4284,26 +4295,39 @@ window.__duoCircleApi = {
 <div class="param-phrase-list" id="paramPhraseList"></div>
 </div>
 <div class="panel-card" id="paramCallSettingsPanel">
-<h3>通话设置</h3>
-<div class="item-row">
-<div><div class="lab">语音通话</div><div class="desc">允许从聊天顶部通话菜单发起语音通话</div></div>
-<div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div>
+<h3>模拟通话</h3>
+<div class="duo-call-setting-row">
+  <div><label for="callMasterEnabled">启用模拟通话</label><small>控制语音和视频通话功能</small></div>
+  <input id="callMasterEnabled" type="checkbox">
 </div>
-<div class="item-row">
-<div><div class="lab">视频通话</div><div class="desc">允许从聊天顶部通话菜单发起视频通话</div></div>
-<div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingEnabled">允许对方主动来电</label><small>关闭后不会出现主动来电</small></div>
+  <input id="callIncomingEnabled" type="checkbox">
 </div>
-<div class="incoming-call-settings">
-<h4>他主动给我打电话</h4>
-<div class="item-row"><div><div class="lab">允许他主动给我打电话</div><div class="desc">开启后按随机时间安排对方来电</div></div><div class="seg" id="incomingMasterSeg"><button type="button" data-incoming-master="on">开启</button><button type="button" data-incoming-master="off">关闭</button></div></div>
-<div class="item-row"><div><div class="lab">允许主动语音来电</div></div><div class="seg" id="incomingAudioSeg"><button type="button" data-incoming-audio="on">开启</button><button type="button" data-incoming-audio="off">关闭</button></div></div>
-<div class="item-row"><div><div class="lab">允许主动视频来电</div></div><div class="seg" id="incomingVideoSeg"><button type="button" data-incoming-video="on">开启</button><button type="button" data-incoming-video="off">关闭</button></div></div>
-<div class="field"><label>视频来电概率（两种类型都开启时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
-<div class="two-col"><div class="field"><label>最短来电间隔（分钟）</label><input id="incomingMinInterval" type="number" min="0.017" max="1440" step="0.001"/></div><div class="field"><label>最长来电间隔（分钟）</label><input id="incomingMaxInterval" type="number" min="0.017" max="1440" step="0.001"/></div></div>
-<div class="field"><label>无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingAudioEnabled">允许主动语音来电</label></div>
+  <input id="callIncomingAudioEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="callIncomingVideoEnabled">允许主动视频来电</label></div>
+  <input id="callIncomingVideoEnabled" type="checkbox">
+</div>
+<div class="duo-call-setting-row">
+  <div><label for="incomingCallFrequency">来电频率</label><small>低 60～180 分钟 · 中 30～90 分钟 · 高 10～30 分钟</small></div>
+  <select id="incomingCallFrequency">
+    <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
+  </select>
+</div>
+<details class="duo-call-advanced">
+  <summary>高级选项</summary>
+  <div class="item-row"><div><div class="lab">主动语音拨出</div><div class="desc">允许从联系人菜单发起语音通话</div></div><div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div></div>
+  <div class="item-row"><div><div class="lab">主动视频拨出</div><div class="desc">允许从联系人菜单发起视频通话</div></div><div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div></div>
+  <div class="field"><label>视频来电概率（语音和视频均允许时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
+  <div class="field"><label for="incomingRingTimeout">无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
+</details>
 <div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
-<p class="call-settings-note">主动来电为本页面运行期间的模拟来电；页面彻底关闭或系统强制停止时，网页无法保证唤醒。这里的来电不会建立真实电话或 WebRTC 音视频连接。</p>
-</div>
+<p class="call-settings-note">这里的通话为模拟通话，不会调用摄像头或麦克风。主动来电依赖页面运行，页面彻底关闭或系统强制停止时，网页无法保证唤醒。</p>
+<div class="duo-call-settings-actions"><button type="button" id="callSettingsCancel">取消</button><button type="button" id="callSettingsSave" class="primary">保存</button></div>
 </div>
 <div class="panel-card">
 <h3>聊天规则</h3>
@@ -4489,14 +4513,24 @@ window.__duoCircleApi = {
 <script>
 const STORAGE_KEY='dual_space_app_clean_test_v1';
 const STICKER_LIBRARY_STORAGE_KEY='dual_space_sticker_library_v1';
+const INCOMING_CALL_FREQUENCIES={
+  low:{minIntervalSec:3600,maxIntervalSec:10800},
+  medium:{minIntervalSec:1800,maxIntervalSec:5400},
+  high:{minIntervalSec:600,maxIntervalSec:1800}
+};
 function normalizeIncomingCallSettings(raw){
   const src=raw&&typeof raw==='object'?raw:{};
-  let min=Math.round(Number(src.minIntervalSec));if(!Number.isFinite(min)||min<1)min=90;min=Math.min(86400,min);
-  let max=Math.round(Number(src.maxIntervalSec));if(!Number.isFinite(max)||max<1)max=180;max=Math.min(86400,max);
-  if(min>max)max=min;
-  let probability=Number(src.videoProbability);if(!Number.isFinite(probability))probability=60;probability=Math.max(0,Math.min(100,Math.round(probability)));
-  let timeout=Math.round(Number(src.ringTimeoutSec));if(!Number.isFinite(timeout)||timeout<5)timeout=25;timeout=Math.max(5,Math.min(300,timeout));
-  return {enabled:src.enabled!==false,audioEnabled:src.audioEnabled!==false,videoEnabled:src.videoEnabled!==false,videoProbability:probability,minIntervalSec:min,maxIntervalSec:max,ringTimeoutSec:timeout};
+  const frequency=Object.prototype.hasOwnProperty.call(INCOMING_CALL_FREQUENCIES,src.frequency)?src.frequency:'low';
+  const range=INCOMING_CALL_FREQUENCIES[frequency];
+  const probabilityRaw=Number(src.videoProbability);
+  const probability=Number.isFinite(probabilityRaw)?Math.max(0,Math.min(100,Math.round(probabilityRaw))):60;
+  const timeoutRaw=Math.round(Number(src.ringTimeoutSec));
+  const timeout=Number.isFinite(timeoutRaw)?Math.max(5,Math.min(300,timeoutRaw)):25;
+  return {
+    enabled:src.enabled!==false,audioEnabled:src.audioEnabled!==false,videoEnabled:src.videoEnabled!==false,
+    frequency,videoProbability:probability,minIntervalSec:range.minIntervalSec,
+    maxIntervalSec:range.maxIntervalSec,ringTimeoutSec:timeout
+  };
 }
 const state = {
   currentPage:'homePage',
@@ -4512,8 +4546,8 @@ const state = {
   typing:{enabled:true,text:'正在输入中'},
   offline:{chatEnabled:true,chatMin:30,chatMax:180,lastHiddenAt:0,lastChatAt:0},
   call:{active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null},
-  callSettings:{audioEnabled:true,videoEnabled:true},
-  incomingCallSettings:{enabled:true,audioEnabled:true,videoEnabled:true,videoProbability:60,minIntervalSec:90,maxIntervalSec:180,ringTimeoutSec:25},
+  callSettings:{enabled:true,audioEnabled:true,videoEnabled:true},
+  incomingCallSettings:{enabled:true,audioEnabled:true,videoEnabled:true,frequency:'low',videoProbability:60,minIntervalSec:3600,maxIntervalSec:10800,ringTimeoutSec:25},
   incomingCallNextAt:0,
   settingsTab:'icon',
   cardPhrases:[],
@@ -4544,9 +4578,10 @@ try{
     state.call=Object.assign({active:false,direction:'',phase:'idle',type:'',mini:false,startAt:0,incomingAt:0,miniPos:null}, saved.call||{});
     if(state.call.active){state.call.phase='active';state.call.direction=state.call.direction==='incoming'?'incoming':'outgoing';}
     else if(state.call.phase!=='ringing')state.call={...state.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0};
-    state.callSettings=Object.assign({audioEnabled:true,videoEnabled:true}, saved.callSettings||{});
+    state.callSettings=Object.assign({enabled:true,audioEnabled:true,videoEnabled:true}, saved.callSettings||{});
+    const legacyIncomingCallFrequency=!Object.prototype.hasOwnProperty.call(saved.incomingCallSettings||{},'frequency');
     state.incomingCallSettings=normalizeIncomingCallSettings(saved.incomingCallSettings||state.incomingCallSettings);
-    state.incomingCallNextAt=Math.max(0,Number(saved.incomingCallNextAt)||0);
+    state.incomingCallNextAt=legacyIncomingCallFrequency?0:Math.max(0,Number(saved.incomingCallNextAt)||0);
     state.settingsTab=saved.settingsTab==='param'?'param':'icon';
     state.cardPhrases=Array.isArray(saved.cardPhrases)?saved.cardPhrases.filter(v=>typeof v==='string'&&v.trim()):[];
     state.stickers=Array.isArray(saved.stickers)?saved.stickers:[];
@@ -5048,13 +5083,14 @@ function renderParamPhraseList(){
   list.innerHTML=state.cardPhrases.length?state.cardPhrases.map((text,idx)=>`<div class="param-phrase-item"><div class="param-phrase-text">${escapeHtml(text)}</div><button class="param-phrase-delete" type="button" data-param-phrase-del="${idx}">删除</button></div>`).join(''):'<div class="param-phrase-empty">字卡池为空。添加自己的字卡后，聊天自动回复和戳一戳才会使用这些内容。</div>';
 }
 function syncCallSettings(){
-  state.callSettings=Object.assign({audioEnabled:true,videoEnabled:true},state.callSettings||{});
+  state.callSettings=Object.assign({enabled:true,audioEnabled:true,videoEnabled:true},state.callSettings||{});
+  const master=$('#callMasterEnabled');if(master)master.checked=!!state.callSettings.enabled;
   [['audioCallSeg','audioEnabled','audioCall'],['videoCallSeg','videoEnabled','videoCall']].forEach(([id,key,attr])=>{
     const enabled=!!state.callSettings[key];
     $$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===enabled));
   });
-  $$('[data-call-type="audio"]').forEach(btn=>{btn.disabled=!state.callSettings.audioEnabled;});
-  $$('[data-call-type="video"]').forEach(btn=>{btn.disabled=!state.callSettings.videoEnabled;});
+  $$('[data-call-type="audio"]').forEach(btn=>{btn.disabled=!state.callSettings.enabled||!state.callSettings.audioEnabled;});
+  $$('[data-call-type="video"]').forEach(btn=>{btn.disabled=!state.callSettings.enabled||!state.callSettings.videoEnabled;});
 }
 function createOtherRow(text,time='刚刚'){
   return buildMessageRow({id:uid('m'),sender:'other',type:'text',text,time});
@@ -5251,6 +5287,7 @@ function clearIncomingSchedule(clearPersisted=true){
 function clearIncomingRingTimer(){if(incomingRingTimer!==null){clearTimeout(incomingRingTimer);incomingRingTimer=null;}}
 function incomingAllowedTypes(){
   const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
+  if(!state.callSettings?.enabled||!cfg.enabled)return [];
   const types=[];if(cfg.audioEnabled)types.push('audio');if(cfg.videoEnabled)types.push('video');return types;
 }
 function chooseIncomingCallType(){
@@ -5262,7 +5299,8 @@ function chooseIncomingCallType(){
 function updateIncomingCallStatus(){
   const el=$('#incomingCallStatus');if(!el)return;
   const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
-  let status=cfg.enabled?'主动来电已开启':'主动来电已关闭';
+  const masterEnabled=!!state.callSettings?.enabled;
+  let status=!masterEnabled?'模拟通话已关闭':cfg.enabled?'主动来电已开启':'主动来电已关闭';
   if(state.call?.phase==='ringing')status+=' · 正在响铃（'+(state.call.type==='video'?'视频':'语音')+'）';
   else if(state.call?.active)status+=' · 正在'+(state.call.type==='video'?'视频':'语音')+'通话';
   else if(cfg.enabled&&!incomingAllowedTypes().length)status+=' · 语音和视频类型均已关闭，当前不会安排来电';
@@ -5274,13 +5312,18 @@ function syncIncomingCallSettings(){
   state.incomingCallSettings=normalizeIncomingCallSettings(state.incomingCallSettings);
   const cfg=state.incomingCallSettings;
   if(typeof incomingRingTimer!=='undefined'&&incomingRingTimer!==null&&state.call?.phase==='ringing'&&(!cfg.enabled||!incomingAllowedTypes().includes(state.call.type)))cancelRingingIncomingCall();
-  const pairs=[['incomingMasterSeg','enabled','incomingMaster'],['incomingAudioSeg','audioEnabled','incomingAudio'],['incomingVideoSeg','videoEnabled','incomingVideo']];
-  pairs.forEach(([id,key,attr])=>{$$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attr]||'')==='on')===!!cfg[key]));});
   const set=(id,value)=>{const el=$('#'+id);if(el)el.value=String(value);};
-  set('incomingVideoProbability',cfg.videoProbability);set('incomingMinInterval',Number((cfg.minIntervalSec/60).toFixed(3)));set('incomingMaxInterval',Number((cfg.maxIntervalSec/60).toFixed(3)));set('incomingRingTimeout',cfg.ringTimeoutSec);
+  const setChecked=(id,value)=>{const el=$('#'+id);if(el)el.checked=!!value;};
+  setChecked('callIncomingEnabled',cfg.enabled);
+  setChecked('callIncomingAudioEnabled',cfg.audioEnabled);
+  setChecked('callIncomingVideoEnabled',cfg.videoEnabled);
+  set('incomingCallFrequency',cfg.frequency);
+  set('incomingVideoProbability',cfg.videoProbability);
+  set('incomingRingTimeout',cfg.ringTimeoutSec);
   const out=$('#incomingVideoProbabilityValue');if(out)out.textContent=cfg.videoProbability+'%';
   updateIncomingCallStatus();
 }
+window.__duoSyncCallSettings=function(){syncCallSettings();syncIncomingCallSettings();};
 function updateIncomingAvatar(){
   const avatar=$('#incomingCallAvatar');if(!avatar)return;
   const img=avatar.querySelector('img');img.src=state.media['avatar-other']||'';
@@ -5296,7 +5339,7 @@ function scheduleIncomingCall(options={}){
   const forceNew=!!options.forceNew;
   const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
   state.incomingCallSettings=cfg;
-  if(!cfg.enabled||!incomingAllowedTypes().length||incomingCallBusy()){
+  if(!state.callSettings?.enabled||!cfg.enabled||!incomingAllowedTypes().length||incomingCallBusy()){
     clearIncomingSchedule(true);save();return false;
   }
   if(incomingScheduleTimer!==null&&!forceNew){updateIncomingCallStatus();return true;}
@@ -5317,7 +5360,7 @@ function scheduleIncomingCall(options={}){
 function triggerIncomingCall(type){
   clearIncomingSchedule(true);
   const cfg=normalizeIncomingCallSettings(state.incomingCallSettings);
-  if(!cfg.enabled||incomingCallBusy())return false;
+  if(!state.callSettings?.enabled||!cfg.enabled||incomingCallBusy())return false;
   const allowed=incomingAllowedTypes();
   const chosen=allowed.includes(type)?type:chooseIncomingCallType();
   if(!chosen){save();updateIncomingCallStatus();return false;}
@@ -5331,6 +5374,7 @@ function triggerIncomingCall(type){
 }
 async function answerIncomingCall(){
   if(state.call?.direction!=='incoming'||state.call.phase!=='ringing')return;
+  if(!state.callSettings?.enabled||!normalizeIncomingCallSettings(state.incomingCallSettings).enabled){cancelRingingIncomingCall();return;}
   clearIncomingRingTimer();
   state.call.active=true;state.call.phase='active';state.call.startAt=Date.now();state.call.mini=false;
   $('#incomingCallMask').classList.remove('show');
@@ -5408,6 +5452,7 @@ function openCallChoice(){
 function closeCallChoice(){$('#callChoiceModal').classList.remove('show');}
 async function startCall(type){
   if(type!=='audio'&&type!=='video')return;
+  if(!state.callSettings?.enabled){showToast('请先在参数区启用模拟通话');return;}
   if(type==='audio'&&!state.callSettings.audioEnabled||type==='video'&&!state.callSettings.videoEnabled)return;
   if(incomingCallBusy())return;
   clearIncomingSchedule(true);closeCallChoice();
@@ -5879,45 +5924,63 @@ $('#paramPhraseList').addEventListener('click',e=>{
   try{if(window.__duoCardSystem?.remove)window.__duoCardSystem.remove('chat',idx);else{const removed=state.cardPhrases.splice(idx,1)[0];if(save()===false){state.cardPhrases.splice(idx,0,removed);throw new Error('保存失败');}renderPhraseList();renderParamPhraseList();}showToast('字卡已删除');}catch(error){showToast(error.message||'字卡删除失败');}
 
 });
-$('#audioCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-audio-call]');if(!btn)return;state.callSettings.audioEnabled=btn.dataset.audioCall==='on';syncCallSettings();save();});
-$('#videoCallSeg').addEventListener('click',e=>{const btn=e.target.closest('[data-video-call]');if(!btn)return;state.callSettings.videoEnabled=btn.dataset.videoCall==='on';syncCallSettings();save();});
-function applyIncomingCallSettingsChange(){
-  state.incomingCallSettings=normalizeIncomingCallSettings(state.incomingCallSettings);
-  const cfg=state.incomingCallSettings;
-  if(state.call?.phase==='ringing'&&(!cfg.enabled||!incomingAllowedTypes().includes(state.call.type)))cancelRingingIncomingCall();
-  syncIncomingCallSettings();save();
-  if(!cfg.enabled||!incomingAllowedTypes().length){clearIncomingSchedule(true);save();}
-  else if(!incomingCallBusy())scheduleIncomingCall({forceNew:true});
+function setCallSegmentDraft(id,attribute,enabled){
+  $$('#'+id+' button').forEach(btn=>btn.classList.toggle('active',((btn.dataset[attribute]||'')==='on')===enabled));
 }
-$('#incomingMasterSeg').addEventListener('click',e=>{
-  const btn=e.target.closest('[data-incoming-master]');if(!btn)return;
-  state.incomingCallSettings.enabled=btn.dataset.incomingMaster==='on';applyIncomingCallSettingsChange();
+$('#audioCallSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-audio-call]');if(!btn)return;
+  setCallSegmentDraft('audioCallSeg','audioCall',btn.dataset.audioCall==='on');
 });
-$('#incomingAudioSeg').addEventListener('click',e=>{
-  const btn=e.target.closest('[data-incoming-audio]');if(!btn)return;
-  state.incomingCallSettings.audioEnabled=btn.dataset.incomingAudio==='on';applyIncomingCallSettingsChange();
-});
-$('#incomingVideoSeg').addEventListener('click',e=>{
-  const btn=e.target.closest('[data-incoming-video]');if(!btn)return;
-  state.incomingCallSettings.videoEnabled=btn.dataset.incomingVideo==='on';applyIncomingCallSettingsChange();
+$('#videoCallSeg').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-video-call]');if(!btn)return;
+  setCallSegmentDraft('videoCallSeg','videoCall',btn.dataset.videoCall==='on');
 });
 $('#incomingVideoProbability').addEventListener('input',e=>{
-  state.incomingCallSettings.videoProbability=Number(e.target.value);applyIncomingCallSettingsChange();
+  const output=$('#incomingVideoProbabilityValue');if(output)output.textContent=e.target.value+'%';
 });
-['incomingMinInterval','incomingMaxInterval','incomingRingTimeout'].forEach(id=>{
-  $('#'+id).addEventListener('change',()=>{
-    const cfg=state.incomingCallSettings;
-    cfg.minIntervalSec=Math.max(1,Math.round(Number($('#incomingMinInterval').value)*60));
-    cfg.maxIntervalSec=Math.max(1,Math.round(Number($('#incomingMaxInterval').value)*60));
-    cfg.ringTimeoutSec=Number($('#incomingRingTimeout').value);
-    state.incomingCallSettings=normalizeIncomingCallSettings(cfg);
-    syncIncomingCallSettings();save();
-    if(state.call?.phase==='ringing'){
-      clearIncomingRingTimer();
-      const remain=Math.max(0,(state.call.incomingAt||Date.now())+state.incomingCallSettings.ringTimeoutSec*1000-Date.now());
-      incomingRingTimer=setTimeout(()=>{incomingRingTimer=null;missIncomingCall();},remain);
-    }else if(!incomingCallBusy()&&state.incomingCallSettings.enabled&&incomingAllowedTypes().length)scheduleIncomingCall({forceNew:true});
+function saveCallSettingsFromForm(){
+  const oldCall={...state.callSettings},oldIncoming={...state.incomingCallSettings},oldNextAt=state.incomingCallNextAt;
+  const frequency=$('#incomingCallFrequency')?.value;
+  if(!Object.prototype.hasOwnProperty.call(INCOMING_CALL_FREQUENCIES,frequency)){showToast('请选择有效的来电频率');return false;}
+  const timeout=Number($('#incomingRingTimeout')?.value);
+  if(!Number.isFinite(timeout)||timeout<5||timeout>300){showToast('无人接听超时请输入 5～300 秒');return false;}
+  const nextCall={
+    ...state.callSettings,
+    enabled:!!$('#callMasterEnabled')?.checked,
+    audioEnabled:!!$('#audioCallSeg [data-audio-call="on"]')?.classList.contains('active'),
+    videoEnabled:!!$('#videoCallSeg [data-video-call="on"]')?.classList.contains('active')
+  };
+  const nextIncoming=normalizeIncomingCallSettings({
+    ...state.incomingCallSettings,
+    enabled:!!$('#callIncomingEnabled')?.checked,
+    audioEnabled:!!$('#callIncomingAudioEnabled')?.checked,
+    videoEnabled:!!$('#callIncomingVideoEnabled')?.checked,
+    frequency,
+    videoProbability:Number($('#incomingVideoProbability')?.value),
+    ringTimeoutSec:timeout
   });
+  const scheduleChanged=oldCall.enabled!==nextCall.enabled||
+    oldIncoming.enabled!==nextIncoming.enabled||
+    oldIncoming.audioEnabled!==nextIncoming.audioEnabled||
+    oldIncoming.videoEnabled!==nextIncoming.videoEnabled||
+    oldIncoming.frequency!==nextIncoming.frequency;
+  state.callSettings=nextCall;state.incomingCallSettings=nextIncoming;
+  if(scheduleChanged)state.incomingCallNextAt=0;
+  if(save()===false){
+    state.callSettings=oldCall;state.incomingCallSettings=oldIncoming;state.incomingCallNextAt=oldNextAt;
+    window.__duoSyncCallSettings?.();showToast('通话设置保存失败，已恢复原设置');return false;
+  }
+  if(!nextCall.enabled||!nextIncoming.enabled||!incomingAllowedTypes().length){
+    clearIncomingSchedule(true);
+    if(state.call?.direction==='incoming'&&state.call.phase==='ringing')cancelRingingIncomingCall();
+  }else if(!incomingCallBusy())scheduleIncomingCall({forceNew:scheduleChanged});
+  if(!nextCall.enabled&&state.call?.active)void endCall();
+  syncCallSettings();syncIncomingCallSettings();save();
+  showToast('模拟通话设置已保存');window.__duoCloseSettingsCategory?.();return true;
+}
+$('#callSettingsSave').addEventListener('click',saveCallSettingsFromForm);
+$('#callSettingsCancel').addEventListener('click',()=>{
+  window.__duoSyncCallSettings?.();window.__duoCloseSettingsCategory?.();
 });
 $('#incomingAnswerBtn').addEventListener('click',answerIncomingCall);
 $('#incomingRejectBtn').addEventListener('click',rejectIncomingCall);
