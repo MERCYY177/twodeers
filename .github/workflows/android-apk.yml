@@ -32,10 +32,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Install FFmpeg for HEIF conversion
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+      - name: Install native HEIF image decoder
+        run: python -m pip install --disable-pip-version-check Pillow pillow-heif
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

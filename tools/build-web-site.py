@@ -11,6 +11,8 @@ import tempfile
 from pathlib import Path
 from urllib.parse import unquote
 
+from PIL import Image
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -72,6 +74,22 @@ def main() -> int:
             raise RuntimeError("Missing generated sticker asset: " + str(asset_path))
         if asset_path.stat().st_size != item.get("size"):
             raise RuntimeError("Sticker asset size mismatch: " + str(asset_path))
+        with Image.open(asset_path) as image:
+            image.seek(0)
+            image.load()
+            expected_size = (item.get("width"), item.get("height"))
+            if image.size != expected_size:
+                raise RuntimeError(
+                    f"Sticker image dimensions differ from manifest: {asset_path}: "
+                    f"{image.size} != {expected_size}"
+                )
+            expected_frames = item.get("frames", 1)
+            actual_frames = int(getattr(image, "n_frames", 1))
+            if item.get("format") != "heif" and actual_frames != expected_frames:
+                raise RuntimeError(
+                    f"Sticker animation frame count changed: {asset_path}: "
+                    f"{actual_frames} != {expected_frames}"
+                )
         checked += 1
 
     print(json.dumps({

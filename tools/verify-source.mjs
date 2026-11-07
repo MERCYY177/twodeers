@@ -42,3 +42,11 @@ for (const token of ['recentDrawnRepliesV1','momentsDynamicIds','momentsReplyIds
 const mailbox = readFileSync(resolve(root, 'mailbox-manager.js'), 'utf8');
 for (const token of ['DRAFT_KEY','autoIncoming','autoReply','processDue','exportData','importData']) if (!mailbox.includes(token)) throw new Error('信件系统缺失：'+token);
 console.log('OK: ' + required.length + ' 个模块已接入；' + inline.length + ' 个 index.html 内联脚本通过语法编译；六类参数入口、信箱/草稿、右上角设置菜单、访客记录与独立备份、分钟间隔换算、字卡分栏、备份、来电、双列表情包及 Android 入口静态检查通过。');
+
+const stickerBuild = readFileSync(resolve(root, 'tools/prepare-builtin-stickers.py'), 'utf8');
+for (const token of ['register_heif_opener()', 'ImageOps.exif_transpose(source_image)', 'sourceWidth', 'sourceHeight', '"width": output_width', '"height": output_height', 'Generated animation frame count changed']) {
+  if (!stickerBuild.includes(token)) throw new Error('Sticker image conversion/validation is missing: ' + token);
+}
+if (stickerBuild.includes('"-frames:v", "1"') || stickerBuild.includes('shutil.which("ffmpeg")')) {
+  throw new Error('The legacy HEIF-to-512x512 FFmpeg conversion path must not return');
+}

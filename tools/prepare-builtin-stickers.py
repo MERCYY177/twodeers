@@ -5,13 +5,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
-import subprocess
-import tempfile
+import io
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote
+
+from PIL import Image, ImageOps
+from pillow_heif import register_heif_opener
+
+register_heif_opener()
 
 EXPECTED_COUNTS = {"jpeg": 199, "gif": 131, "png": 4, "heif": 18}
 
@@ -45,26 +48,54 @@ def encoded_asset_url(relative_path: str) -> str:
     return "assets/builtin-stickers/" + "/".join(quote(part, safe="-_.~()") for part in PurePosixPath(relative_path).parts)
 
 
-def convert_heif(data: bytes, output: Path) -> None:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("ffmpeg is required to convert the 18 HEIF images to JPEG")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    # FFmpeg's HEIF demuxer requires a seekable input; stdin pipes are not supported.
-    with tempfile.NamedTemporaryFile(suffix=".heic", delete=False) as source_file:
-        source_file.write(data)
-        source_path = Path(source_file.name)
+def inspect_image(data: bytes) -> tuple[int, int, int]:
+    """Decode the source's displayed first frame and report display dimensions."""
     try:
-        command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source_path),
-                   "-frames:v", "1", "-q:v", "2", "-pix_fmt", "yuvj420p", str(output)]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode != 0:
-            raise RuntimeError("HEIF conversion failed for " + output.name + ": " + result.stderr.decode("utf-8", "replace")[-1000:])
-    finally:
-        source_path.unlink(missing_ok=True)
-    converted = output.read_bytes()
-    if detect_format(converted) != "jpeg" or not converted:
-        raise RuntimeError("HEIF conversion did not produce a valid JPEG: " + str(output))
+        with Image.open(io.BytesIO(data)) as source_image:
+            frame_count = int(getattr(source_image, "n_frames", 1))
+            source_image.seek(0)
+            source_image.load()
+            displayed = ImageOps.exif_transpose(source_image)
+            width, height = displayed.size
+            if width < 1 or height < 1:
+                raise RuntimeError("Image has invalid displayed dimensions")
+            return width, height, frame_count
+    except Exception as exc:
+        raise RuntimeError("Image decode failed: " + str(exc)) from exc
+
+
+def convert_heif(data: bytes, output: Path, expected_size: tuple[int, int]) -> tuple[int, int]:
+    """Decode HEIF with libheif via pillow-heif, honoring the display transform/crop."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with Image.open(io.BytesIO(data)) as source_image:
+            if (source_image.format or "").upper() not in {"HEIF", "HEIC"}:
+                raise RuntimeError("HEIF decoder received " + repr(source_image.format))
+            source_image.seek(0)
+            source_image.load()
+            displayed = ImageOps.exif_transpose(source_image)
+            width, height = displayed.size
+            if (width, height) != expected_size:
+                raise RuntimeError(
+                    f"HEIF displayed dimensions changed during decode: {expected_size} -> {(width, height)}"
+                )
+            displayed.convert("RGB").save(
+                output, format="JPEG", quality=94, optimize=True, progressive=True
+            )
+    except Exception as exc:
+        raise RuntimeError("Native HEIF conversion failed for " + output.name + ": " + str(exc)) from exc
+
+    try:
+        with Image.open(output) as converted:
+            converted.load()
+            if converted.format != "JPEG" or converted.size != expected_size:
+                raise RuntimeError(
+                    f"HEIF JPEG readback mismatch: expected {expected_size}, "
+                    f"got {converted.format} {converted.size}"
+                )
+    except Exception as exc:
+        raise RuntimeError("Generated HEIF JPEG failed validation: " + str(exc)) from exc
+    return expected_size
 
 
 def main() -> int:
@@ -100,6 +131,7 @@ def main() -> int:
                 if fmt is None:
                     raise RuntimeError(f"Unsupported/non-image entry in {archive_path.name}: {entry}")
                 digest = sha256(source)
+                source_width, source_height, frame_count = inspect_image(source)
                 item_id = "builtin-" + digest[:24]
                 if item_id in seen_ids:
                     raise RuntimeError("Duplicate source image detected: " + archive_path.name + ":" + entry)
@@ -110,13 +142,16 @@ def main() -> int:
                 if fmt == "heif":
                     relative = f"heif/{item_id}.jpg"
                     destination = output_root / "assets" / "builtin-stickers" / relative
-                    convert_heif(source, destination)
+                    output_width, output_height = convert_heif(
+                        source, destination, (source_width, source_height)
+                    )
                     mime = "image/jpeg"
                 else:
                     relative = f"{folder}/{entry}"
                     destination = output_root / "assets" / "builtin-stickers" / relative
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     destination.write_bytes(source)
+                    output_width, output_height = source_width, source_height
                     mime = {"jpeg": "image/jpeg", "gif": "image/gif", "png": "image/png"}[fmt]
 
                 if relative in seen_paths:
@@ -132,6 +167,11 @@ def main() -> int:
                     "sourceBytes": len(source),
                     "sourceSha256": digest,
                     "format": fmt,
+                    "sourceWidth": source_width,
+                    "sourceHeight": source_height,
+                    "width": output_width,
+                    "height": output_height,
+                    "frames": frame_count,
                     "archive": archive_path.name,
                     "archiveEntry": entry,
                 })
@@ -160,6 +200,16 @@ def main() -> int:
         output_path = output_root / "assets" / "builtin-stickers" / relative_url
         if not output_path.is_file() or output_path.stat().st_size != item["size"]:
             raise RuntimeError("Generated asset size/readback mismatch: " + item["id"])
+        with Image.open(output_path) as generated_image:
+            generated_image.seek(0)
+            generated_image.load()
+            if generated_image.size != (item["width"], item["height"]):
+                raise RuntimeError(
+                    f"Generated image dimensions differ from its manifest: {item['name']}: "
+                    f"{generated_image.size} != {(item['width'], item['height'])}"
+                )
+            if item["format"] != "heif" and int(getattr(generated_image, "n_frames", 1)) != item["frames"]:
+                raise RuntimeError("Generated animation frame count changed: " + item["name"])
     print(json.dumps({
         "status": "ok",
         "totalCount": len(items),
