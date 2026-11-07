@@ -9,12 +9,12 @@ const stickerLibrary = readFileSync(new URL('../sticker-library.js', import.meta
 const settings = readFileSync(new URL('../settings-pages.js', import.meta.url), 'utf8');
 
 test('管理中心只从参数区独立设置分类打开', () => {
-  assert.match(html, /data-settings-category="stickers"/);
-  assert.match(html, /src="sticker-admin\\.js"/);
-  assert.match(settings, /stickers:\\{title:'表情包管理'/);
-  assert.match(settings, /window\\.__duoStickerAdmin\\.mount\\(content\\)/);
-  assert.doesNotMatch(stickerLibrary, /data-open-sticker-admin|__duoOpenSettingsCategory/);
-  assert.match(html, /id="stickerOverlay"/);
+  assert.ok(html.includes('data-settings-category="stickers"'));
+  assert.ok(html.includes('sticker-admin.js'));
+  assert.ok(settings.includes("stickers:{title:'表情包管理'"));
+  assert.ok(settings.includes('window.__duoStickerAdmin.mount(content)'));
+  assert.doesNotMatch(stickerLibrary,/data-open-sticker-admin|__duoOpenSettingsCategory/);
+  assert.ok(html.includes('id="stickerOverlay"'));
 });
 
 test('管理中心提供搜索、分类筛选、全选、取消选择和批量删除', () => {
