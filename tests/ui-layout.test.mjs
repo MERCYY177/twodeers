@@ -55,13 +55,21 @@ test('聊天更多菜单只提供直接语音与视频通话操作',()=>{
   assert.match(html,/action==='video'[\s\S]*?startCall\('video'\)/);
 });
 
-test('来电间隔改为分钟显示，保存时换算回秒，超时仍保持秒',()=>{
-  assert.match(html,/最短来电间隔（分钟）/);
-  assert.match(html,/最长来电间隔（分钟）/);
-  assert.match(html,/cfg\.minIntervalSec=Math\.max\(1,Math\.round\(Number\(\$\('#incomingMinInterval'\)\.value\)\*60\)\)/);
-  assert.match(html,/cfg\.maxIntervalSec=Math\.max\(1,Math\.round\(Number\(\$\('#incomingMaxInterval'\)\.value\)\*60\)\)/);
-  assert.match(html,/cfg\.minIntervalSec\/60\)\.toFixed\(3\)/);
+test('模拟通话采用参考表单和固定频率档位，旧外呼选项保留在高级设置',()=>{
+  assert.match(html,/id="callMasterEnabled"/);
+  assert.match(html,/id="callIncomingEnabled"/);
+  assert.match(html,/id="callIncomingAudioEnabled"/);
+  assert.match(html,/id="callIncomingVideoEnabled"/);
+  assert.match(html,/id="incomingCallFrequency"/);
+  assert.match(html,/low:\{minIntervalSec:3600,maxIntervalSec:10800\}/);
+  assert.match(html,/medium:\{minIntervalSec:1800,maxIntervalSec:5400\}/);
+  assert.match(html,/high:\{minIntervalSec:600,maxIntervalSec:1800\}/);
+  assert.match(html,/id="callSettingsCancel"/);
+  assert.match(html,/id="callSettingsSave"/);
+  assert.match(html,/视频来电概率/);
   assert.match(html,/无人接听超时（秒）/);
+  assert.match(html,/id="audioCallSeg"/);
+  assert.match(html,/id="videoCallSeg"/);
 });
 
 test('朋友圈回复间隔改为分钟显示并保留秒级内部计时兼容',()=>{

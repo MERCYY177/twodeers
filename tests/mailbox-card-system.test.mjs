@@ -454,3 +454,60 @@ test('mailbox letter retention limit cleans media for the oldest evicted letter 
   assert.equal(result.mailbox.items.some(x=>x.type==='incoming'),true);
   assert.equal(media.has('old-letter-media'),false,'media referenced only by the evicted letter must be collected after the new mailbox state commits');
 });
+
+test('automatic letters use a unique random selection within the configured card-count bounds',()=>{
+  const storage=makeStorage(),usage=[];
+  const now=Date.now();
+  const sandbox={
+    state:{cardPhrases:['卡片一','卡片二','卡片三','卡片四','卡片五']},
+    window:{addEventListener(){},__duoCardSystem:{
+      getCardIdAt:(pool,index)=>'chat-card-'+index,
+      getCardId:(text)=>'chat-card-'+text,
+      recordUsageEvent(event){usage.push(event);return true;}
+    }},
+    localStorage:storage,document:makeDocument(),setInterval(){return 1;},
+    showToast(){},console,Date,Math
+  };
+  vm.createContext(sandbox);vm.runInContext(mailboxSource,sandbox,{filename:'mailbox-manager.js'});
+  const api=sandbox.window.__duoMailbox;
+  api.importData({mailbox:{
+    items:[{id:'out-multi',type:'outgoing',title:'多字卡来信',content:'正文',createdAt:now,read:true}],
+    pending:[{id:'pending-multi',type:'reply',sourceId:'out-multi',due:now-1}],
+    settings:{autoIncoming:false,autoReply:true,cardCountMin:3,cardCountMax:4}
+  },drafts:[]});
+  api.processDue();
+  const data=api.exportData(),letter=data.mailbox.items.find(item=>item.type==='incoming');
+  assert.ok(letter,'due automatic reply should create an incoming letter');
+  assert.ok(letter.cardFragments.length>=3&&letter.cardFragments.length<=4,'selected card count must be within configured bounds');
+  assert.equal(letter.cardFragments.length,new Set(letter.cardFragments.map(item=>item.cardId)).size,'one letter must not repeat a stable card ID');
+  assert.equal(letter.content,letter.cardFragments.map(item=>item.textSnapshot).join('\\n'),'letter text must preserve all selected card snapshots in order');
+  assert.equal(usage.length,letter.cardFragments.length,'every selected card must produce one durable usage event');
+  assert.ok(usage.every(event=>event.letterId===letter.id&&event.source==='mail-auto-reply'));
+  assert.equal(data.mailbox.pending.length,0);
+});
+
+test('mail settings form mounts all required fields without changing pending letter data',()=>{
+  const storage=makeStorage(),now=Date.now();
+  const sandbox={
+    state:{cardPhrases:[]},
+    window:{addEventListener(){},__duoCardSystem:{recordUsageEvent(){return true;}}},
+    localStorage:storage,document:makeDocument(),setInterval(){return 1;},
+    showToast(){},console,Date,Math
+  };
+  vm.createContext(sandbox);vm.runInContext(mailboxSource,sandbox,{filename:'mailbox-manager.js'});
+  const api=sandbox.window.__duoMailbox,root={innerHTML:''};
+  api.importData({mailbox:{
+    items:[{id:'out-settings',type:'outgoing',title:'现有信件',content:'保持原样',createdAt:now,read:true}],
+    pending:[{id:'pending-settings',type:'reply',sourceId:'out-settings',due:now+60000}],
+    settings:{autoIncoming:false,autoReply:true,minIncomingMin:120,maxIncomingMin:240,minReplyMin:5,maxReplyMin:10,cardCountMin:2,cardCountMax:3}
+  },drafts:[]});
+  assert.equal(api.mountSettings(root),true);
+  for(const id of ['mailAutoIncoming','mailIncomingMin','mailIncomingMax','mailAutoReply','mailReplyMin','mailReplyMax','mailCardCountMin','mailCardCountMax','mailSettingsSave','mailSettingsDefault','mailSettingsCancel']) {
+    assert.ok(root.innerHTML.includes('id="'+id+'"'),'settings form must include '+id);
+  }
+  const after=api.exportData();
+  assert.equal(after.mailbox.pending[0].id,'pending-settings','mounting settings must preserve queued replies');
+  assert.equal(after.mailbox.items[0].content,'保持原样','mounting settings must not rewrite existing letters');
+  assert.equal(after.mailbox.settings.cardCountMin,2);
+  assert.equal(after.mailbox.settings.cardCountMax,3);
+});
