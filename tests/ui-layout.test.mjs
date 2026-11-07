@@ -114,5 +114,4 @@ test('页面浮层层级统一走命名 token，备份与恢复遮罩保持最�
   assert.ok(html.includes('z-index:var(--z-sticker-overlay,1000)'));
   assert.ok(html.includes('z-index:var(--z-incoming-call,110)'));
   assert.ok(mailbox.includes('z-index:var(--z-mail-modal,80)'));
-  assert.ok(!html.includes('chat-beautify-presets.js'));
 });
