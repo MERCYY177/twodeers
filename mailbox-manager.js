@@ -4,7 +4,7 @@
   if(window.__duoMailboxInstalled)return;
   window.__duoMailboxInstalled=true;
   const KEY='twodeers_mailbox_letters_v1',DRAFT_KEY='twodeers_mailbox_drafts_v1';
-  const defaults={version:1,items:[],pending:[],usageOutbox:[],nextIncomingAt:0,settings:{autoIncoming:false,autoReply:true,minIncomingMin:60,maxIncomingMin:240,minReplyMin:10,maxReplyMin:60,cardCountMin:2,cardCountMax:4}};
+  const defaults={version:1,items:[],pending:[],usageOutbox:[],nextIncomingAt:0,settings:{autoIncoming:true,autoReply:true,minIncomingMin:720,maxIncomingMin:2160,minReplyMin:2,maxReplyMin:15,cardCountMin:2,cardCountMax:4}};
   let box=defaults,drafts=[],activeDraftId=null,activeReplyToId=null,composeCardFragments=[],activeComposeImages=[],tasksPaused=false,composeGeneration=0,readGeneration=0,addingComposeImages=false;
   const imageUrls=new Map(),MAX_IMAGES=6,MAX_IMAGE_BYTES=8*1024*1024,MAX_TOTAL_IMAGE_BYTES=24*1024*1024,MAX_PENDING_USAGE_EVENTS=1000;
   const clone=value=>JSON.parse(JSON.stringify(value));
