@@ -13,22 +13,6 @@
   function normalize(raw){const x={...defaults,...(raw&&typeof raw==='object'?raw:{})};x.items=Array.isArray(x.items)?x.items.filter(v=>v&&typeof v==='object').slice(-5000).map(v=>({...v,id:clean(v.id).slice(0,128)||uid(),type:v.type==='outgoing'?'outgoing':'incoming',title:clean(v.title).slice(0,120),content:clean(v.content),createdAt:Math.max(0,Number(v.createdAt)||Date.now()),read:!!v.read,cardFragments:Array.isArray(v.cardFragments)?v.cardFragments.filter(f=>f&&typeof f.textSnapshot==='string').slice(0,100):[],images:normalizeImages(v.images)})):[];x.usageOutbox=Array.isArray(x.usageOutbox)?x.usageOutbox.filter(v=>v&&typeof v.textSnapshot==='string'):[];x.pending=Array.isArray(x.pending)?x.pending.filter(v=>v&&v.type==='reply'&&typeof v.sourceId==='string').slice(0,1000).map(v=>({...v,id:clean(v.id).slice(0,128)||uid(),due:Math.max(0,Number(v.due)||0)})):[];x.settings={...defaults.settings,...(x.settings||{})};for(const k of ['minIncomingMin','maxIncomingMin','minReplyMin','maxReplyMin'])x.settings[k]=Math.max(1,Math.min(10080,Number(x.settings[k])||defaults.settings[k]));const cardMin=Number(x.settings.cardCountMin),cardMax=Number(x.settings.cardCountMax);x.settings.cardCountMin=Number.isInteger(cardMin)&&cardMin>=1&&cardMin<=10?cardMin:defaults.settings.cardCountMin;x.settings.cardCountMax=Number.isInteger(cardMax)&&cardMax>=1&&cardMax<=10?cardMax:defaults.settings.cardCountMax;if(x.settings.cardCountMin>x.settings.cardCountMax)x.settings.cardCountMax=x.settings.cardCountMin;if(x.settings.maxIncomingMin<x.settings.minIncomingMin)x.settings.maxIncomingMin=x.settings.minIncomingMin;if(x.settings.maxReplyMin<x.settings.minReplyMin)x.settings.maxReplyMin=x.settings.minReplyMin;x.nextIncomingAt=Math.max(0,Number(x.nextIncomingAt)||0);return x;}
   try{box=normalize(JSON.parse(localStorage.getItem(KEY)||'null'));}catch(_){box=normalize(null);}try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'[]');drafts=Array.isArray(d)?d.filter(x=>x&&typeof x==='object').map(x=>({...x,images:normalizeImages(x.images)})):[];}catch(_){drafts=[];}
   function normalizeImages(images){return Array.isArray(images)?images.filter(x=>x&&typeof x.id==='string').slice(0,MAX_IMAGES).map((x,i)=>({id:x.id,name:clean(x.name).slice(0,180)||'图片 '+(i+1),mimeType:clean(x.mimeType).slice(0,100)||'image/jpeg',size:Math.max(0,Number(x.size)||0),order:Number.isFinite(Number(x.order))?Number(x.order):i})):[];}
-  async function compressMailJpeg(file){
-    if(!file||file.type!=='image/jpeg'||file.size<512*1024||typeof createImageBitmap!=='function')return file;
-    let bitmap=null,canvas=null;
-    try{
-      bitmap=await createImageBitmap(file);
-      const longest=Math.max(bitmap.width||0,bitmap.height||0);if(!longest)return file;
-      const scale=Math.min(1,2400/longest),width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
-      if(scale===1&&file.size<900*1024)return file;
-      canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-      const context=canvas.getContext('2d',{alpha:false});if(!context)return file;
-      context.drawImage(bitmap,0,0,width,height);
-      const compressed=await new Promise(resolve=>canvas.toBlob(blob=>resolve(blob||null),'image/jpeg',0.84));
-      return compressed&&compressed.size>0&&compressed.size<file.size?compressed:file;
-    }catch(_){return file;}
-    finally{try{bitmap?.close?.();}catch(_){}if(canvas){canvas.width=1;canvas.height=1;}}
-  }
   function persist(){localStorage.setItem(KEY,JSON.stringify(box));}
   function persistDrafts(){localStorage.setItem(DRAFT_KEY,JSON.stringify(drafts));}
   function restoreStorageKey(key,value){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}
@@ -98,7 +82,7 @@
         if(file.size>MAX_IMAGE_BYTES)throw new Error('单张图片不能超过 8 MB：'+(file.name||'未命名图片'));
         if(currentBytes+added.reduce((n,x)=>n+(Number(x.size)||0),0)+file.size>MAX_TOTAL_IMAGE_BYTES)throw new Error('一封信的图片附件总大小不能超过 24 MB');
         if(typeof putMediaBlob!=='function')throw new Error('媒体存储尚未就绪');
-        const stored=await compressMailJpeg(file);
+        const stored=file; // Keep the exact source bytes; only the editor preview may crop visually.
         if(generation!==composeGeneration||draftId!==activeDraftId)throw new Error('草稿已切换，已取消旧草稿的图片添加');
         const id=await putMediaBlob(stored,'mail-image',file.name||'letter-image');
         added.push({id,name:file.name||'图片 '+(baseImages.length+added.length+1),mimeType:stored.type||file.type,size:stored.size||file.size,order:baseImages.length+added.length});
