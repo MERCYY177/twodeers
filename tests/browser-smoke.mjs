@@ -73,6 +73,7 @@ try {
   assert.equal(baseline.stickerOverlay, true, 'the sticker selector must be a separate bottom sheet');
   assert.equal(baseline.stickerGrid, true, 'the sticker sheet must own one full-width grid');
   assert.equal(baseline.emojiButton,true,'the separate Emoji entry must remain available');
+  await page.evaluate(() => goto('chatPage'));
   await page.locator('#plusBtn').click();
   await page.locator('#quickEmojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#emojiPanel')?.classList.contains('show') && document.querySelectorAll('#emojiGrid [data-emoji]').length > 0);
