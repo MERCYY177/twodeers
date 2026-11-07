@@ -12,11 +12,20 @@ test('首页信箱位于参数区之前，且入口命名为信箱',()=>{
   assert.doesNotMatch(html,/<div class="label">信件<\/div>/);
 });
 
-test('聊天和信箱设置都从各自页面右上角三个点进入',()=>{
-  assert.match(html,/id="chatMoreBtn"[\s\S]*?id="chatMoreMenu"[\s\S]*?data-chat-menu="settings"/);
-  assert.match(html,/id="mailMoreBtn"[\s\S]*?id="mailMoreMenu"[\s\S]*?data-mail-menu="settings"/);
-  assert.match(html,/id="mailSettingsModal"/);
-  assert.doesNotMatch(html,/id="callEntry"/);
+test('表情包选择面板独立展示，Emoji 继续保留为单独入口',()=>{
+  assert.match(html,/id="stickerOverlay"[\s\S]*?id="stickerGrid"/);
+  assert.match(html,/id="emojiPanel"[\s\S]*?id="emojiGrid"/);
+  assert.match(html,/id="quickEmojiBtn"/);
+  assert.doesNotMatch(html,/emoji-panel-columns/);
+  assert.doesNotMatch(html,/id="stickerList"/);
+  assert.doesNotMatch(html,/id="addStickerBtn"/);
+});
+
+test('表情包发送面板不承载管理操作或额外发送按钮',()=>{
+  assert.match(html,/id="settingsCategoryGrid"[\s\S]*data-settings-category="stickers"/);
+  assert.match(html,/id="stickerAdd"/);
+  assert.match(html,/id="stickerClose"/);
+  assert.match(html,/data-sticker-id/);
 });
 
 test('最近抽过是字卡顶部分类，不需要滚动到三个字卡池下方',()=>{

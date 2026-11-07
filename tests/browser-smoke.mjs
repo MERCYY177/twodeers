@@ -63,23 +63,27 @@ try {
 
   const baseline = await page.evaluate(() => ({
     circleApi: !!window.__duoCircleApi?.validateState,
-    twoColumns: document.querySelectorAll('#emojiPanel .emoji-panel-columns > .emoji-column').length,
-    tabs: document.querySelectorAll('#duoStickerTabs [data-duo-sticker-tab]').length,
+    stickerOverlay: !!document.getElementById('stickerOverlay'),
+    stickerGrid: !!document.getElementById('stickerGrid'),
+    emojiCount: document.querySelectorAll('#emojiGrid [data-emoji]').length,
+    stickerTabs: document.querySelectorAll('#duoStickerTabs [data-duo-sticker-tab]').length,
     backupVersion: window.__duoBackupV4.version
   }));
   assert.equal(baseline.circleApi, true, 'Circle Shadow DOM API should be available');
-  assert.equal(baseline.twoColumns, 2, 'the original two-column emoji panel must remain');
-  const stickerPanel = await page.locator('#emojiPanel').innerText();
-  assert.match(stickerPanel, /常用 Emoji/);
-  assert.match(stickerPanel, /内置/);
-  assert.match(stickerPanel, /我的上传/);
-  assert.match(stickerPanel, /收藏/);
-  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="builtin"]').count(), 1);
-  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="uploads"]').count(), 1);
-  assert.equal(await page.locator('#duoStickerTabs [data-duo-sticker-tab="favorites"]').count(), 1);
-  assert.equal(await page.locator('.duo-sticker-notice').count(), 0);
-  assert.equal(baseline.tabs, 3, 'builtin, uploads, and favorites tabs should be mounted');
+  assert.equal(baseline.stickerOverlay, true, 'the sticker selector must be a separate bottom sheet');
+  assert.equal(baseline.stickerGrid, true, 'the sticker sheet must own one full-width grid');
+  assert.ok(baseline.emojiCount > 0, 'the separate Emoji picker must remain available');
+  assert.equal(baseline.stickerTabs, 0, 'the send surface must not add filter or management tabs');
+  assert.equal(await page.locator('#stickerGrid .sticker-send').count(), 0, 'stickers must not have redundant Send buttons');
+  assert.equal(await page.locator('#stickerGrid [data-open-sticker-admin]').count(), 0, 'management must not appear in the send surface');
+  assert.equal(await page.locator('#settingsCategoryGrid [data-settings-category="stickers"]').count(), 1, 'sticker management must remain in the parameter area');
   assert.equal(baseline.backupVersion, 4);
+
+  await page.locator('#emojiBtn').click();
+  await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
+  assert.ok(await page.locator('#stickerGrid [data-sticker-id]').count() > 0, 'built-in and uploaded sticker items should render into the dedicated grid');
+  await page.locator('#stickerClose').click();
+  assert.equal(await page.locator('#stickerOverlay.show').count(), 0, 'the sticker sheet close action should work');
 
   const exposeBeautifySettings = () => page.evaluate(() => {
     if (typeof goto === 'function') goto('settingsPage');
