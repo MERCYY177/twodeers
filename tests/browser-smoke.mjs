@@ -759,6 +759,8 @@ try {
   await page.reload({waitUntil:'domcontentloaded'});
   await page.waitForFunction(() => !!window.__duoStickerState?.exportSnapshot?.().items?.length);
   assert.ok(await page.evaluate(id=>window.__duoStickerState.exportSnapshot().favorites.includes(id),uploaded[0].id),'favorite should survive reload');
+  await page.evaluate(() => goto('chatPage'));
+  await page.waitForFunction(() => document.getElementById('chatPage')?.classList.contains('active'));
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   const sendCard=page.locator('#stickerGrid [data-sticker-id="'+uploaded[0].id+'"]');
@@ -782,6 +784,8 @@ try {
     }
   }
   await page.locator('#settingsCategoryBack').click();
+  await page.evaluate(() => goto('chatPage'));
+  await page.waitForFunction(() => document.getElementById('chatPage')?.classList.contains('active'));
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelectorAll('#stickerGrid [data-sticker-id]').length === 352);
   assert.equal(await page.locator('#stickerGrid .sticker-send').count(),0,'the reference-style sticker picker has no Send buttons');
