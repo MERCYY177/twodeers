@@ -17,7 +17,7 @@
     const target=document.getElementById('settingsParam'),api=window.ChuanXunFontManager;
     if(!target||!api||document.getElementById('duoFontPanel'))return;
     const card=document.createElement('section');card.className='panel-card';card.id='duoFontPanel';
-    card.innerHTML='<h3>字体管理</h3><p class="data-note">支持 TTF、OTF、WOFF、WOFF2；单个文件最大 50 MB。字体 Blob 保存于独立 IndexedDB，不占用 localStorage。</p><div class="data-actions"><button type="button" class="primary" id="duoFontOpen">导入 / 应用 / 预览字体</button><button type="button" class="mini-btn" id="duoFontDefault">恢复系统默认</button></div><div id="duoFontList" class="duo-font-list">正在读取本地字体库…</div>';
+    card.innerHTML='<h3>字体管理</h3><div class="data-actions"><button type="button" class="primary" id="duoFontOpen">导入 / 应用 / 预览字体</button><button type="button" class="mini-btn" id="duoFontDefault">恢复系统默认</button></div><div id="duoFontList" class="duo-font-list">正在读取本地字体库…</div>';
     target.insertBefore(card,target.children[1]||null);
     card.querySelector('#duoFontOpen').addEventListener('click',()=>api.openSettings());
     card.querySelector('#duoFontDefault').addEventListener('click',()=>api.restoreDefault().then(()=>{refresh();if(typeof showToast==='function')showToast('已恢复系统默认字体');}).catch(e=>{if(typeof showToast==='function')showToast(e.message||'字体设置失败');}));

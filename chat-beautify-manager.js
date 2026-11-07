@@ -72,9 +72,12 @@
 
   function previewMarkup(item) {
     const scope = activeClass(item.id);
+    const readMarkup = state.readReceiptStyle === 'checks'
+      ? '<span class="read-flag read-checks"><span>✓</span><span>✓</span></span>'
+      : '<span class="read-flag read-text">已读</span>';
     return '<div class="duo-chat-beautify-preview ' + scope + '">' +
       '<div class="msg-row other"><div class="message-line"><div class="chat-avatar"><span>对</span></div><div class="bubble-wrap"><div class="bubble">今天的天空很漂亮，想和你分享。</div></div></div><div class="meta"><span class="time">20:18</span></div></div>' +
-      '<div class="msg-row me"><div class="message-line"><div class="bubble-wrap"><div class="bubble">我也看到了！晚一点一起散步吧。</div></div><div class="chat-avatar"><span>我</span></div></div><div class="meta"><span class="meta-line"><span class="time">20:19</span><span class="read-flag">已读</span></span></div></div>' +
+      '<div class="msg-row me"><div class="message-line"><div class="bubble-wrap"><div class="bubble">我也看到了！晚一点一起散步吧。</div></div><div class="chat-avatar"><span>我</span></div></div><div class="meta"><span class="meta-line"><span class="time">20:19</span>' + readMarkup + '</span></div></div>' +
       '<div class="duo-chat-preview-composer"><div class="input-shell"><span>输入消息…</span><span>☺</span></div></div>' +
       '</div>';
   }
@@ -88,18 +91,18 @@
     panel.className = 'panel-card duo-chat-beautify-manager';
     panel.innerHTML =
       '<div class="duo-chat-beautify-head">' +
-        '<div><h3>CSS 聊天美化</h3><p>独立设计每一套消息气泡、布局、边框、头像、时间状态和输入栏。预览使用真实 CSS 规则。</p></div>' +
+        '<div><h3>CSS 聊天美化</h3></div>' +
         '<button type="button" class="duo-chat-beautify-reset" data-beautify-reset>恢复默认</button>' +
       '</div>' +
       '<div class="duo-chat-beautify-toolbar">' +
-        '<input type="search" data-beautify-search placeholder="搜索名称、风格或说明…" aria-label="搜索聊天美化方案">' +
+        '<input type="search" data-beautify-search placeholder="搜索方案名称…" aria-label="搜索聊天美化方案">' +
         '<select data-beautify-category aria-label="筛选聊天美化风格">' +
           categories.map(category => '<option value="' + escapeHtml(category) + '">' + escapeHtml(category) + '</option>').join('') +
         '</select>' +
       '</div>' +
       '<div class="duo-chat-beautify-status" data-beautify-status aria-live="polite"></div>' +
       '<div class="duo-chat-beautify-grid" data-beautify-grid></div>' +
-      '<p class="duo-chat-beautify-footnote">优先级：主题配色仍负责全局颜色变量；本功能独立负责聊天消息结构与装饰。用户原有“自定义 CSS”保留在最高优先层，必要时可继续覆盖内置美化。</p>';
+      '';
     host.appendChild(panel);
     const search = panel.querySelector('[data-beautify-search]');
     const category = panel.querySelector('[data-beautify-category]');
@@ -129,7 +132,6 @@
     grid.innerHTML = filtered.map(item =>
       '<article class="duo-chat-beautify-card" data-preset-card="' + escapeHtml(item.id) + '">' +
         '<div class="duo-chat-beautify-card-title"><strong>' + escapeHtml(item.name) + '</strong><span>' + escapeHtml(item.category || '其他') + '</span></div>' +
-        '<p>' + escapeHtml(item.description) + '</p>' +
         previewMarkup(item) +
         '<button type="button" data-beautify-apply="' + escapeHtml(item.id) + '">应用这套美化</button>' +
       '</article>'
@@ -165,8 +167,8 @@
     const id = selectedId();
     const current = validPresets.find(item => item.id === id);
     status.textContent = current
-      ? '当前使用：' + current.name + ' · 已内置 ' + validPresets.length + ' 套独立 CSS 方案'
-      : '当前使用：默认聊天样式 · 已内置 ' + validPresets.length + ' 套独立 CSS 方案';
+      ? '当前使用：' + current.name
+      : '当前使用：默认聊天样式';
   }
 
   function installManagerCss() {
@@ -177,7 +179,6 @@
       .duo-chat-beautify-manager{margin-top:16px}
       .duo-chat-beautify-manager .duo-chat-beautify-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
       .duo-chat-beautify-manager .duo-chat-beautify-head h3{margin:0 0 6px}
-      .duo-chat-beautify-manager .duo-chat-beautify-head p,.duo-chat-beautify-manager .duo-chat-beautify-footnote{margin:0;color:#827b73;font-size:12px;line-height:1.65}
       .duo-chat-beautify-manager .duo-chat-beautify-reset{flex:0 0 auto;padding:8px 12px;border:1px solid #d8d2c9;border-radius:10px;background:#fff;color:#554d45;font-size:12px}
       .duo-chat-beautify-manager .duo-chat-beautify-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,145px);gap:8px;margin:14px 0 9px}
       .duo-chat-beautify-manager .duo-chat-beautify-toolbar input,.duo-chat-beautify-manager .duo-chat-beautify-toolbar select{width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid #dedbd5;border-radius:10px;background:#fff;color:#443f39;font-size:13px}
@@ -204,7 +205,6 @@
       .duo-chat-beautify-manager .duo-chat-beautify-card>button{width:100%;margin-top:9px;padding:8px 10px;border:1px solid #ddd7cf;border-radius:9px;background:#f8f6f2;color:#524b43;font-size:12px}
       .duo-chat-beautify-manager .duo-chat-beautify-card.is-active>button{border-color:#879b76;background:#edf2e8;color:#43563c;font-weight:600}
       .duo-chat-beautify-manager .duo-chat-beautify-empty{grid-column:1/-1;padding:20px;text-align:center;color:#877f74;font-size:13px}
-      .duo-chat-beautify-manager .duo-chat-beautify-footnote{margin-top:12px}
       @media(max-width:390px){.duo-chat-beautify-manager .duo-chat-beautify-grid{grid-template-columns:1fr}.duo-chat-beautify-manager .duo-chat-beautify-preview{height:164px}}
     `;
     document.head.appendChild(style);

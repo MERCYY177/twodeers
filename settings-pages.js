@@ -288,6 +288,10 @@
     mergeAppearanceControls();
     mountStickerManager();
     buildCategoryPages();
+    // Remove explanatory copy from settings surfaces; keep field labels, values, statuses and actions.
+    settingsParam.querySelectorAll('.data-note,.code-help,.call-settings-note,.desc,.duo-chat-beautify-head p,.duo-chat-beautify-footnote,.duo-chat-beautify-card p,.duo-sticker-admin__sub,.duo-sticker-admin__note').forEach(node=>node.remove());
+    document.querySelectorAll('#callSettingsOverlay .desc,#callSettingsOverlay small,#callSettingsOverlay .call-settings-note').forEach(node=>node.remove());
+    hub.querySelectorAll('small').forEach(node=>node.remove());
 
     const tabs=$('#settingsTabs');
     if(tabs)tabs.hidden=true;

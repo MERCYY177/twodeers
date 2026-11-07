@@ -126,6 +126,9 @@ input, textarea, select{outline:none}
 .meta-line{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 .me .meta-line{justify-content:flex-end}
 .read-flag{color:var(--accent-deep)}
+.read-checks{display:inline-flex;align-items:center;gap:0;color:#438bc4;font-size:13px;font-weight:800;letter-spacing:-2px;line-height:1}
+.read-checks span:last-child{margin-left:-1px}
+.read-option-checks{display:inline-block;color:#438bc4;font-size:14px;font-weight:800;letter-spacing:-2px;margin-right:4px}
 .typing-bubble{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:18px;border-bottom-left-radius:7px;background:var(--bubble-other);box-shadow:0 4px 14px rgba(0,0,0,.05);font-size:14px;color:var(--text)}
 .typing-dots{display:inline-flex;gap:4px;align-items:center}
 .typing-dots span{width:5px;height:5px;border-radius:50%;background:#a7a7a7;display:block;animation:typingPulse 1.2s infinite ease-in-out}
@@ -316,7 +319,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .phrase-text{font-size:14px;line-height:1.6;color:#332c27;word-break:break-word;flex:1}
 .phrase-ops{display:flex;gap:8px;flex-shrink:0}
 .phrase-ops button{width:32px;height:32px;border-radius:16px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#6b615a;font-size:13px}
-.longpress-tip{font-size:12px;color:#8b7f74;margin-top:6px}
 
 @media (min-width:760px){
   body{display:flex;justify-content:center;align-items:center;padding:18px}
@@ -471,7 +473,7 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 
 <input accept="image/*,.gif" class="file-input" id="stickerUploader" multiple="" type="file"/><div class="editor-mask" id="longTextModal">
 <div class="editor-sheet"><div class="editor-head"><strong>长文本</strong><button class="icon-close" id="longTextClose" type="button">×</button></div>
-<textarea id="longTextArea" placeholder="在这里编辑长文本，支持换行……"></textarea>
+<textarea id="longTextArea" placeholder="编辑长文本"></textarea>
 <div class="editor-actions"><button class="mini-btn" id="longTextCancel" type="button">取消</button><button class="mini-btn" id="longTextFill" type="button">填入输入框</button><button class="primary" id="longTextSend" type="button">直接发送</button></div>
 </div>
 </div><div class="editor-mask" id="mediaPreviewModal">
@@ -1623,12 +1625,12 @@ button,input,textarea,select{
           <div class="field"><label class="label">我的昵称</label><input class="input" id="myNameInput"></div>
           <div class="field"><label class="label">对方昵称</label><input class="input" id="otherNameInput"></div>
         </div>
-        <div class="field"><label class="label">字体大小（自己填数值）</label><div class="font-number-wrap"><input class="input font-number-input" id="fontScaleNumber" type="number" min="80" max="160" step="1" placeholder="100"><input class="font-range" id="fontScaleRange" type="range" min="80" max="160" step="1"></div><div class="small font-scale-help">100 为默认，可直接输入 80–160 的数值，也可以拖动下面的滑块。</div></div>
+        <div class="field"><label class="label">字体大小（自己填数值）</label><div class="font-number-wrap"><input class="input font-number-input" id="fontScaleNumber" type="number" min="80" max="160" step="1" placeholder="100"><input class="font-range" id="fontScaleRange" type="range" min="80" max="160" step="1"></div></div>
         <div class="field"><label class="label">上传我的头像</label><input class="input" id="myAvatarInput" type="file" accept="image/*"></div>
         <div class="field"><label class="label">上传对方头像</label><input class="input" id="otherAvatarInput" type="file" accept="image/*"></div>
         <div class="field"><label class="label">上传我的背景图</label><input class="input" id="myCoverInput" type="file" accept="image/*"></div>
         <div class="field"><label class="label">上传对方背景图</label><input class="input" id="otherCoverInput" type="file" accept="image/*"></div>
-        <div class="save-hint" id="saveHint">已选新头像/背景，点右上角“保存”后生效。</div>
+        <div class="save-hint" id="saveHint">已选择待保存图片</div>
         <div class="btn-row">
           <button class="btn ghost" id="clearMyAvatarBtn">清除我的头像</button>
           <button class="btn ghost" id="clearOtherAvatarBtn">清除对方头像</button>
@@ -1640,19 +1642,19 @@ button,input,textarea,select{
       <div class="card" id="tab-cards">
         <div class="card-editor">
           <label class="label">动态字卡</label>
-          <div class="small">对方发动态时，会从这里随机抽取。每条都能单独删。</div>
+          
           <div class="card-list" id="dynamicCardsList"></div>
           <div class="card-add-row">
-            <textarea class="textarea card-batch-input" id="dynamicCardNew" placeholder="可一次粘贴多条动态字卡，每行一条；只写一行就是单条添加"></textarea>
+            <textarea class="textarea card-batch-input" id="dynamicCardNew" placeholder="添加动态字卡"></textarea>
             <button class="btn" id="addDynamicCardBtn" type="button">批量添加</button>
           </div>
         </div>
         <div class="card-editor">
           <label class="label">回复字卡</label>
-          <div class="small">对方评论你、回复你的评论、或随机点赞后留言时，会从这里随机抽取。每条都能单独删。</div>
+          
           <div class="card-list" id="replyCardsList"></div>
           <div class="card-add-row">
-            <textarea class="textarea card-batch-input" id="replyCardNew" placeholder="可一次粘贴多条回复字卡，每行一条；只写一行就是单条添加"></textarea>
+            <textarea class="textarea card-batch-input" id="replyCardNew" placeholder="添加回复字卡"></textarea>
             <button class="btn" id="addReplyCardBtn" type="button">批量添加</button>
           </div>
         </div>
@@ -1674,7 +1676,7 @@ button,input,textarea,select{
           <div class="field"><label class="label">最短互动（分钟）</label><input class="input" id="replyMinInput" type="number" min="0.017" step="0.001"></div>
           <div class="field"><label class="label">最长互动（分钟）</label><input class="input" id="replyMaxInput" type="number" min="0.017" step="0.001"></div>
         </div>
-        <div class="small">开启后，对方会在你设的时间区间里自己发动态。你发动态或评论后，对方会在互动区间内随机点赞、评论或回复你，不需要你手动触发。</div>
+        
         <div class="small" id="nextPostHint" style="margin-top:10px"></div>
       </div>
 
@@ -1684,7 +1686,7 @@ button,input,textarea,select{
           <button class="btn ghost" id="importBtn">导入备份</button>
           <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
-        <div class="small" style="margin-top:8px">会备份文字动态、评论、访客记录、字卡、昵称、头像、背景图和自动互动设置。</div>
+        
       </div>
     </div>
   </div>
@@ -2182,7 +2184,7 @@ function updateProfilePreview(){
   qs('#coverPreviewName').textContent = qs('#myNameInput').value.trim() || '';
   setAvatarEl(qs('#coverPreviewAvatar'), assets.myAvatar, fallbackChar(qs('#myNameInput').value.trim() || ''));
   qs('#saveHint').classList.toggle('show', !!tempAssets.dirty || assetsBusy);
-  const hint = assetsBusy ? '图片处理中，完成后再保存。' : (tempAssets.dirty ? '已选新图片，点右上角保存生效。' : '');
+  const hint = assetsBusy ? '图片处理中' : (tempAssets.dirty ? '有图片待保存' : '');
   if(qs('#saveHintText')) qs('#saveHintText').textContent = hint;
 }
 function compressImage(file, max=900, quality=.82){
@@ -3085,8 +3087,7 @@ applyHeader();
       const empty=document.createElement('div');empty.className='visitor-empty';
       const eye=document.createElement('div');eye.className='visitor-empty-icon';eye.textContent='👁️';
       const title=document.createElement('div');title.style.fontSize='16px';title.style.marginBottom='8px';title.textContent='暂无访客记录';
-      const note=document.createElement('div');note.textContent='对方来访时会在这里留下足迹';
-      empty.append(eye,title,note);list.appendChild(empty);return;
+      empty.append(eye,title);list.appendChild(empty);return;
     }
     let current='';
     records.forEach(record=>{
@@ -4235,7 +4236,7 @@ window.__duoCircleApi = {
 <div class="top-safe"></div>
 <div class="header">
 <button class="back" data-go="homePage">‹</button>
-<div class="header-title"><h2>参数区</h2><p>个性化设置与数据管理</p></div>
+<div class="header-title"><h2>参数区</h2></div>
 </div>
 <div class="settings-tabs" id="settingsTabs">
 <button class="active" data-settings="icon">图标区</button>
@@ -4287,18 +4288,18 @@ window.__duoCircleApi = {
 <div class="ops"><button data-upload="bg-chat">上传</button><button data-clear="bg-chat">清空</button></div>
 </div>
 </div>
-<p style="margin:12px 0 0;color:#867b73;font-size:12px">你说的背景更换，直接放在图标区最后面，就按这个收。</p>
+
 </div>
 </div>
 <div class="settings-body hidden" id="settingsParam">
 <div class="settings-category-grid" id="settingsCategoryGrid">
-<button type="button" data-settings-category="profile"><strong>空间资料</strong><small>头像、封面与首页入口</small></button>
-<button type="button" data-settings-category="chat"><strong>聊天设置</strong><small>回复节奏、已读与聊天规则</small></button>
-<button type="button" data-settings-category="cards"><strong>字卡管理</strong><small>聊天、朋友圈字卡与最近抽过</small></button>
-<button type="button" data-settings-category="circle"><strong>朋友圈设置</strong><small>动态、回复字卡与朋友圈资料</small></button>
-<button type="button" data-settings-category="appearance"><strong>显示与个性化</strong><small>主题、字体与聊天美化</small></button>
-<button type="button" data-settings-category="stickers"><strong>表情包管理</strong><small>批量选择、删除与导出清单</small></button>
-<button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong><small>备份、恢复与数据清理</small></button>
+<button type="button" data-settings-category="profile"><strong>空间资料</strong></button>
+<button type="button" data-settings-category="chat"><strong>聊天设置</strong></button>
+<button type="button" data-settings-category="cards"><strong>字卡管理</strong></button>
+<button type="button" data-settings-category="circle"><strong>朋友圈设置</strong></button>
+<button type="button" data-settings-category="appearance"><strong>显示与个性化</strong></button>
+<button type="button" data-settings-category="stickers"><strong>表情包管理</strong></button>
+<button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong></button>
 </div>
 <div class="panel-card">
 <h3>回复与已读</h3>
@@ -4313,13 +4314,13 @@ window.__duoCircleApi = {
 </div>
 </div>
 <div class="item-row">
-<div class="lab">聊天已读显示</div>
-<div class="seg" id="readReceiptSeg">
-<button class="active" data-read="on">开启</button>
-<button data-read="off">关闭</button>
+<div class="lab">已读样式</div>
+<div class="seg" id="readReceiptSeg" role="group" aria-label="已读样式">
+<button class="active" type="button" data-read-style="text">文字“已读”</button>
+<button type="button" data-read-style="checks"><span class="read-option-checks" aria-hidden="true">✓✓</span> 双对勾</button>
 </div>
 </div>
-<p style="margin:12px 0 0;color:#867b73;font-size:12px;line-height:1.7">这里控制他在聊天里最快多久回你、最慢多久回你。已读会跟着这组时间出现，用来模拟他看见消息到开口回复的节奏。</p>
+
 </div>
 <div class="panel-card">
 <h3>聊天节奏</h3>
@@ -4332,7 +4333,7 @@ window.__duoCircleApi = {
 </div>
 <div class="field">
 <label>输入中提示文案</label>
-<input id="typingTextInput" placeholder="比如：正在输入中 / 正在思考中 / 在斟酌怎么回你"/>
+<input id="typingTextInput" placeholder="输入提示文案"/>
 </div>
 <div class="item-row">
 <div class="lab">离线主动发消息</div>
@@ -4354,7 +4355,7 @@ window.__duoCircleApi = {
 </div>
 <div class="panel-card" id="paramCardPoolPanel">
 <h3>字卡池管理</h3>
-<p class="data-note">这里直接管理聊天自动回复、戳一戳和离线回复共用的字卡池。修改会立即保存；空字卡池不会自动补入默认内容。</p>
+
 <div class="phrase-add">
 <input id="paramPhraseInput" placeholder="添加一条自己的字卡内容" maxlength="500"/>
 <button id="paramPhraseAddBtn" type="button">添加字卡</button>
@@ -4381,11 +4382,11 @@ window.__duoCircleApi = {
 </div>
 <div class="item-row">
 <div class="lab">戳一戳</div>
-<div class="desc">静默触发一次普通聊天回复，不显示系统提示</div>
+
 </div>
 <div class="item-row">
 <div class="lab">输入辅助栏</div>
-<div class="desc">点输入框时先弹长文本 / 剪贴板，再决定怎么输入</div>
+
 </div>
 
 </div>
@@ -4426,20 +4427,18 @@ window.__duoCircleApi = {
 <input id="buttonTextPicker" type="color" value="#ffffff"/>
 <input id="buttonTextText" placeholder="#ffffff" type="text"/>
 </div>
-<div class="code-help">这里就是你说的外观区。氛围主题色负责整体强调感，按钮颜色单独控制所有主要按钮和选中状态。</div>
+
 </div>
 <div class="field">
 <label>自定义 CSS</label>
-<textarea id="customCssInput" placeholder="这里可以直接输入颜色代码或其他 CSS，比如：
-:root{ --bubble-me:#ffeef5; --bubble-other:#ffffff; }
-.bubble{ box-shadow:none; }"></textarea>
-<div class="code-help">支持直接输入像 #ffffff 这样的颜色代码，也支持粘贴简单 CSS。保存后会立刻应用。</div>
+<textarea id="customCssInput" placeholder="输入 CSS"></textarea>
+
 </div>
 <button class="primary" id="saveStyleBtn">保存外观设置</button>
 </div>
 <div class="panel-card backup-management">
 <h3>备份与恢复</h3>
-<p class="data-note">总备份包含双人空间全部设置、聊天消息与媒体、完整朋友圈存档、信件与草稿及字卡历史。聊天备份包含消息和关联媒体；参数备份包含空间/朋友圈参数、字体、信件与草稿、字卡池和最近实际使用记录。</p>
+
 <div class="data-actions">
 <button class="primary" id="backupAllBtn" type="button">导出总备份</button>
 <button class="mini-btn" id="restoreAnyBtn" type="button">导入备份</button>
@@ -4450,7 +4449,7 @@ window.__duoCircleApi = {
 </div>
 </div><div class="panel-card data-management">
 <h3>数据管理</h3>
-<p class="data-note">清空聊天只删除消息及消息媒体，保留头像、背景、外观和你的字卡。重置双人空间会删除聊天、信件与草稿、字卡最近使用记录、字体库和本应用参数，但不会删除独立朋友圈存档。建议先导出总备份。</p>
+
 <div class="data-actions">
 <button class="mini-btn danger-btn" id="clearChatBtn" type="button">清空聊天记录</button>
 <button class="mini-btn danger-btn" id="resetAppBtn" type="button">重置整个双人空间</button>
@@ -4464,11 +4463,11 @@ window.__duoCircleApi = {
     <div id="callSettingsPanelMount"><div class="panel-card" id="paramCallSettingsPanel">
 <h3>模拟通话</h3>
 <div class="duo-call-setting-row">
-  <div><label for="callMasterEnabled">启用模拟通话</label><small>控制语音和视频通话功能</small></div>
+  <div><label for="callMasterEnabled">启用模拟通话</label></div>
   <input id="callMasterEnabled" type="checkbox">
 </div>
 <div class="duo-call-setting-row">
-  <div><label for="callIncomingEnabled">允许对方主动来电</label><small>关闭后不会出现主动来电</small></div>
+  <div><label for="callIncomingEnabled">允许对方主动来电</label></div>
   <input id="callIncomingEnabled" type="checkbox">
 </div>
 <div class="duo-call-setting-row">
@@ -4480,20 +4479,20 @@ window.__duoCircleApi = {
   <input id="callIncomingVideoEnabled" type="checkbox">
 </div>
 <div class="duo-call-setting-row">
-  <div><label for="incomingCallFrequency">来电频率</label><small>低 60～180 分钟 · 中 30～90 分钟 · 高 10～30 分钟</small></div>
+  <div><label for="incomingCallFrequency">来电频率</label></div>
   <select id="incomingCallFrequency">
     <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
   </select>
 </div>
 <details class="duo-call-advanced">
   <summary>高级选项</summary>
-  <div class="item-row"><div><div class="lab">主动语音拨出</div><div class="desc">允许从联系人菜单发起语音通话</div></div><div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div></div>
-  <div class="item-row"><div><div class="lab">主动视频拨出</div><div class="desc">允许从联系人菜单发起视频通话</div></div><div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div></div>
+  <div class="item-row"><div><div class="lab">主动语音拨出</div></div><div class="seg" id="audioCallSeg"><button type="button" data-audio-call="on">开启</button><button type="button" data-audio-call="off">关闭</button></div></div>
+  <div class="item-row"><div><div class="lab">主动视频拨出</div></div><div class="seg" id="videoCallSeg"><button type="button" data-video-call="on">开启</button><button type="button" data-video-call="off">关闭</button></div></div>
   <div class="field"><label>视频来电概率（语音和视频均允许时）</label><div class="incoming-settings-range"><input id="incomingVideoProbability" type="range" min="0" max="100" step="1"/><output id="incomingVideoProbabilityValue">60%</output></div></div>
   <div class="field"><label for="incomingRingTimeout">无人接听超时（秒）</label><input id="incomingRingTimeout" type="number" min="5" max="300" step="1"/></div>
 </details>
 <div class="incoming-status" id="incomingCallStatus" aria-live="polite">主动来电状态读取中…</div>
-<p class="call-settings-note">这里的通话为模拟通话，不会调用摄像头或麦克风。主动来电依赖页面运行，页面彻底关闭或系统强制停止时，网页无法保证唤醒。</p>
+
 <div class="duo-call-settings-actions"><button type="button" id="callSettingsCancel">取消</button><button type="button" id="callSettingsSave" class="primary">保存</button></div>
 </div>
 </div>
@@ -4501,11 +4500,11 @@ window.__duoCircleApi = {
 </div>
 <section class="page" id="mailPage">
 <div class="top-safe"></div>
-<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2><p>收信 · 草稿 · 自动来信</p></div><button class="round-btn" id="mailSettingsBtn" type="button" aria-label="信箱设置" aria-haspopup="dialog" aria-controls="mailSettingsModal" title="信箱设置">⚙</button></div>
+<div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2></div><button class="round-btn" id="mailSettingsBtn" type="button" aria-label="信箱设置" aria-haspopup="dialog" aria-controls="mailSettingsModal" title="信箱设置">⚙</button></div>
 <div class="page-scroll">
 <div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><h3 style="margin-top:18px">收件箱</h3><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
 </div>
-<div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-hint" id="mailImageHint">最多 6 张图片</div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
+<div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
 <div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
 <div class="mail-modal mail-settings-modal" id="mailSettingsModal" aria-hidden="true">
   <div class="mail-sheet" role="dialog" aria-modal="true" aria-label="信箱设置">
@@ -4577,10 +4576,10 @@ window.__duoCircleApi = {
 </div>
 <div class="phrase-body">
 <div class="phrase-add">
-<input id="phraseInput" placeholder="新增一句字卡，比如：想听你亲口说。"/>
+<input id="phraseInput" placeholder="新增字卡"/>
 <button id="phraseAddBtn">添加</button>
 </div>
-<div class="longpress-tip">点“填入”将这句放进输入框；点“删”移除。空卡池不会生成固定回复。</div>
+
 <div class="phrase-list" id="phraseList"></div>
 </div>
 </div>
@@ -4621,6 +4620,7 @@ const state = {
   appearanceColors:{theme:'#8aa05f', buttonBg:'#342d28', buttonText:'#ffffff'},
   replyWindow:{min:3,max:12},
   showReadReceipt:true,
+  readReceiptStyle:'text',
   customCSS:'',
   typing:{enabled:true,text:'正在输入中'},
   offline:{chatEnabled:true,chatMin:30,chatMax:180,lastHiddenAt:0,lastChatAt:0},
@@ -4649,7 +4649,8 @@ try{
     state.bubbleColors=Object.assign({me:'#f2f5fb', other:'#ffffff'}, saved.bubbleColors||{});
     state.appearanceColors=Object.assign({theme:'#8aa05f', buttonBg:'#342d28', buttonText:'#ffffff'}, saved.appearanceColors||{});
     state.replyWindow=Object.assign({min:3,max:12}, saved.replyWindow||{});
-    state.showReadReceipt = saved.showReadReceipt!==undefined ? !!saved.showReadReceipt : true;
+    state.showReadReceipt = true;
+    state.readReceiptStyle = saved.readReceiptStyle==='checks' ? 'checks' : 'text';
     state.customCSS=saved.customCSS||'';
     state.typing=Object.assign({enabled:true,text:'正在输入中'}, saved.typing||{});
     state.offline=Object.assign({chatEnabled:true,chatMin:30,chatMax:180,lastHiddenAt:0,lastChatAt:0}, saved.offline||{});
@@ -5055,7 +5056,7 @@ function showToast(text){
 }
 function escapeHtml(str){ return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
 function formatHM(date=new Date()){ return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`; }
-function metaHtml(time, read=false){ return `<span class="meta-line"><span class="time">${time}</span><span class="read-flag ${read?'':'hidden'}">已读</span></span>`; }
+function metaHtml(time, read=false){ const flag=state.readReceiptStyle==='checks'?'<span class="read-flag read-checks '+(read?'':'hidden')+'" aria-label="已读"><span>✓</span><span>✓</span></span>':'<span class="read-flag read-text '+(read?'':'hidden')+'">已读</span>'; return `<span class="meta-line"><span class="time">${time}</span>${flag}</span>`; }
 function uid(prefix='m'){ return prefix+Math.random().toString(36).slice(2,10); }
 function ensureChatState(){
   if(!Array.isArray(state.chatHistory)) state.chatHistory=[];
@@ -5152,7 +5153,7 @@ async function removeChatMessage(mid){
 function renderPhraseList(){
   ensureChatState();
   const list=$('#phraseList'); if(!list) return;
-  list.innerHTML=state.cardPhrases.length ? state.cardPhrases.map((text,idx)=>`<div class="phrase-item"><div class="phrase-text">${escapeHtml(text)}</div><div class="phrase-ops"><button data-phrase-send="${idx}">填入</button><button data-phrase-del="${idx}">删</button></div></div>`).join('') : '<div class="phrase-empty">字卡池为空。添加你自己的字卡后，才会用于自动回复。</div>';
+  list.innerHTML=state.cardPhrases.length ? state.cardPhrases.map((text,idx)=>`<div class="phrase-item"><div class="phrase-text">${escapeHtml(text)}</div><div class="phrase-ops"><button data-phrase-send="${idx}">填入</button><button data-phrase-del="${idx}">删</button></div></div>`).join('') : '<div class="phrase-empty">字卡池为空</div>';
 }
 function renderParamPhraseList(){
   ensureChatState();
@@ -5225,7 +5226,15 @@ function triggerReply(metaEl){
     pendingReplyTimers.delete(replyTimer);
     if(typingTimer){clearTimeout(typingTimer);pendingTypingTimers.delete(typingTimer);}
     removeTypingRow();
-    if(metaEl && state.showReadReceipt){const flag=metaEl.querySelector('.read-flag');if(flag)flag.classList.remove('hidden');}
+    const sentRow=metaEl?.closest('.msg-row');
+    const sentMid=sentRow?.dataset.mid||'';
+    const sentMessage=sentMid?state.chatHistory.find(item=>item.id===sentMid):null;
+    if(sentMessage&&!sentMessage.read){sentMessage.read=true;save();}
+    if(sentMid){
+      const currentRow=Array.from($('#chatList')?.querySelectorAll('.msg-row[data-mid]')||[]).find(row=>row.dataset.mid===sentMid);
+      const currentFlag=currentRow?.querySelector('.meta .read-flag');
+      if(currentFlag)currentFlag.classList.remove('hidden');
+    }
     appendChatMessage({sender:'other',type:'text',text:replyText,time:'刚刚'},true,[{eventId:uid('use'),cardId:selectedReply.cardId,source:'chat',textSnapshot:replyText,usedAt:Date.now()}]);
   },delay);
   pendingReplyTimers.add(replyTimer);
@@ -5729,7 +5738,7 @@ function normalizeHex(v){
 function syncReplyInputs(){
   if($('#replyMinSec')) $('#replyMinSec').value = Number(state.replyWindow?.min ?? 3);
   if($('#replyMaxSec')) $('#replyMaxSec').value = Number(state.replyWindow?.max ?? 12);
-  $$('#readReceiptSeg button').forEach(btn=>btn.classList.toggle('active', (btn.dataset.read==='on')===!!state.showReadReceipt));
+  $$('#readReceiptSeg button').forEach(btn=>btn.classList.toggle('active', btn.dataset.readStyle===(state.readReceiptStyle||'text')));
 }
 function saveReplyInputs(){
   let min = Number($('#replyMinSec').value || state.replyWindow.min || 3);
@@ -6169,9 +6178,11 @@ $('#settingsTabs').addEventListener('click',e=>{
   el.addEventListener('change',saveReplyInputs);
 });
 $('#readReceiptSeg').addEventListener('click',e=>{
-  const btn=e.target.closest('button'); if(!btn) return;
-  state.showReadReceipt = btn.dataset.read==='on';
+  const btn=e.target.closest('button[data-read-style]'); if(!btn) return;
+  state.readReceiptStyle = btn.dataset.readStyle==='checks' ? 'checks' : 'text';
+  state.showReadReceipt = true;
   syncReplyInputs();
+  renderChatHistory(false);
   save();
 });
 $('#typingSeg').addEventListener('click',e=>{
@@ -6302,10 +6313,10 @@ async function* backupJsonParts(kind){
   }else if(kind==='chat'){
     const ids=new Set((state.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));
     (state.stickers||[]).forEach(s=>{if(s.mediaId)ids.add(s.mediaId);});
-    dataMeta={chatHistory:state.chatHistory,stickers:state.stickers,stickerFavorites:state.stickerFavorites||[],stickerTombstones:state.stickerTombstones||[],media: {'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,chatBeautifyPresetId:state.chatBeautifyPresetId};
+    dataMeta={chatHistory:state.chatHistory,stickers:state.stickers,stickerFavorites:state.stickerFavorites||[],stickerTombstones:state.stickerTombstones||[],media: {'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat']},bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,readReceiptStyle:state.readReceiptStyle||'text',typing:state.typing,offline:state.offline,chatBeautifyPresetId:state.chatBeautifyPresetId};
     mediaIds=[...ids];
   }else if(kind==='param'){
-    let circle={};try{circle=getCircleState();}catch(_){}const circleSettings={};for(const key of ['myName','otherName','myAvatar','otherAvatar','myCover','otherCover','autoPost','postMin','postMax','replyMin','replyMax','uiFontScale','notificationsEnabled','nextOtherPostAt'])if(circle[key]!==undefined)circleSettings[key]=circle[key];dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,chatBeautifyPresetId:state.chatBeautifyPresetId,circleSettings};
+    let circle={};try{circle=getCircleState();}catch(_){}const circleSettings={};for(const key of ['myName','otherName','myAvatar','otherAvatar','myCover','otherCover','autoPost','postMin','postMax','replyMin','replyMax','uiFontScale','notificationsEnabled','nextOtherPostAt'])if(circle[key]!==undefined)circleSettings[key]=circle[key];dataMeta={icons:state.icons,media:{'avatar-me':state.media['avatar-me'],'avatar-other':state.media['avatar-other'],'bg-chat':state.media['bg-chat'],'home-cover':state.media['home-cover']},avatarShape:state.avatarShape,bubbleShape:state.bubbleShape,bubbleColors:state.bubbleColors,appearanceColors:state.appearanceColors,customCSS:state.customCSS,replyWindow:state.replyWindow,showReadReceipt:state.showReadReceipt,readReceiptStyle:state.readReceiptStyle||'text',typing:state.typing,offline:state.offline,cardPhrases:state.cardPhrases,callSettings:state.callSettings,incomingCallSettings:state.incomingCallSettings,chatBeautifyPresetId:state.chatBeautifyPresetId,circleSettings};
   }else throw new Error('不支持的备份类型');
   const head={kind,version:3,exportedAt,data:kind==='param'?dataMeta:{...dataMeta,mediaFiles:[]}};
   if(mediaIds.length){
@@ -6425,6 +6436,7 @@ async function applyBackupPayloadInternal(payload){
     if(data.appearanceColors)state.appearanceColors=Object.assign(state.appearanceColors,data.appearanceColors);
     if(data.replyWindow)state.replyWindow=Object.assign(state.replyWindow,data.replyWindow);
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
+    if(data.readReceiptStyle!==undefined)state.readReceiptStyle=data.readReceiptStyle==='checks'?'checks':'text';
     if(data.typing)state.typing=Object.assign(state.typing,data.typing);
     if(data.offline)state.offline=Object.assign(state.offline,data.offline);
     if(data.chatBeautifyPresetId!==undefined)state.chatBeautifyPresetId=data.chatBeautifyPresetId;
@@ -6436,6 +6448,7 @@ async function applyBackupPayloadInternal(payload){
     state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings||null);
     clearIncomingSchedule(true);
     if(data.showReadReceipt!==undefined)state.showReadReceipt=!!data.showReadReceipt;
+    if(data.readReceiptStyle!==undefined)state.readReceiptStyle=data.readReceiptStyle==='checks'?'checks':'text';
     if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
     if(data.circleSettings&&typeof data.circleSettings==='object'){const current=getCircleState();const merged={...current,...data.circleSettings};window.__duoCircleApi.validateState(merged);setCircleState(merged);}
     if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];

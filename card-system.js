@@ -118,14 +118,14 @@
   function renderRecent(){
     const host=document.querySelector('[data-recent-cards]');if(!host)return;
     const rows=data.recentDrawnRepliesV1;
-    host.innerHTML=rows.length?rows.map(x=>'<div class="duo-recent-row"><div>'+escapeHtml(x.textSnapshot)+'</div><small>'+escapeHtml(x.source||'')+' · '+new Date(Number(x.lastDrawAt)||0).toLocaleString()+' · 使用 '+(Number(x.count)||1)+' 次</small></div>').join(''):'<p class="duo-card-empty">还没有实际使用记录。仅打开或选中字卡不会记入这里。</p>';
+    host.innerHTML=rows.length?rows.map(x=>'<div class="duo-recent-row"><div>'+escapeHtml(x.textSnapshot)+'</div><small>'+escapeHtml(x.source||'')+' · '+new Date(Number(x.lastDrawAt)||0).toLocaleString()+' · 使用 '+(Number(x.count)||1)+' 次</small></div>').join(''):'<p class="duo-card-empty">暂无记录</p>';
   }
   function render(){
     reconcileAll();
     const root=document.querySelector('#duoUnifiedCardPanel');if(!root)return;
     renderPool(root,'chat',Array.isArray(state.cardPhrases)?state.cardPhrases:[]);
     const c=getCircle()||{};renderPool(root,'moments-dynamic',Array.isArray(c.dynamicCards)?c.dynamicCards:[]);renderPool(root,'moments-reply',Array.isArray(c.replyCards)?c.replyCards:[]);renderRecent();
-    for(const key of ['chat','moments-dynamic','moments-reply']){const host=root.querySelector('[data-card-preview="'+key+'"]'),item=pendingDraws.get(key);if(host)host.textContent=item?item.text:'点击随机抽取后可在这里预览；确认使用后才会记录到最近抽过。';const use=root.querySelector('[data-card-use="'+key+'"]');if(use)use.disabled=!item;}
+    for(const key of ['chat','moments-dynamic','moments-reply']){const host=root.querySelector('[data-card-preview="'+key+'"]'),item=pendingDraws.get(key);if(host)host.textContent=item?item.text:'';const use=root.querySelector('[data-card-use="'+key+'"]');if(use)use.disabled=!item;}
   }
   function exportData(){reconcileAll();const c=getCircle()||{};return JSON.parse(JSON.stringify({...data,momentsDynamic:Array.isArray(c.dynamicCards)?c.dynamicCards:[],momentsReply:Array.isArray(c.replyCards)?c.replyCards:[],notificationsEnabled:c.notificationsEnabled!==false}));}
   function importData(incoming){

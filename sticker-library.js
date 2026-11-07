@@ -23,7 +23,7 @@
     const grid=$('#stickerGrid');if(!grid)return;
     const data=snapshot(),items=(data.items||[]).filter(item=>item&&typeof item.id==='string'&&!data.tombstones?.some(t=>t.id===item.id));
     const favorites=new Set(data.favorites||state.stickerFavorites||[]);
-    if(!items.length){grid.innerHTML='<div class="kb-sticker-empty">暂无表情包，点击左上角＋添加图片或 GIF。</div>';return;}
+    if(!items.length){grid.innerHTML='<div class="kb-sticker-empty">暂无表情包</div>';return;}
     for(const item of items){
       if(item.source==='builtin'&&item.assetUrl){stickerObjectUrls.set(item.id,item.assetUrl);continue;}
       const current=stickerObjectUrls.get(item.id);
