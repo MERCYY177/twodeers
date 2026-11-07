@@ -713,73 +713,57 @@ try {
   const persistedTheme = await page.evaluate(() => state.appearanceSettings.palette);
   assert.equal(persistedTheme, 'ocean', 'theme choice should persist after reload');
 
-  await page.evaluate(() => document.getElementById('emojiBtn').click());
+  await page.locator('#emojiBtn').click();
+  await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   await page.locator('#stickerUploader').setInputFiles([
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
     { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
   ]);
-  await page.locator('[data-duo-sticker-tab="uploads"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
-  const uploaded = await page.evaluate(() => state.stickers.map(s => ({ id:s.id, mediaId:s.mediaId, mimeType:s.mimeType })));
-  assert.equal(uploaded.length, 2);
-  assert.ok(uploaded.some(x => x.mimeType === 'image/png'));
-  assert.ok(uploaded.some(x => x.mimeType === 'image/gif'));
-  await page.waitForFunction(() => [...document.querySelectorAll('#stickerList img')].every(img => img.complete && img.naturalWidth > 0));
-  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
-  await page.locator('[data-duo-sticker-tab="favorites"]').click();
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite tab should show only the saved upload');
-  const favoritesBeforeReload = await page.evaluate(() => state.stickerFavorites.length);
-  assert.equal(favoritesBeforeReload, 1);
-  await page.locator('#stickerList [data-duo-sticker-fav]').click();
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 0, 'unfavoriting should empty the favorites list');
-  assert.match(await page.locator('#stickerList').innerText(), /还没有收藏表情包/);
-  await page.locator('[data-duo-sticker-tab="uploads"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 2);
-  await page.locator('#stickerList [data-duo-sticker-fav]').first().click();
-  await page.waitForFunction(() => state.stickerFavorites.length === 1);
-  const favoriteStoreBeforeReload = await page.evaluate(() => ({
-    stateFavorites: state.stickerFavorites,
-    library: localStorage.getItem('dual_space_sticker_library_v1')
-  }));
-  console.log('STICKER_FAVORITES_BEFORE_RELOAD', JSON.stringify(favoriteStoreBeforeReload));
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
-  const favoriteStoreAfterReload = await page.evaluate(() => ({
-    stateFavorites: state.stickerFavorites,
-    library: localStorage.getItem('dual_space_sticker_library_v1')
-  }));
-  console.log('STICKER_FAVORITES_AFTER_RELOAD', JSON.stringify(favoriteStoreAfterReload));
-  await page.evaluate(() => {
-    const panel=document.getElementById('emojiPanel');
-    panel.classList.add('show');
-    panel.setAttribute('aria-hidden','false');
-  });
-  await page.locator('[data-duo-sticker-tab="favorites"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#stickerList [data-sticker-send]').length === 1);
-  assert.equal(await page.locator('#stickerList [data-sticker-send]').count(), 1, 'favorite should survive reload');
-  await page.locator('[data-duo-sticker-tab="uploads"]').click();
-  await page.locator('#stickerList [data-sticker-send]').first().click();
-  await page.waitForFunction(() => state.chatHistory.some(message => message.mediaId), { timeout: 5000 });
-  const sentMediaId = await page.evaluate(() => state.chatHistory.find(message => message.mediaId).mediaId);
-  await page.evaluate(() => { const panel=document.getElementById('emojiPanel'); panel.classList.add('show'); panel.setAttribute('aria-hidden','false'); });
-  await page.locator('[data-duo-sticker-tab="uploads"]').click();
-  await page.evaluate(() => document.querySelector('#stickerList [data-sticker-del]').click());
-  await page.waitForFunction(() => state.stickers.length === 1 && state.stickerFavorites.length === 0);
-  const protectedMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), sentMediaId);
-  assert.equal(protectedMedia, true, 'deleting an uploaded sticker must not delete media still referenced by chat history');
-  await page.evaluate(() => document.querySelector('#stickerList [data-sticker-del]').click());
-  await page.waitForFunction(async id => state.stickers.length === 0 && !(await getMediaRecord(id)), uploaded[1].mediaId);
-  const orphanMedia = await page.evaluate(async id => !!(await getMediaRecord(id)), uploaded[1].mediaId);
-  assert.equal(orphanMedia, false, 'unreferenced deleted sticker media should be cleaned up');
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !!document.querySelector('#duoStickerTabs'));
-  await page.evaluate(() => document.getElementById('emojiBtn').click());
-  assert.match(await page.locator('#stickerList').innerText(), /内置表情包尚未载入/);
-  assert.equal(await page.locator('[data-duo-sticker-tab="favorites"]').count(), 1);
-  assert.equal(await page.locator('[data-duo-sticker-tab="builtin"]').count(), 1);
-
+  await page.waitForFunction(() => window.__duoStickerState.exportSnapshot().items.filter(item => item.source !== 'builtin').length === 2);
+  const uploaded = await page.evaluate(() => window.__duoStickerState.exportSnapshot().items.filter(item => item.source !== 'builtin').map(item => ({id:item.id,mediaId:item.mediaId,mimeType:item.mimeType})));
+  assert.equal(uploaded.length,2);
+  assert.ok(uploaded.some(item=>item.mimeType==='image/png'));
+  assert.ok(uploaded.some(item=>item.mimeType==='image/gif'));
+  for (const item of uploaded) {
+    const card=page.locator('#stickerGrid [data-sticker-id="'+item.id+'"]');
+    await card.locator('img').evaluate(img=>img.decode());
+    assert.ok(await card.locator('img').evaluate(img=>img.naturalWidth>0));
+  }
+  const favoriteCard=page.locator('#stickerGrid [data-sticker-id="'+uploaded[0].id+'"]');
+  await favoriteCard.locator('[data-sticker-favorite]').click();
+  await page.waitForFunction(id=>window.__duoStickerState.exportSnapshot().favorites.includes(id),uploaded[0].id);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(() => !!window.__duoStickerState?.exportSnapshot?.().items?.length);
+  assert.ok(await page.evaluate(id=>window.__duoStickerState.exportSnapshot().favorites.includes(id),uploaded[0].id),'favorite should survive reload');
+  await page.locator('#emojiBtn').click();
+  await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
+  const sendCard=page.locator('#stickerGrid [data-sticker-id="'+uploaded[0].id+'"]');
+  await sendCard.click();
+  await page.waitForFunction(id=>state.chatHistory.some(message=>message.mediaId===id),uploaded[0].mediaId);
+  assert.equal(await page.locator('#stickerOverlay.show').count(),0,'sending a sticker must close the sticker sheet');
+  await page.evaluate(() => { goto('settingsPage'); setSettingsTab('param'); });
+  await page.locator('[data-settings-category="stickers"]').click();
+  await page.waitForSelector('[data-sticker-admin-grid]');
+  await page.locator('[data-sticker-admin-filter="uploads"]').click();
+  for (const item of uploaded) {
+    const checkbox=page.locator('[data-sticker-admin-select="'+item.id+'"]');
+    await checkbox.check();
+    page.once('dialog',dialog=>dialog.accept());
+    await page.locator('[data-sticker-admin-delete]').click();
+    await page.waitForFunction(id=>!window.__duoStickerState.exportSnapshot().items.some(entry=>entry.id===id),item.id);
+    if(item.mediaId===uploaded[0].mediaId){
+      assert.ok(await page.evaluate(async id=>!!(await getMediaRecord(id)),item.mediaId),'deleting a sticker already sent to chat must preserve the referenced media');
+    }else{
+      await page.waitForFunction(async id=>!(await getMediaRecord(id)),item.mediaId);
+    }
+  }
+  await page.locator('#settingsCategoryBack').click();
+  await page.locator('#emojiBtn').click();
+  await page.waitForFunction(() => document.querySelectorAll('#stickerGrid [data-sticker-id]').length === 352);
+  assert.equal(await page.locator('#stickerGrid .sticker-send').count(),0,'the reference-style sticker picker has no Send buttons');
+  await page.locator('#stickerClose').click();
   const fontPath = process.env.TWODEERS_TEST_FONT || '';
   let fontTested = false;
   if (fontPath && existsSync(fontPath)) {
