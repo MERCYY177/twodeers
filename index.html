@@ -6044,7 +6044,7 @@ $('#chatList').addEventListener('pointerdown',e=>{const row=e.target.closest('.m
 ['pointerup','pointerleave','pointercancel'].forEach(name=>$('#chatList').addEventListener(name,()=>clearTimeout(pressTimer)));
 document.addEventListener('click',e=>{
   if(!e.target.closest('#plusBtn')&&!e.target.closest('#morePanel'))$('#morePanel').classList.remove('show');
-  if(!e.target.closest('#emojiBtn')&&!e.target.closest('#emojiPanel'))closeEmojiPanel();
+  if(!e.target.closest('#emojiBtn,#quickEmojiBtn,#emojiPanel'))closeEmojiPanel();
   if(!e.target.closest('#emojiBtn')&&!e.target.closest('#stickerOverlay'))closeStickerPanel();
   if(!e.target.closest('#chatInput')&&!e.target.closest('#inputHelper')&&!e.target.closest('#voiceToggleBtn'))$('#inputHelper').classList.remove('show');
 });
