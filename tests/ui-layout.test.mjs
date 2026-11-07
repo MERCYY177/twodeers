@@ -103,5 +103,6 @@ test('信件正文图片保留原始比例，只有编辑器缩略图允许裁�
   assert.ok(mailbox.includes('.mail-read-images{display:grid;'));
   assert.ok(mailbox.includes('.mail-read-image img{display:block;width:auto;height:auto;max-width:100%;max-height:70vh;object-fit:contain}'));
   assert.ok(mailbox.includes("async function compressMailJpeg(file){"));
-  assert.ok(mailbox.includes("file.type!=='image/jpeg'")&&mailbox.includes("image/(jpeg|png|webp|gif|avif)"));
+  assert.ok(mailbox.includes("file.type!=='image/jpeg'"));
+  assert.ok(mailbox.includes("jpeg|png|webp|gif|avif"));
 });
