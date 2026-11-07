@@ -122,7 +122,7 @@
   }
   function render(){
     reconcileAll();
-    const root=document.querySelector('#settingsCategoryContent');if(!root)return;
+    const root=document.querySelector('#duoUnifiedCardPanel');if(!root)return;
     renderPool(root,'chat',Array.isArray(state.cardPhrases)?state.cardPhrases:[]);
     const c=getCircle()||{};renderPool(root,'moments-dynamic',Array.isArray(c.dynamicCards)?c.dynamicCards:[]);renderPool(root,'moments-reply',Array.isArray(c.replyCards)?c.replyCards:[]);renderRecent();
     for(const key of ['chat','moments-dynamic','moments-reply']){const host=root.querySelector('[data-card-preview="'+key+'"]'),item=pendingDraws.get(key);if(host)host.textContent=item?item.text:'点击随机抽取后可在这里预览；确认使用后才会记录到最近抽过。';const use=root.querySelector('[data-card-use="'+key+'"]');if(use)use.disabled=!item;}
