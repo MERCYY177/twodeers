@@ -1063,34 +1063,47 @@ try {
   await page.locator('#mailDraftBtn').click();
   const draftCount = await page.locator('#mailDraftList [data-mail-draft]').count();
   assert.equal(draftCount,1,'typing and explicit save should persist a draft');
-  await page.locator('#mailImageInput').setInputFiles([
+  const mailImageFixtures=[
+    {name:'letter-landscape.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAPAAAABaCAIAAAAJsExNAAAAxElEQVR42u3SAQ0AMAjAsHMhOMUkitABaSUsi6x+cMWXAEODocHQYGgMDYYGQ4OhwdAYGgwNhgZDg6ExNBgaDA2GBkODocHQYGgwNBgaQ4OhwdBgaAwNhgZDg6HB0BgaDA2GBkODoTE0GBoMDYYGQ2NoMDQYGgwNhsbQYGgwNBgaDI2hwdBgaDA0GBpDg6HB0GBoMDSGBkODocHQGBoMDYYGQ4OhMTQYGgwNhgZDY2jYagCYLwIh2nWq4wAAAABJRU5ErkJggg==','base64')},
+    {name:'letter-portrait.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEYAAADSCAIAAAB4uyGGAAAB/ElEQVR42u3cO27DMAwA0FjoJXqszj1f5h6rJ/DetciQyJKoX563IADJZ1KynCHHeZ63va502+5CQkJCQkKa6frokOP36/v/x8+fe2i6I/RA9IDpA0tDPC+/nZGUU3GQKo3yxKnSQE+QKo31RKg8asNudsNGpRk8bVUGL/gGN4mjS/FbcH00XXoHUsQhrTKmLvV656mJrEt7k+KmrjK+Lm1Mip66miy6hLQMqc9CKs6lS0hrkHoupLKMuoS0AKn/QirIa/CQkLqTRu0NV7MbPCQkpErS2O3uUg0GDwkJCWm6HTy/EoOHhISEhLQWaZ7nbGY9Bg8JCQkJCQkJCWl90mzH8JyqDB4SEhISEhISEhISEhISEhISEhISEhISEhISEhLSdKTof2gvu55XZfCQkJCQkJCQkJC2IM12GH9Zj8FDQkJCQlqONM/TNqcSg4eEhIQ04z6eWYPBQ0JCqieN3fTysxs8JKQRpFE7xKW8Bg9pDVL/5XQ1oy4hLUPquZwKcukS0kqkPsupLIsu7U2Knr3i+Lq0PSlu9moi61KXRlXG1KU3IbWdvfpouhTcqCZxdCnyBrdqdZpkZTfcYwxezM1u+xho36Wr9TU/UoUMXn6VEUfEqLWUU2vQu0ng9vC84rh3reM8z+gt6OEfzaN/tOhB8nKBhISEhPTGpD9Zn5Qf1FK8bQAAAABJRU5ErkJggg==','base64')},
+    {name:'letter-square.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAIAAAC2BqGFAAAA1ElEQVR42u3UwQnAIBBE0RjsyDKsI1WljpRhOXO3BSEEhLx/38tj2JLk0PedCECDFmjQoAUatECDBi3QoAUaNGiBBi3Qe1bfHLfn+pvX6LdFex0CDRq0QIMWaNCgBRq0QIMGLdCgQSMADVqgQYMWaNACDRq0QIMWaNCgBRq0QIMGLdCgBRo0aIEGLdCgQQs0aIEGDVqgQQs0aNACDVqgQYMWaNACDRq0QIMWaNCgBRq0QIMGLdCgtVZJQsGiQQs0aNACDVqgQYMWaNACDRq0QIMW6A2bp0UJrwA5ekEAAAAASUVORK5CYII=','base64')},
+    {name:'letter-transparent.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAABjklEQVR42u3dwVFDMQxF0W/VQjksKIHSUgILyqEYWoAZy5blc/dMLN3/pGQywc8DAAAAAADqME478M/H9+u/f/P29f5JyEYBJwsat0g4Rc64UUJlOYOIWmIGEbXEBBm1zjmIqJWWIKPW+YOMWnUMImqNsCCjVn1BRq06g4xa9caDUoR01Ko7yKhVf5BRS4od0m2HSMfcfgQZtaQYWV1GlnTk9EdCOiREOvL6JCHd3vZisxDjKrdfEmJkYZoQ4yp/bEmIkQVCOgqxP9bsEQkxskAIISCEEBBCCAghBISAkHZCTvoXRxX5a/8kxMgCIV2F2CO5+0NCjCxMF2Js5fZLQowsTBdibOX1SUK6jCwpyemPhHRa6lIyvy+x88XJMLLu+BwiJfP6EJUOc7uM6SPrVikz67ZDOu6Qm1Myu9444ZC3yEgdWd2lZNW35P6QTj8YzX7QokMRXWQsfZd1upRV599yKdhJI2z1gxQ3FHnSOd1jWOyBcdNnseS6C9dduPvluC16syDf1wAAAAAAjuEX8lS8lOMF0MkAAAAASUVORK5CYII=','base64')},
     {name:'letter-animated.gif',mimeType:'image/gif',buffer:gif}
-  ]);
+  ];
+  await page.locator('#mailImageInput').setInputFiles(mailImageFixtures);
   await page.waitForFunction(() => {
     const draft=window.__duoMailbox.exportData().drafts.find(item=>item.title==='浏览器验收信件');
-    return draft?.images?.length===1 && draft.images[0].mimeType==='image/gif';
+    return draft?.images?.length===5 && draft.images.filter(image=>image.mimeType==='image/png').length===4 && draft.images[4].mimeType==='image/gif';
   });
   await page.locator('#mailComposeSend').click();
   const mailboxAudit = await page.evaluate(() => {
     const data=window.__duoMailbox.exportData();
     const letter=data.mailbox.items.find(x=>x.type==='outgoing'&&x.title==='浏览器验收信件');
-    return {outgoing:!!letter,drafts:data.drafts.length,fragments:letter?.cardFragments?.length||0,imageMime:letter?.images?.[0]?.mimeType||'',imageId:letter?.images?.[0]?.id||''};
+    return {outgoing:!!letter,drafts:data.drafts.length,fragments:letter?.cardFragments?.length||0,imageMimes:letter?.images?.map(image=>image.mimeType)||[],imageIds:letter?.images?.map(image=>image.id)||[]};
   });
   assert.equal(mailboxAudit.outgoing,true,'manual letters should be persisted independently');
   assert.equal(mailboxAudit.drafts,0,'sent drafts should be removed from the draft list');
   assert.equal(mailboxAudit.fragments,1,'selected card fragments should be snapshotted into the letter');
-  assert.equal(mailboxAudit.imageMime,'image/gif','mail attachments must preserve the original animated GIF MIME type');
-  const mailMediaType=await page.evaluate(async id=>(await getMediaRecord(id))?.blob?.type||'',mailboxAudit.imageId);
-  assert.equal(mailMediaType,'image/gif','mail GIF media must be stored without JPEG re-encoding');
+  assert.deepEqual(mailboxAudit.imageMimes,['image/png','image/png','image/png','image/png','image/gif'],'letter attachment formats must be preserved');
+  const expectedBytes=mailImageFixtures.map(file=>file.buffer.toString('base64'));
+  const storedBytes=await page.evaluate(async ids=>Promise.all(ids.map(async id=>{
+    const record=await getMediaRecord(id);if(!record?.blob)return {type:'',base64:''};
+    const bytes=new Uint8Array(await record.blob.arrayBuffer());let binary='';
+    for(let offset=0;offset<bytes.length;offset+=0x8000)binary+=String.fromCharCode(...bytes.subarray(offset,Math.min(offset+0x8000,bytes.length)));
+    return {type:record.blob.type,base64:btoa(binary)};
+  })),mailboxAudit.imageIds);
+  assert.deepEqual(storedBytes.map(item=>item.type),mailboxAudit.imageMimes,'original PNG and GIF MIME types must remain in IndexedDB media blobs');
+  assert.deepEqual(storedBytes.map(item=>item.base64),expectedBytes,'mail attachments must be byte-preserved without image re-encoding');
   const mailLetterId=await page.evaluate(title=>window.__duoMailbox.exportData().mailbox.items.find(x=>x.title===title)?.id,'浏览器验收信件');
   await page.locator('#mailLetterList [data-mail-open="'+mailLetterId+'"]').click();
-  await page.waitForFunction(()=>!!document.querySelector('#mailReadImages .mail-read-image img')?.complete);
-  const mailImageLayout=await page.locator('#mailReadImages .mail-read-image img').evaluate(img=>({
-    objectFit:getComputedStyle(img).objectFit,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,
-    maxHeight:getComputedStyle(img).maxHeight,width:getComputedStyle(img).width,height:getComputedStyle(img).height
+  await page.waitForFunction(()=>document.querySelectorAll('#mailReadImages .mail-read-image img').length===5&&Array.from(document.querySelectorAll('#mailReadImages .mail-read-image img')).every(img=>img.complete&&img.naturalWidth>0));
+  const mailImageLayouts=await page.locator('#mailReadImages .mail-read-image img').evaluateAll(images=>images.map(img=>{
+    const rect=img.getBoundingClientRect(),style=getComputedStyle(img);
+    return {objectFit:style.objectFit,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,renderedWidth:rect.width,renderedHeight:rect.height};
   }));
-  assert.equal(mailImageLayout.objectFit,'contain','letter body images must never crop their edges');
-  assert.ok(mailImageLayout.naturalWidth>0&&mailImageLayout.naturalHeight>0,'letter body GIF should decode at its original aspect ratio');
+  assert.ok(mailImageLayouts.every(item=>item.objectFit==='contain'),'all letter body images must use contain, never crop edges');
+  assert.ok(mailImageLayouts.every(item=>item.naturalWidth>0&&item.naturalHeight>0),'all letter attachments must decode in the reading view');
+  assert.ok(mailImageLayouts.every(item=>Math.abs((item.renderedWidth/item.renderedHeight)/(item.naturalWidth/item.naturalHeight)-1)<0.02),'horizontal, portrait, square, transparent PNG and GIF must preserve their original aspect ratios');
   await page.locator('#mailReadClose').click();
   const extendedBackup = await page.evaluate(async () => {
     const blob=await window.__duoBackupV4.build('all');
