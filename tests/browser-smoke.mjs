@@ -81,16 +81,30 @@ try {
   const composerVisibility = await page.evaluate(() => {
     const button=document.getElementById('emojiBtn');
     const rect=button.getBoundingClientRect();
+    const ancestors=[];
+    for(let node=button;node&&ancestors.length<10;node=node.parentElement){
+      const style=getComputedStyle(node),r=node.getBoundingClientRect();
+      ancestors.push({
+        tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:'',
+        display:style.display,visibility:style.visibility,opacity:style.opacity,
+        overflow:style.overflow,clipPath:style.clipPath,transform:style.transform,
+        hidden:node.hidden,rect:{x:r.x,y:r.y,width:r.width,height:r.height}
+      });
+    }
     return {
       activePages:Array.from(document.querySelectorAll('.page.active')).map(page=>page.id),
       chatPageActive:document.getElementById('chatPage')?.classList.contains('active')||false,
       display:getComputedStyle(button).display,
       visibility:getComputedStyle(button).visibility,
-      width:rect.width,height:rect.height,
-      parentDisplay:getComputedStyle(button.parentElement).display
+      opacity:getComputedStyle(button).opacity,
+      rect:{x:rect.x,y:rect.y,right:rect.right,bottom:rect.bottom,width:rect.width,height:rect.height},
+      viewport:{width:innerWidth,height:innerHeight,scrollX,scrollY},
+      isVisible:!!(rect.width&&rect.height&&getComputedStyle(button).visibility!=='hidden'),
+      ancestors
     };
   });
   console.log('[browser-smoke] composer after closing Emoji picker:',JSON.stringify(composerVisibility));
+  console.log('[browser-smoke] Playwright composer visibility:',await page.locator('#emojiBtn').isVisible());
   assert.equal(composerVisibility.chatPageActive,true,'closing Emoji picker must return to the active chat composer');
   assert.ok(composerVisibility.width>0&&composerVisibility.height>0,'chat sticker entry must remain visible after closing Emoji picker');
   assert.equal(baseline.stickerTabs, 0, 'the send surface must not add filter or management tabs');
