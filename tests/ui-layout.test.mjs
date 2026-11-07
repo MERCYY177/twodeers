@@ -102,9 +102,9 @@ test('信件正文图片保留原始比例，只有编辑器缩略图允许裁�
   assert.ok(mailbox.includes('.mail-image-thumb img{width:100%;height:100%;object-fit:cover;display:block}'));
   assert.ok(mailbox.includes('.mail-read-images{display:grid;'));
   assert.ok(mailbox.includes('.mail-read-image img{display:block;width:auto;height:auto;max-width:100%;max-height:70vh;object-fit:contain}'));
-  assert.ok(mailbox.includes("async function compressMailJpeg(file){"));
-  assert.ok(mailbox.includes("file.type!=='image/jpeg'"));
-  assert.ok(mailbox.includes("jpeg|png|webp|gif|avif"));
+  assert.ok(!mailbox.includes('compressMailJpeg'),'mail attachment uploads must not re-encode source JPEGs');
+  assert.ok(mailbox.includes('const stored=file;'),'mail attachments must be stored as the original File blob');
+  assert.ok(mailbox.includes('jpeg|png|webp|gif|avif'));
 });
 test('页面浮层层级统一走命名 token，备份与恢复遮罩保持最高优先级',()=>{
   for(const token of ['--z-message-decoration:10','--z-more-panel:34','--z-input-helper:35','--z-emoji-panel:38','--z-sticker-overlay:1000','--z-header-menu:12000','--z-backup-overlay:2147482000','--z-restore-overlay:2147483000']) {
