@@ -109,7 +109,7 @@ input, textarea, select{outline:none}
 .chat-bg{flex:1;overflow:auto;padding:14px 12px 92px;background-color:var(--chat-bg);background-image:radial-gradient(circle at 14% 18%, var(--chat-pattern-dot) 0 2px, transparent 2.5px),radial-gradient(circle at 74% 36%, var(--chat-pattern-dot) 0 2px, transparent 2.5px),radial-gradient(circle at 40% 82%, var(--chat-pattern-dot) 0 2px, transparent 2.5px)}
 .system-line{text-align:center;margin:8px 0 14px}
 .system-line span{display:inline-block;background:var(--panel);border:1px solid var(--line);color:var(--sub);font-size:12px;padding:6px 10px;border-radius:999px}
-.msg-row{display:block;margin:0 0 12px}
+.msg-row{display:block;position:relative;isolation:isolate;margin:0 0 12px}
 .message-line{display:flex;align-items:flex-end;gap:8px;min-width:0;width:100%}
 .msg-row.me .message-line{justify-content:flex-end}
 .chat-avatar{width:34px;height:34px;flex:0 0 34px;border-radius:var(--avatar-radius);background:var(--panel);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--sub)}
