@@ -1,6 +1,12 @@
 name: Sticker source inventory
 
 on:
+  push:
+    branches: ["feature/builtin-sticker-library"]
+    paths:
+      - ".github/workflows/sticker-source-inventory.yml"
+      - "sticker-source/**"
+      - "tools/prepare-builtin-stickers.py"
   workflow_dispatch:
 
 permissions:
@@ -14,8 +20,17 @@ jobs:
       - name: Checkout source archives
         uses: actions/checkout@v4
 
-      - name: Install image scanner
-        run: python -m pip install --disable-pip-version-check Pillow
+      - name: Install image scanner and HEIF decoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --disable-pip-version-check Pillow pillow-heif
+      - name: Generate the exact deployable sticker resources
+        run: |
+          python3 tools/prepare-builtin-stickers.py \
+            --archive-one "sticker-source/表情包1.zip" \
+            --archive-two "sticker-source/表情包2.zip" \
+            --output-root "$RUNNER_TEMP/sticker-generated"
 
       - name: Scan sticker archives and build contact sheets
         shell: bash
@@ -30,8 +45,11 @@ jobs:
           import zipfile
           from collections import Counter, defaultdict
           from pathlib import PurePosixPath
-          from PIL import Image, ImageDraw, ImageFile
+          from PIL import Image, ImageDraw, ImageFile, ImageOps, ImageChops, ImageStat
+          from pillow_heif import register_heif_opener
+          from urllib.parse import unquote
           
+          register_heif_opener()
           Image.MAX_IMAGE_PIXELS = 100_000_000
           ImageFile.LOAD_TRUNCATED_IMAGES = False
           source = "sticker-source"
@@ -52,6 +70,9 @@ jobs:
               if head.startswith(b"\\x89PNG\\r\\n\\x1a\\n"): return "PNG"
               if head.startswith((b"GIF87a", b"GIF89a")): return "GIF"
               if head.startswith(b"RIFF") and head[8:12] == b"WEBP": return "WEBP"
+              if len(data) >= 16 and data[4:8] == b"ftyp":
+                  brands = data[8:40]
+                  if any(tag in brands for tag in (b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1", b"heif")): return "HEIF"
               if head.startswith(b"BM"): return "BMP"
               if head.startswith((b"II*\\x00", b"MM\\x00*")): return "TIFF"
               if head.startswith(b"%PDF-"): return "PDF"
@@ -166,6 +187,103 @@ jobs:
               f.write("\\n".join(error_report) + "\\n")
           with open(os.path.join(out, "duplicates.json"), "w", encoding="utf-8") as f:
               json.dump(duplicate_groups, f, ensure_ascii=False, indent=2)
+          # Compare the exact seven user-reported sticker files against their generated deployable assets.
+          requested_names = {
+              "img-17924231558885113b716a7cbe64ce881b3fb8ee134073bd77fd3dc8b03fdd93f045251a8c40c.jpg",
+              "img-1771486374614736dc03da504d2f82edb58b0454555b4309f9dc0881bbd0f1bf32aa969630f9e.jpg",
+              "mg-17931805972877e100acb646fcb91a3173c3885c0d5213b02cda854e212e3d59e1f2ef77e84ed.jpg",
+              "img-177170008633024625357a73c73a2619661939b6073376a2df13f0e11212cf09460e04bbd5775.jpg",
+              "img-1792766459114687b0f40bb10ccfd74460ad5345aa2eda05cf27cb9734629c09799fad35f8e71.jpg",
+              "mg-1787753781806417ded86bd83f61591d26263a2341413244952b24e9b62c855307d865f79eda3.jpg",
+              "img-17812436592025e627dbe57d794a001f2d840bca8ab5ff606535cec50fbcd0011b5d33e0e02cc.jpg",
+          }
+          generated_root = os.environ["RUNNER_TEMP"] + "/sticker-generated"
+          with open(os.path.join(generated_root, "assets", "builtin-stickers", "manifest.json"), encoding="utf-8") as f:
+              generated_manifest = json.load(f)
+          generated_by_source = {(item["archive"], item["archiveEntry"]): item for item in generated_manifest["items"]}
+          requested_rows = []
+          pair_images = []
+          for archive in archives:
+              archive_name = os.path.basename(archive)
+              with zipfile.ZipFile(archive) as zf:
+                  for member in zf.infolist():
+                      if member.is_dir() or PurePosixPath(member.filename).name not in requested_names:
+                          continue
+                      source_data = zf.read(member)
+                      generated_item = generated_by_source.get((archive_name, member.filename))
+                      result = {
+                          "file": PurePosixPath(member.filename).name,
+                          "archive": archive_name,
+                          "archiveEntry": member.filename,
+                          "sourceSignature": sniff(source_data),
+                          "sourceSha256": hashlib.sha256(source_data).hexdigest(),
+                          "generatedFound": generated_item is not None,
+                      }
+                      if generated_item:
+                          asset_rel = unquote(generated_item["assetUrl"].removeprefix("assets/builtin-stickers/"))
+                          generated_path = os.path.join(generated_root, "assets", "builtin-stickers", asset_rel)
+                          result["generatedFormat"] = generated_item["format"]
+                          result["generatedBytes"] = os.path.getsize(generated_path)
+                          try:
+                              with Image.open(io.BytesIO(source_data)) as original:
+                                  source_format = original.format
+                                  source_size = original.size
+                                  source_frames = getattr(original, "n_frames", 1)
+                                  original.seek(0); original.load()
+                                  original = ImageOps.exif_transpose(original).convert("RGB")
+                              with Image.open(generated_path) as generated:
+                                  generated_format = generated.format
+                                  generated_size = generated.size
+                                  generated_frames = getattr(generated, "n_frames", 1)
+                                  generated.seek(0); generated.load()
+                                  generated = ImageOps.exif_transpose(generated).convert("RGB")
+                              def canvas(image):
+                                  image = ImageOps.contain(image, (320, 320), method=Image.Resampling.LANCZOS)
+                                  result_image = Image.new("RGB", (320, 320), "white")
+                                  result_image.paste(image, ((320-image.width)//2, (320-image.height)//2))
+                                  return result_image
+                              original_canvas = canvas(original)
+                              generated_canvas = canvas(generated)
+                              diff = ImageChops.difference(original_canvas, generated_canvas)
+                              mean_abs = sum(ImageStat.Stat(diff).mean) / 3
+                              result.update({
+                                  "sourceFormat": source_format, "sourceWidth": source_size[0], "sourceHeight": source_size[1],
+                                  "sourceFrames": source_frames, "generatedDecodedFormat": generated_format,
+                                  "generatedWidth": generated_size[0], "generatedHeight": generated_size[1],
+                                  "generatedFrames": generated_frames, "meanAbsolutePixelDifference": round(mean_abs, 3),
+                                  "aspectRatioMatches": abs(source_size[0]/source_size[1]-generated_size[0]/generated_size[1]) < 0.015,
+                                  "visualStatus": "ok" if mean_abs < 24 and abs(source_size[0]/source_size[1]-generated_size[0]/generated_size[1]) < 0.015 else "review",
+                              })
+                              cell_w, cell_h = 680, 390
+                              sheet = Image.new("RGB", (cell_w, cell_h), "white")
+                              sheet.paste(original_canvas.resize((320,320)), (10,40))
+                              sheet.paste(generated_canvas.resize((320,320)), (350,40))
+                              draw = ImageDraw.Draw(sheet)
+                              draw.text((10, 8), result["file"][:96], fill="black")
+                              draw.text((10, 365), f"Original: {source_format} {source_size[0]}x{source_size[1]} / {source_frames} frame(s)", fill="black")
+                              draw.text((350, 365), f"Generated: {generated_format} {generated_size[0]}x{generated_size[1]} / diff {mean_abs:.3f}", fill="black")
+                              pair_images.append((result["file"], sheet))
+                          except Exception as exc:
+                              result["visualStatus"] = "decode-error"
+                              result["visualError"] = str(exc)[:500]
+                      requested_rows.append(result)
+          for name in sorted(requested_names):
+              if not any(row["file"] == name for row in requested_rows):
+                  requested_rows.append({"file": name, "generatedFound": False, "visualStatus": "missing-source"})
+          with open(os.path.join(out, "requested-seven-comparison.json"), "w", encoding="utf-8") as f:
+              json.dump(requested_rows, f, ensure_ascii=False, indent=2)
+          if pair_images:
+              per_sheet = 2
+              for page_no in range(0, len(pair_images), per_sheet):
+                  batch = pair_images[page_no:page_no+per_sheet]
+                  contact = Image.new("RGB", (1360, 390*len(batch)), "white")
+                  for row_no, (_, sheet) in enumerate(batch):
+                      contact.paste(sheet, (0, row_no*390))
+                  contact.save(os.path.join(out, f"requested-seven-compare-{page_no//per_sheet+1:02d}.jpg"), quality=88)
+          with open(os.path.join(out, "requested-seven-comparison.csv"), "w", newline="", encoding="utf-8-sig") as f:
+              fields = sorted({key for row in requested_rows for key in row})
+              writer = csv.DictWriter(f, fieldnames=fields); writer.writeheader(); writer.writerows(requested_rows)
+
           image_rows = [r for r in rows if r["is_image"]]
           report = [
               "# Sticker source scan",
