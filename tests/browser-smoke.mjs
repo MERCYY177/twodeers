@@ -84,9 +84,11 @@ try {
   assert.equal(await page.locator('#settingsCategoryGrid [data-settings-category="stickers"]').count(), 1, 'sticker management must remain in the parameter area');
   assert.equal(baseline.backupVersion, 4);
 
+  await page.waitForFunction(() => window.__duoStickerState?.exportSnapshot?.().items?.filter(item=>item.source==='builtin').length === 352,{timeout:60000});
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
-  assert.ok(await page.locator('#stickerGrid [data-sticker-id]').count() > 0, 'built-in and uploaded sticker items should render into the dedicated grid');
+  await page.waitForFunction(() => document.querySelectorAll('#stickerGrid [data-sticker-id]').length === 352,{timeout:60000});
+  assert.equal(await page.locator('#stickerGrid [data-sticker-id]').count(),352,'all built-in sticker entries should render into the dedicated grid');
   const favoriteBefore = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
   await page.locator('#stickerGrid [data-sticker-favorite]').first().click();
   const favoriteAfter = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
