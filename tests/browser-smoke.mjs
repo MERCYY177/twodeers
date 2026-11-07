@@ -106,7 +106,8 @@ try {
   console.log('[browser-smoke] composer after closing Emoji picker:',JSON.stringify(composerVisibility));
   console.log('[browser-smoke] Playwright composer visibility:',await page.locator('#emojiBtn').isVisible());
   assert.equal(composerVisibility.chatPageActive,true,'closing Emoji picker must return to the active chat composer');
-  assert.ok(composerVisibility.width>0&&composerVisibility.height>0,'chat sticker entry must remain visible after closing Emoji picker');
+  assert.equal(composerVisibility.isVisible,true,'chat sticker entry must remain visible after closing Emoji picker');
+  assert.ok(composerVisibility.rect.width>0&&composerVisibility.rect.height>0,'chat sticker entry must have a non-zero visible box after closing Emoji picker');
   assert.equal(baseline.stickerTabs, 0, 'the send surface must not add filter or management tabs');
   assert.equal(await page.locator('#stickerGrid .sticker-send').count(), 0, 'stickers must not have redundant Send buttons');
   assert.equal(await page.locator('#stickerGrid [data-open-sticker-admin]').count(), 0, 'management must not appear in the send surface');
