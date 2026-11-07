@@ -62,15 +62,17 @@ test('deleting a favorite removes its favorite state and writes its tombstone in
   assert.equal(stored.items.some(x=>x.id==='stk-fav'), false);
 });
 
-test('send controls carry stable sticker IDs and send path revalidates the ID after async media read', () => {
-  assert.match(html, /data-sticker-send-id=/);
-  assert.match(html, /data-sticker-del-id=/);
-  const send = html.match(/async function sendSticker\(stickerId\)\{[\s\S]*?\n\}/)?.[0] || '';
-  assert.match(send, /isStickerSendable\(stickerId\)/);
-  assert.match(send, /await ensureStickerMedia\(sticker\)/);
-  assert.match(send, /current\.mediaId!==resolved\.mediaId/);
-  assert.match(send, /const latest=readStickerLibraryStore\(\)/);
-  assert.match(send, /latest\.tombstones\.some\(item=>item\.id===stickerId\)/);
+test('sticker cards carry stable IDs and direct-send path revalidates the ID after async media read', () => {
+  const library = readFileSync(new URL('../sticker-library.js', import.meta.url), 'utf8');
+  assert.match(library, /data-sticker-id=/);
+  assert.match(library, /sendSticker\\(id\\)/);
+  assert.doesNotMatch(library, /data-sticker-send-id|data-sticker-del-id/);
+  const send = html.match(/async function sendSticker\\(stickerId\\)\\{[\\s\\S]*?\\n\\}/)?.[0] || '';
+  assert.match(send, /isStickerSendable\\(stickerId\\)/);
+  assert.match(send, /await ensureStickerMedia\\(sticker\\)/);
+  assert.match(send, /current\\.mediaId!==resolved\\.mediaId/);
+  assert.match(send, /const latest=readStickerLibraryStore\\(\\)/);
+  assert.match(send, /latest\\.tombstones\\.some\\(item=>item\\.id===stickerId\\)/);
 });
 
 test('V4 and legacy chat backups retain tombstones and restore merges rather than erases them', () => {
@@ -196,15 +198,17 @@ test('built-in media attachment is restricted to the same live asset and survive
   assert.equal(tab.api.attachBuiltinStickerMedia(item.id,item.assetUrl,'media-resurrect'), null);
 });
 
-test('built-in catalogue loader uses the packaged offline manifest and shows a separate category', () => {
+test('built-in catalogue loader uses the packaged offline manifest in the dedicated picker grid', () => {
   const library = readFileSync(new URL('../sticker-library.js', import.meta.url), 'utf8');
-  assert.match(library, /assets\/builtin-stickers\/manifest\.json/);
-  assert.match(library, /data-duo-sticker-tab="builtin"/);
+  assert.match(library, /assets\\/builtin-stickers\\/manifest\\.json/);
+  assert.match(library, /const grid=\\$\\('#stickerGrid'\\)/);
+  assert.match(library, /data-sticker-id=/);
   assert.match(library, /source==='builtin'/);
-  assert.match(html, /registerBuiltins:items=>registerBuiltinStickerItems\(items\)/);
-  const send = html.match(/async function sendSticker\(stickerId\)\{[\s\S]*?\n\}/)?.[0] || '';
-  assert.match(send, /ensureStickerMedia\(sticker\)/);
-  assert.match(html, /async function ensureStickerMedia\(sticker\)/);
+  assert.doesNotMatch(library, /data-duo-sticker-tab/);
+  assert.match(html, /registerBuiltins:items=>registerBuiltinStickerItems\\(items\\)/);
+  const send = html.match(/async function sendSticker\\(stickerId\\)\\{[\\s\\S]*?\\n\\}/)?.[0] || '';
+  assert.match(send, /ensureStickerMedia\\(sticker\\)/);
+  assert.match(html, /async function ensureStickerMedia\\(sticker\\)/);
 });
 
 test('batch deletion removes selected builtin entries atomically and leaves permanent tombstones', () => {

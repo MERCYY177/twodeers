@@ -181,11 +181,13 @@ test('failed chat-message deletion persistence restores the message and skips me
 });
 
 test('sticker deletion writes a tombstone and removes favorite in one library commit', () => {
-  assert.match(html, /function deleteStickerFromLibrary\(id\)\{[\s\S]*?next\.items\.splice\(index,1\)[\s\S]*?next\.favorites=next\.favorites\.filter[\s\S]*?next\.tombstones\.push/);
-  assert.match(html, /function writeStickerLibraryStore\(library\)\{[\s\S]*?localStorage\.setItem\(STICKER_LIBRARY_STORAGE_KEY,serialized\)[\s\S]*?readback!==serialized/);
-  assert.match(html, /data-sticker-send-id/);
-  assert.match(html, /data-sticker-del-id/);
-  assert.match(html, /async function sendSticker\(stickerId\)[\s\S]*?isStickerSendable\(stickerId\)[\s\S]*?const latest=readStickerLibraryStore\(\)/);
+  assert.match(html, /function deleteStickerFromLibrary\\(id\\)\\{[\\s\\S]*?next\\.items\\.splice\\(index,1\\)[\\s\\S]*?next\\.favorites=next\\.favorites\\.filter[\\s\\S]*?next\\.tombstones\\.push/);
+  assert.match(html, /function writeStickerLibraryStore\\(library\\)\\{[\\s\\S]*?localStorage\\.setItem\\(STICKER_LIBRARY_STORAGE_KEY,serialized\\)[\\s\\S]*?readback!==serialized/);
+  const library = readFileSync(new URL('../sticker-library.js', import.meta.url), 'utf8');
+  assert.match(html, /id="stickerOverlay"[\\s\\S]*?id="stickerGrid"/);
+  assert.match(library, /data-sticker-id=/);
+  assert.doesNotMatch(library, /sticker-send|data-sticker-del-id/);
+  assert.match(html, /async function sendSticker\\(stickerId\\)[\\s\\S]*?isStickerSendable\\(stickerId\\)[\\s\\S]*?const latest=readStickerLibraryStore\\(\\)/);
 });
 
 test('whole-space reset snapshots all affected stores before deletion and restores them on failure', () => {
