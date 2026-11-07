@@ -4,6 +4,11 @@
   if(window.__duoStickerLibraryInstalled)return;
   window.__duoStickerLibraryInstalled=true;
   let renderGeneration=0;
+  let armedSticker=null;
+  let activePointer=null;
+  let pressTimer=0;
+  let pressStartX=0,pressStartY=0;
+  let suppressClickUntil=0;
   const $=selector=>document.querySelector(selector);
   const escapeAttr=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   function snapshot(){
@@ -34,10 +39,9 @@
     if(generation!==renderGeneration)return;
     grid.innerHTML=items.map(item=>{
       const url=stickerObjectUrls.get(item.id)||'';
-      const favorite=favorites.has(item.id);
-      return '<div class="kb-sticker-item" data-sticker-id="'+escapeAttr(item.id)+'" role="button" tabindex="0" aria-label="发送表情包：'+escapeAttr(item.name||'表情包')+'">'+
+      return '<div class="kb-sticker-item" data-sticker-id="'+escapeAttr(item.id)+'" role="button" tabindex="0" aria-label="发送表情包：'+escapeAttr(item.name||'表情包')+'，长按删除">'+
         '<img src="'+escapeAttr(url)+'" alt="'+escapeAttr(item.name||'表情包')+'" loading="lazy" decoding="async">'+
-        '<button type="button" class="kb-sticker-favorite'+(favorite?' active':'')+'" data-sticker-favorite="'+escapeAttr(item.id)+'" aria-label="'+(favorite?'取消收藏':'收藏')+'">'+(favorite?'★':'☆')+'</button>'+
+        '<button type="button" class="kb-sticker-delete" data-sticker-delete="'+escapeAttr(item.id)+'" aria-label="删除这张表情包" tabindex="-1">×</button>'+
       '</div>';
     }).join('');
   }
@@ -48,23 +52,95 @@
   }
   window.renderStickerList=render;
   window.__duoStickerLibrary={invalidate,render};
-  document.addEventListener('click',event=>{
-    const favorite=event.target?.closest?.('[data-sticker-favorite]');
-    if(!favorite)return;
-    event.preventDefault();event.stopImmediatePropagation();
-    const id=favorite.dataset.stickerFavorite;
+  function stopPressTimer(){if(pressTimer){clearTimeout(pressTimer);pressTimer=0;}}
+  function clearArmedSticker(){
+    if(armedSticker?.classList)armedSticker.classList.remove('delete-armed');
+    armedSticker=null;
+  }
+  function armStickerForDelete(item){
+    if(!item)return;
+    clearArmedSticker();
+    armedSticker=item;
+    item.classList.add('delete-armed');
+  }
+  async function deleteSticker(id,item){
+    const before=snapshot();
+    const sticker=(before.items||[]).find(value=>value.id===id);
+    if(!sticker){clearArmedSticker();void render();return;}
+    if(!window.confirm('删除这张表情包？删除后不会因重新加载内置清单而恢复。'))return;
     try{
-      const data=snapshot();
-      if(!data.items.some(item=>item.id===id))throw new Error('表情包已不存在');
-      window.__duoStickerState?.toggleFavorite?.(id);
-      if(save()===false)throw new Error('收藏状态镜像未能保存');
+      const removed=window.__duoStickerState?.deleteBatch?.([id])||[];
+      if(!Array.isArray(removed)||!removed.length)throw new Error('表情包已不存在或删除失败');
+      if(typeof save==='function'&&save()===false){
+        window.__duoStickerState?.restoreSnapshot?.(before);
+        save();
+        throw new Error('保存失败，已恢复这张表情包');
+      }
+      const objectUrl=stickerObjectUrls.get(id);
+      if(objectUrl?.startsWith('blob:'))URL.revokeObjectURL(objectUrl);
+      stickerObjectUrls.delete(id);
+      clearArmedSticker();
       void render();
-    }catch(error){showToast('收藏状态保存失败：'+(error.message||error));}
-  },true);
+      if(sticker.mediaId&&typeof deleteIfUnreferenced==='function'){
+        void deleteIfUnreferenced(sticker.mediaId).catch(error=>console.warn('[表情包] 清理未引用图片失败',error));
+      }
+      if(typeof showToast==='function')showToast('已删除这张表情包');
+    }catch(error){
+      clearArmedSticker();
+      if(typeof showToast==='function')showToast(error.message||'表情包删除失败');
+    }
+  }
+  const stickerGrid=$('#stickerGrid');
+  if(stickerGrid&&!stickerGrid.__duoLongPressDeleteBound){
+    stickerGrid.__duoLongPressDeleteBound=true;
+    stickerGrid.addEventListener('pointerdown',event=>{
+      const item=event.target?.closest?.('[data-sticker-id]');
+      if(!item||!stickerGrid.contains(item)||event.target?.closest?.('[data-sticker-delete]'))return;
+      if(event.pointerType==='mouse'&&event.button!==0)return;
+      stopPressTimer();activePointer=event.pointerId;pressStartX=event.clientX;pressStartY=event.clientY;
+      pressTimer=setTimeout(()=>{
+        pressTimer=0;
+        if(activePointer!==event.pointerId)return;
+        activePointer=null;
+        armStickerForDelete(item);
+        suppressClickUntil=Date.now()+900;
+      },800);
+    },{passive:true});
+    stickerGrid.addEventListener('pointermove',event=>{
+      if(activePointer!==event.pointerId)return;
+      if(Math.abs(event.clientX-pressStartX)>10||Math.abs(event.clientY-pressStartY)>10){
+        stopPressTimer();activePointer=null;suppressClickUntil=Date.now()+300;
+      }
+    },{passive:true});
+    const finishPress=event=>{if(activePointer===event.pointerId){stopPressTimer();activePointer=null;}};
+    stickerGrid.addEventListener('pointerup',finishPress,{passive:true});
+    stickerGrid.addEventListener('pointercancel',finishPress,{passive:true});
+    stickerGrid.addEventListener('contextmenu',event=>{if(event.target?.closest?.('[data-sticker-id]'))event.preventDefault();});
+    // Capture phase prevents the chat page's normal click-to-send handler from treating a delete tap as a send.
+    stickerGrid.addEventListener('click',event=>{
+      const deleteButton=event.target?.closest?.('[data-sticker-delete]');
+      if(deleteButton){
+        event.preventDefault();event.stopImmediatePropagation();
+        const item=deleteButton.closest('[data-sticker-id]');
+        void deleteSticker(deleteButton.dataset.stickerDelete,item);
+        return;
+      }
+      const item=event.target?.closest?.('[data-sticker-id]');
+      if(!item){clearArmedSticker();return;}
+      if(Date.now()<suppressClickUntil){event.preventDefault();event.stopImmediatePropagation();return;}
+      if(armedSticker){clearArmedSticker();event.preventDefault();event.stopImmediatePropagation();}
+    },true);
+    document.addEventListener('click',event=>{
+      if(!stickerGrid.contains(event.target))clearArmedSticker();
+    });
+    stickerGrid.addEventListener('scroll',()=>{
+      stopPressTimer();activePointer=null;clearArmedSticker();
+    },{passive:true});
+  }
   document.addEventListener('keydown',event=>{
     const item=event.target?.closest?.('[data-sticker-id]');
     if(!item||!['Enter',' '].includes(event.key))return;
-    if(event.target.closest('[data-sticker-favorite]'))return;
+    if(event.target.closest('[data-sticker-delete]'))return;
     event.preventDefault();const id=item.dataset.stickerId;if(id)void sendSticker(id);
   });
   async function loadBuiltinStickerManifest(){

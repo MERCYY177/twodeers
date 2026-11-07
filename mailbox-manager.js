@@ -257,7 +257,6 @@
   function mountSettings(root){
     if(!root)return false;
     root.innerHTML=`<section class="panel-card duo-mail-settings" data-mail-settings-form>
-      <h3>信箱设置</h3>
       <p class="data-note">设置只影响以后新生成的主动来信和自动回信。</p>
       <div class="item-row"><label for="mailAutoIncoming">允许主动来信</label><input id="mailAutoIncoming" type="checkbox"></div>
       <label class="duo-mail-setting-row"><span>主动来信间隔</span><span><input id="mailIncomingMin" type="number" min="1" max="168" step="0.01" inputmode="decimal"> ～ <input id="mailIncomingMax" type="number" min="1" max="168" step="0.01" inputmode="decimal"> 小时</span></label>

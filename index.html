@@ -366,8 +366,8 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .kb-sticker-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:88px;align-content:start;gap:8px;padding:10px;overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch}
 .kb-sticker-item{position:relative;width:100%;height:100%;min-width:0;min-height:0;border:1px solid var(--line);background:var(--soft,#f3f3f3);border-radius:12px;padding:5px;overflow:hidden;display:flex;align-items:center;justify-content:center;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer}
 .kb-sticker-item img{display:block;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:contain !important;object-position:center !important;border-radius:8px;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;-webkit-touch-callout:none}
-.kb-sticker-favorite{position:absolute;top:4px;left:4px;width:25px;height:25px;border:0;border-radius:50%;padding:0;background:rgba(25,25,25,.62);color:#fff;font-size:16px;line-height:25px;display:flex;align-items:center;justify-content:center;z-index:2}
-.kb-sticker-favorite.active{color:#ffd36a}
+.kb-sticker-delete{position:absolute;top:4px;right:4px;width:25px;height:25px;border:0;border-radius:50%;padding:0;background:rgba(25,25,25,.78);color:#fff;font-size:18px;line-height:25px;display:flex;align-items:center;justify-content:center;z-index:3;opacity:0;transform:scale(.78);pointer-events:none;transition:opacity .12s ease,transform .12s ease}
+.kb-sticker-item.delete-armed .kb-sticker-delete{opacity:1;transform:scale(1);pointer-events:auto}
 .kb-sticker-empty{grid-column:1/-1;min-height:90px;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px}
 @media(max-width:380px){.emoji-panel{left:6px;right:6px;padding:9px}.emoji-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(min-width:700px){.kb-sticker-sheet{max-width:560px;margin:0 auto;border-radius:20px 20px 0 0}.kb-sticker-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:96px}}
@@ -422,7 +422,9 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 
 <style id="twodeers-contextual-settings-and-chat-picker-fix">
 .chat-header-menu-host{display:flex;align-items:center;gap:0;flex:0 0 auto;min-width:0}
-.header-more-btn{flex:0 0 40px}
+.header-more-btn{flex:0 0 40px;padding:0!important;line-height:1!important}
+.header-more-dots{display:flex;align-items:center;justify-content:center;gap:4px;width:18px;height:18px}
+.header-more-dots i{display:block;width:3.5px;height:3.5px;border-radius:50%;background:currentColor}
 .header-popup-menu{min-width:164px;max-width:calc(100vw - 16px)}
 #chatPage{isolation:isolate}
 #chatPage .kb-sticker-overlay{position:absolute!important;left:16px!important;right:16px!important;top:auto!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;width:auto!important;height:min(330px,46vh)!important;height:min(330px,46dvh)!important;max-height:46vh!important;max-height:46dvh!important;display:none!important;align-items:stretch!important;justify-content:stretch!important;padding:0!important;margin:0!important;background:transparent!important;z-index:2200!important;pointer-events:none!important;overflow:hidden!important;box-sizing:border-box!important}
@@ -524,7 +526,7 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <h2>联系人</h2>
 </div>
 <div class="header-actions chat-header-menu-host">
-<button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button" aria-haspopup="true" aria-expanded="false">⋯</button>
+<button aria-label="更多" class="header-more-btn" id="chatMoreBtn" title="更多" type="button" aria-haspopup="true" aria-expanded="false"><span class="header-more-dots" aria-hidden="true"><i></i><i></i><i></i></span></button>
 <div class="header-popup-menu" id="chatMoreMenu" hidden>
 <button type="button" data-chat-menu="audio">语音通话</button>
 <button type="button" data-chat-menu="video">视频通话</button>
