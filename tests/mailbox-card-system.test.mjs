@@ -480,7 +480,7 @@ test('automatic letters use a unique random selection within the configured card
   assert.ok(letter,'due automatic reply should create an incoming letter');
   assert.ok(letter.cardFragments.length>=3&&letter.cardFragments.length<=4,'selected card count must be within configured bounds');
   assert.equal(letter.cardFragments.length,new Set(letter.cardFragments.map(item=>item.cardId)).size,'one letter must not repeat a stable card ID');
-  assert.equal(letter.content,letter.cardFragments.map(item=>item.textSnapshot).join('\\n'),'letter text must preserve all selected card snapshots in order');
+  assert.equal(letter.content,letter.cardFragments.map(item=>item.textSnapshot).join(String.fromCharCode(10)),'letter text must preserve all selected card snapshots in order');
   assert.equal(usage.length,letter.cardFragments.length,'every selected card must produce one durable usage event');
   assert.ok(usage.every(event=>event.letterId===letter.id&&event.source==='mail-auto-reply'));
   assert.equal(data.mailbox.pending.length,0);
