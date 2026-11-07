@@ -10,8 +10,12 @@ on:
       - "*.json"
       - "assets/**"
       - "sticker-source/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
       - "tools/prepare-builtin-stickers.py"
       - "tools/build-web-site.py"
+      - "tools/verify-source.mjs"
       - ".github/workflows/web-deploy-package.yml"
   workflow_dispatch:
 
@@ -21,18 +25,28 @@ permissions:
 jobs:
   build-web-package:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install FFmpeg for HEIF conversion
+      - name: Install FFmpeg and browser dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+      - name: Install Node dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
       - name: Build static website with all built-in stickers
         run: |
           python3 tools/build-web-site.py --output-dir dist
@@ -40,6 +54,17 @@ jobs:
         run: |
           node tools/verify-source.mjs
           npm test
+      - name: Run browser regression against the deployable website
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory dist > /tmp/twodeers-web-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
+            sleep 1
+          done
+          FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
+          TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
       - name: Create deployable ZIP
         run: |
           python3 - <<'PY'
