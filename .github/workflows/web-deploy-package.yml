@@ -1,0 +1,62 @@
+name: Build deployable web package
+
+on:
+  push:
+    branches: ["feature/builtin-sticker-library"]
+    paths:
+      - "index.html"
+      - "*.js"
+      - "*.css"
+      - "*.json"
+      - "assets/**"
+      - "sticker-source/**"
+      - "tools/prepare-builtin-stickers.py"
+      - "tools/build-web-site.py"
+      - ".github/workflows/web-deploy-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install FFmpeg for HEIF conversion
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Build static website with all built-in stickers
+        run: |
+          python3 tools/build-web-site.py --output-dir dist
+      - name: Verify source and unit tests
+        run: |
+          node tools/verify-source.mjs
+          npm test
+      - name: Create deployable ZIP
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+          root = Path("dist")
+          target = Path("twodeers-web-deploy-352-stickers.zip")
+          with ZipFile(target, "w", ZIP_DEFLATED, compresslevel=6) as archive:
+              for path in sorted(root.rglob("*")):
+                  if path.is_file():
+                      archive.write(path, path.relative_to(root).as_posix())
+          print(f"Created {target}: {target.stat().st_size} bytes")
+          PY
+      - name: Upload deployable website ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-web-deploy-352-stickers
+          path: twodeers-web-deploy-352-stickers.zip
+          if-no-files-found: error
+          retention-days: 14
