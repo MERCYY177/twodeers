@@ -119,6 +119,29 @@ try {
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   await page.waitForFunction(() => document.querySelectorAll('#stickerGrid [data-sticker-id]').length === 352,{timeout:60000});
   assert.equal(await page.locator('#stickerGrid [data-sticker-id]').count(),352,'all built-in sticker entries should render into the dedicated grid');
+  for (const viewport of [
+    {name:'360px',width:360,height:800,columns:4},
+    {name:'390px',width:390,height:844,columns:4},
+    {name:'desktop',width:1365,height:900,columns:5}
+  ]) {
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    const layout=await page.evaluate(()=>{
+      const sheet=document.querySelector('#stickerOverlay .kb-sticker-sheet');
+      const grid=document.getElementById('stickerGrid');
+      const rect=sheet.getBoundingClientRect(),gridRect=grid.getBoundingClientRect();
+      return {
+        columns:getComputedStyle(grid).gridTemplateColumns.trim().split(/\\s+/).length,
+        sheetWidth:rect.width,gridWidth:gridRect.width,
+        viewportWidth:innerWidth,scrollHeight:grid.scrollHeight,clientHeight:grid.clientHeight,
+        overflowX:document.documentElement.scrollWidth>innerWidth
+      };
+    });
+    assert.equal(layout.columns,viewport.columns,viewport.name+' sticker grid must use the intended responsive column count');
+    assert.ok(layout.sheetWidth<=viewport.width+1&&layout.gridWidth<=viewport.width+1,viewport.name+' sticker panel must fit inside the viewport');
+    assert.ok(layout.scrollHeight>layout.clientHeight,viewport.name+' sticker grid must scroll internally instead of being clipped');
+    assert.equal(layout.overflowX,false,viewport.name+' sticker panel must not cause horizontal page overflow');
+  }
+  await page.setViewportSize({width:1365,height:900});
   const favoriteBefore = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
   await page.locator('#stickerGrid [data-sticker-favorite]').first().click();
   const favoriteAfter = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
