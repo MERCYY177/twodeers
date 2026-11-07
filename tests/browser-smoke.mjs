@@ -1063,7 +1063,16 @@ try {
   await page.locator('#mailDraftBtn').click();
   const draftCount = await page.locator('#mailDraftList [data-mail-draft]').count();
   assert.equal(draftCount,1,'typing and explicit save should persist a draft');
+  const mailJpegDataUrl=await page.evaluate(()=>{
+    const canvas=document.createElement('canvas');canvas.width=160;canvas.height=80;
+    const context=canvas.getContext('2d');context.fillStyle='#f2d7c9';context.fillRect(0,0,160,80);
+    context.fillStyle='#354b63';context.fillRect(12,10,136,60);
+    context.fillStyle='#ffffff';context.fillRect(28,24,104,32);
+    return canvas.toDataURL('image/jpeg',0.9);
+  });
+  const mailJpegBuffer=Buffer.from(mailJpegDataUrl.split(',')[1],'base64');
   const mailImageFixtures=[
+    {name:'letter-original.jpg',mimeType:'image/jpeg',buffer:mailJpegBuffer},
     {name:'letter-landscape.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAPAAAABaCAIAAAAJsExNAAAAxElEQVR42u3SAQ0AMAjAsHMhOMUkitABaSUsi6x+cMWXAEODocHQYGgMDYYGQ4OhwdAYGgwNhgZDg6ExNBgaDA2GBkODocHQYGgwNBgaQ4OhwdBgaAwNhgZDg6HB0BgaDA2GBkODoTE0GBoMDYYGQ2NoMDQYGgwNhsbQYGgwNBgaDI2hwdBgaDA0GBpDg6HB0GBoMDSGBkODocHQGBoMDYYGQ4OhMTQYGgwNhgZDY2jYagCYLwIh2nWq4wAAAABJRU5ErkJggg==','base64')},
     {name:'letter-portrait.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEYAAADSCAIAAAB4uyGGAAAB/ElEQVR42u3cO27DMAwA0FjoJXqszj1f5h6rJ/DetciQyJKoX563IADJZ1KynCHHeZ63va502+5CQkJCQkKa6frokOP36/v/x8+fe2i6I/RA9IDpA0tDPC+/nZGUU3GQKo3yxKnSQE+QKo31RKg8asNudsNGpRk8bVUGL/gGN4mjS/FbcH00XXoHUsQhrTKmLvV656mJrEt7k+KmrjK+Lm1Mip66miy6hLQMqc9CKs6lS0hrkHoupLKMuoS0AKn/QirIa/CQkLqTRu0NV7MbPCQkpErS2O3uUg0GDwkJCWm6HTy/EoOHhISEhLQWaZ7nbGY9Bg8JCQkJCQkJCWl90mzH8JyqDB4SEhISEhISEhISEhISEhISEhISEhISEhISEhLSdKTof2gvu55XZfCQkJCQkJCQkJC2IM12GH9Zj8FDQkJCQlqONM/TNqcSg4eEhIQ04z6eWYPBQ0JCqieN3fTysxs8JKQRpFE7xKW8Bg9pDVL/5XQ1oy4hLUPquZwKcukS0kqkPsupLIsu7U2Knr3i+Lq0PSlu9moi61KXRlXG1KU3IbWdvfpouhTcqCZxdCnyBrdqdZpkZTfcYwxezM1u+xho36Wr9TU/UoUMXn6VEUfEqLWUU2vQu0ng9vC84rh3reM8z+gt6OEfzaN/tOhB8nKBhISEhPTGpD9Zn5Qf1FK8bQAAAABJRU5ErkJggg==','base64')},
     {name:'letter-square.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAIAAAC2BqGFAAAA1ElEQVR42u3UwQnAIBBE0RjsyDKsI1WljpRhOXO3BSEEhLx/38tj2JLk0PedCECDFmjQoAUatECDBi3QoAUaNGiBBi3Qe1bfHLfn+pvX6LdFex0CDRq0QIMWaNCgBRq0QIMGLdCgQSMADVqgQYMWaNACDRq0QIMWaNCgBRq0QIMGLdCgBRo0aIEGLdCgQQs0aIEGDVqgQQs0aNACDVqgQYMWaNACDRq0QIMWaNCgBRq0QIMGLdCgtVZJQsGiQQs0aNACDVqgQYMWaNACDRq0QIMW6A2bp0UJrwA5ekEAAAAASUVORK5CYII=','base64')},
@@ -1084,7 +1093,7 @@ try {
   assert.equal(mailboxAudit.outgoing,true,'manual letters should be persisted independently');
   assert.equal(mailboxAudit.drafts,0,'sent drafts should be removed from the draft list');
   assert.equal(mailboxAudit.fragments,1,'selected card fragments should be snapshotted into the letter');
-  assert.deepEqual(mailboxAudit.imageMimes,['image/png','image/png','image/png','image/png','image/gif'],'letter attachment formats must be preserved');
+  assert.deepEqual(mailboxAudit.imageMimes,['image/jpeg','image/png','image/png','image/png','image/png','image/gif'],'letter attachment formats must be preserved');
   const expectedBytes=mailImageFixtures.map(file=>file.buffer.toString('base64'));
   const storedBytes=await page.evaluate(async ids=>Promise.all(ids.map(async id=>{
     const record=await getMediaRecord(id);if(!record?.blob)return {type:'',base64:''};
