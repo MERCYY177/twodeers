@@ -90,13 +90,13 @@
       previewUrls.delete(id);
     }
   }
+  function safeBuiltinAssetUrl(value){if(typeof value!=='string'||!value.startsWith('assets/builtin-stickers/')||/[\\\u0000-\u001f\u007f\"'<>?#]/.test(value))return '';const parts=value.split('/');if(parts.some(part=>!part||part==='.'||part==='..'))return '';try{if(parts.some(part=>{const d=decodeURIComponent(part);return d==='.'||d==='..'||/[\\/\u0000-\u001f\u007f]/.test(d);}))return '';}catch(_){return '';}return value;}
   async function loadPreview(item,image,generation){
     const cacheKey=item.id;
     if(previewUrls.has(cacheKey)){image.src=previewUrls.get(cacheKey);return;}
     if(item.source==='builtin'&&item.assetUrl){
-      previewUrls.set(cacheKey,item.assetUrl);
-      image.src=item.assetUrl;
-      return;
+      const builtinUrl=safeBuiltinAssetUrl(item.assetUrl);
+      if(builtinUrl){previewUrls.set(cacheKey,builtinUrl);image.src=builtinUrl;return;}
     }
     try{
       if(!item.mediaId)throw new Error('图片媒体引用不存在');

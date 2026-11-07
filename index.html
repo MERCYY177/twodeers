@@ -2157,6 +2157,29 @@ function detailTimeLabel(ts){
   return d.getFullYear() === now.getFullYear() ? `${d.getMonth()+1}月${d.getDate()}日 ${hm}` : `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${hm}`;
 }
 function escapeAttr(s){ return escapeHtml(s).replace(/`/g,'&#96;'); }
+function safeMediaUrl(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim();
+  if(!raw || raw.length>128*1024*1024 || /[\u0000-\u0020\\<>\"']/.test(raw)) return '';
+  if(/^data:/i.test(raw)){
+    return /^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/(?:mp4|webm)|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(raw) ? raw : '';
+  }
+  try{
+    const explicit=/^[a-z][a-z0-9+.-]*:/i.test(raw);
+    const parsed=new URL(raw,document.baseURI);
+    if(parsed.protocol==='blob:') return parsed.origin===location.origin ? raw : '';
+    if(parsed.protocol!=='http:'&&parsed.protocol!=='https:') return '';
+    if(parsed.username||parsed.password) return '';
+    if(explicit && !/^https?:/i.test(raw)) return '';
+    if(!explicit && parsed.origin!==location.origin) return '';
+    if(!explicit && raw.split(/[?#]/,1)[0].split('/').some(part=>part==='.'||part==='..')) return '';
+    return raw;
+  }catch(_){return '';}
+}
+function cssBackgroundImage(value){
+  const url=safeMediaUrl(value);
+  return url ? `url(\"${url}\")` : '';
+}
 function getViewAssets(){
   return {
     myAvatar: tempAssets.myAvatar ?? state.myAvatar,
@@ -2166,13 +2189,13 @@ function getViewAssets(){
   };
 }
 function setAvatarEl(el, url, char){
-  if(url){ el.classList.remove('fallback'); el.textContent=''; el.style.backgroundImage=`url(${url})`; }
+  if(url&&safeMediaUrl(String(url))){ el.classList.remove('fallback'); el.textContent=''; el.style.backgroundImage=cssBackgroundImage(String(url)); }
   else { el.classList.add('fallback'); el.textContent=char; el.style.backgroundImage=''; }
 }
 function applyHeader(useTemp=false){
   const assets = useTemp ? getViewAssets() : {myAvatar:state.myAvatar, otherAvatar:state.otherAvatar, myCover:state.myCover, otherCover:state.otherCover};
   const coverEl = qs('#cover');
-  coverEl.style.backgroundImage = assets.myCover ? `url(${assets.myCover})` : '';
+  coverEl.style.backgroundImage = cssBackgroundImage(assets.myCover);
   coverEl.classList.toggle('blank-cover', !assets.myCover);
   qs('#coverName').textContent = state.myName || '';
   setAvatarEl(qs('#coverAvatar'), assets.myAvatar, fallbackChar(state.myName||''));
@@ -2180,7 +2203,7 @@ function applyHeader(useTemp=false){
 }
 function updateProfilePreview(){
   const assets = getViewAssets();
-  qs('#coverPreview').style.backgroundImage = assets.myCover ? `url(${assets.myCover})` : '';
+  qs('#coverPreview').style.backgroundImage = cssBackgroundImage(assets.myCover);
   qs('#coverPreviewName').textContent = qs('#myNameInput').value.trim() || '';
   setAvatarEl(qs('#coverPreviewAvatar'), assets.myAvatar, fallbackChar(qs('#myNameInput').value.trim() || ''));
   qs('#saveHint').classList.toggle('show', !!tempAssets.dirty || assetsBusy);
@@ -2231,14 +2254,16 @@ function mediaGridClass(media){
   return `media-grid multi count-${Math.min(count, 9)}`;
 }
 let renderMediaHtml = function renderMediaHtmlBase(media, extraClass='', postId=''){
-  media = media || [];
+  media = Array.isArray(media) ? media.filter(Boolean) : [];
   if(!media.length) return '';
-  const openAttr = postId ? ` data-open-viewer="${postId}" role="button" tabindex="0"` : '';
-  return `<div class="post-media ${extraClass}"${openAttr}><div class="${mediaGridClass(media)}">` + media.map(item=>{
+  const openAttr = postId ? ` data-open-viewer="${escapeAttr(postId)}" role="button" tabindex="0"` : '';
+  return `<div class="post-media ${escapeAttr(extraClass)}"${openAttr}><div class="${mediaGridClass(media)}">` + media.map(item=>{
+    const src=safeMediaUrl(item.src||'');
+    if(!src) return `<div class="media-item media-unavailable"></div>`;
     if(item.type === 'video'){
-      return `<div class="media-item"><video controls playsinline preload="metadata" src="${item.src}"></video><span class="media-badge">视频</span></div>`;
+      return `<div class="media-item"><video controls playsinline preload="metadata" src="${escapeAttr(src)}"></video><span class="media-badge">视频</span></div>`;
     }
-    return `<div class="media-item"><img src="${item.src}" alt=""></div>`;
+    return `<div class="media-item"><img src="${escapeAttr(src)}" alt=""></div>`;
   }).join('') + `</div></div>`;
 };
 function applyFeedTextCollapse(){
@@ -2307,9 +2332,10 @@ let openViewer = function openViewerBase(postId){
   const first = post.media[0];
   qs('#viewerDate').textContent = viewerDateLabel(post.ts);
   qs('#viewerText').innerHTML = linkifyText(post.text || '');
-  qs('#viewerMedia').innerHTML = first.type === 'video'
-    ? `<video controls playsinline preload="metadata" src="${first.src}"></video>`
-    : `<img src="${first.src}" alt="">`;
+  const firstSrc=safeMediaUrl(first.src||'');
+  qs('#viewerMedia').innerHTML = firstSrc ? (first.type === 'video'
+    ? `<video controls playsinline preload="metadata" src="${escapeAttr(firstSrc)}"></video>`
+    : `<img src="${escapeAttr(firstSrc)}" alt="">`) : '';
   refreshViewerActions(post);
   qs('#viewerMask').classList.add('show');
 };
@@ -2332,9 +2358,11 @@ function updateMediaPreview(){
   wrap.classList.add('show');
   countText.textContent = `已添加 ${selectedPostMedia.length}/9 个媒体`;
   grid.innerHTML = selectedPostMedia.map((item, index)=>{
-    return `<div class="media-preview-item">` + (item.type === 'video'
-      ? `<video src="${item.src}" muted playsinline preload="metadata"></video>`
-      : `<img src="${item.src}" alt="">`) + `<button class="media-remove" data-remove-media="${index}">×</button></div>`;
+    const src=safeMediaUrl(item.src||'');
+    const mediaHtml=!src?'':(item.type === 'video'
+      ? `<video src="${escapeAttr(src)}" muted playsinline preload="metadata"></video>`
+      : `<img src="${escapeAttr(src)}" alt="">`);
+    return `<div class="media-preview-item">${mediaHtml}<button class="media-remove" data-remove-media="${index}">×</button></div>`;
   }).join('');
 }
 async function handlePostMediaFiles(fileList){
@@ -2378,11 +2406,11 @@ function likeText(post){
   return getLikeUsers(post).map(user=>user.name);
 }
 function renderLikeAvatar(user){
-  const hasAvatar = !!user.avatar;
-  const cls = `social-like-avatar ${hasAvatar ? '' : 'fallback'}`.trim();
-  const style = hasAvatar ? ` style="background-image:url(${user.avatar})"` : '';
-  const content = hasAvatar ? '' : escapeHtml(fallbackChar(user.name));
-  return `<span class="${cls}"${style} aria-label="${escapeHtml(user.name)}">${content}</span>`;
+  const avatar=safeMediaUrl(user&&user.avatar||'');
+  const cls = `social-like-avatar ${avatar ? '' : 'fallback'}`.trim();
+  const style = avatar ? ` style="background-image:${escapeAttr(cssBackgroundImage(avatar))}"` : '';
+  const content = avatar ? '' : escapeHtml(fallbackChar(user&&user.name));
+  return `<span class="${cls}"${style} aria-label="${escapeAttr(user&&user.name||'')}">${content}</span>`;
 }
 function authorNameByKey(key){
   return key === 'me' ? state.myName : state.otherName;
@@ -2411,7 +2439,7 @@ function renderSocialBox(post, mode='feed'){
   comments.forEach(c=>{
     const inner = formatCommentHtml(c);
     if(mode === 'detail'){
-      lines.push(`<button type="button" class="social-line social-comment-btn" data-reply-comment="${c.id}">${inner}</button>`);
+      lines.push(`<button type="button" class="social-line social-comment-btn" data-reply-comment="${escapeAttr(c.id)}">${inner}</button>`);
     }else{
       lines.push(`<div class="social-line">${inner}</div>`);
     }
@@ -2426,7 +2454,7 @@ function renderPosts(useTemp=false){
   if(!posts.length){ feed.innerHTML = `<div class="empty">还没有动态。</div>`; return; }
   posts.forEach(post=>{
     const isMe = post.author === 'me';
-    const avatarUrl = isMe ? assets.myAvatar : assets.otherAvatar;
+    const avatarUrl = safeMediaUrl(isMe ? assets.myAvatar : assets.otherAvatar);
     const avatarChar = fallbackChar(isMe ? state.myName : state.otherName);
     const authorName = isMe ? state.myName : state.otherName;
     const privateLine = isMe && post.private ? `<div class="timeline-lock">仅自己可见</div>` : '';
@@ -2436,7 +2464,7 @@ function renderPosts(useTemp=false){
     card.className = 'post';
     card.innerHTML = `
       <div class="post-head">
-        <button class="avatar ${avatarUrl?'':'fallback'}" data-open-profile="${post.author}" style="${avatarUrl?`background-image:url(${avatarUrl})`:''}">${avatarUrl?'':escapeHtml(avatarChar)}</button>
+        <button class="avatar ${avatarUrl?'':'fallback'}" data-open-profile="${escapeAttr(post.author)}" style="${avatarUrl?`background-image:${escapeAttr(cssBackgroundImage(avatarUrl))}`:''}">${avatarUrl?'':escapeHtml(avatarChar)}</button>
         <div class="head-meta">
           <div class="post-head-row">
             <div>
@@ -2579,9 +2607,9 @@ function renderTimelinePreviewMedia(media){
     const moreHtml = moreCount > 0 && isLastVisible ? `<span class="timeline-thumb-more">+${moreCount}</span>` : '';
     const badgeHtml = item.type === 'video' ? `<span class="timeline-video-badge">视频</span>` : '';
     if(item.type === 'video'){
-      return `<div class="timeline-thumb-item"><video muted playsinline preload="metadata" src="${item.src}"></video>${badgeHtml}${moreHtml}</div>`;
+      return `<div class="timeline-thumb-item"><video muted playsinline preload="metadata" src="${escapeAttr(safeMediaUrl(item.src||''))}"></video>${badgeHtml}${moreHtml}</div>`;
     }
-    return `<div class="timeline-thumb-item"><img src="${item.src}" alt="">${moreHtml}</div>`;
+    return `<div class="timeline-thumb-item"><img src="${escapeAttr(safeMediaUrl(item.src||''))}" alt="">${moreHtml}</div>`;
   }).join('') + `</div>`;
 }
 function renderProfileTimeline(author){
@@ -2605,7 +2633,7 @@ function renderProfileTimeline(author){
       const hasMedia = !!((post.media||[]).length);
       const lockHtml = post.author==='me' && post.private ? `<div class="timeline-lock">仅自己可见</div>` : ``;
       const textHtml = renderTimelineContentHtml(post);
-      const actionAttr = hasMedia ? `data-open-viewer="${post.id}"` : `data-open-detail="${post.id}"`;
+      const actionAttr = hasMedia ? `data-open-viewer="${escapeAttr(post.id)}"` : `data-open-detail="${escapeAttr(post.id)}"`;
       return `<div class="timeline-card clickable ${hasMedia ? 'has-media' : 'text-only'}" ${actionAttr} role="button" tabindex="0"><div class="timeline-card-inner">${hasMedia ? renderTimelinePreviewMedia(post.media) : ''}<div class="timeline-summary">${lockHtml}${textHtml}</div></div></div>`;
     }).join('');
     return `<div class="timeline-group"><div class="timeline-date">${group.label}</div><div class="timeline-group-items">${postsHtml}</div></div>`;
@@ -2616,12 +2644,12 @@ function openProfile(author){
   const isMe = author === 'me';
   const assets = getViewAssets();
   const coverUrl = isMe ? assets.myCover : assets.otherCover;
-  const avatarUrl = isMe ? assets.myAvatar : assets.otherAvatar;
+  const avatarUrl = safeMediaUrl(isMe ? assets.myAvatar : assets.otherAvatar);
   const name = isMe ? state.myName : state.otherName;
   qs('#profileTitle').textContent = '';
   qs('#profileTitle').style.display='none';
   qs('#profileName').textContent = name || '朋友圈';
-  qs('#profileCover').style.backgroundImage = coverUrl ? `url(${coverUrl})` : '';
+  qs('#profileCover').style.backgroundImage = cssBackgroundImage(coverUrl);
   setAvatarEl(qs('#profileAvatar'), avatarUrl, fallbackChar(name));
   qs('#profileAvatar').setAttribute('data-open-profile', author);
   renderProfileTimeline(author);
@@ -2674,7 +2702,7 @@ let renderDetail = function renderDetailBase(postId){
   const post = state.posts.find(p=>p.id===postId); if(!post) return;
   currentDetailId = postId;
   const who = post.author==='me' ? state.myName : state.otherName;
-  const avatarUrl = post.author==='me' ? state.myAvatar : state.otherAvatar;
+  const avatarUrl = safeMediaUrl(post.author==='me' ? state.myAvatar : state.otherAvatar);
   qs('#detailAuthor').textContent = who;
   qs('#detailMeta').textContent = '';
   qs('#detailMeta').style.display = 'none';
@@ -3095,8 +3123,8 @@ applyHeader();
       if(key!==current){current=key;const group=document.createElement('div');group.className='visitor-date-group';group.textContent=fmtDay(key);list.appendChild(group);}
       const row=document.createElement('div');row.className='visitor-item';row.dataset.visitorId=record.id;
       const avatar=document.createElement('div');avatar.className='visitor-avatar';
-      const avatarUrl=visitorAvatar();
-      if(/^(https?:\/\/|data:image\/|blob:)/i.test(avatarUrl)){
+      const avatarUrl=safeMediaUrl(visitorAvatar());
+      if(avatarUrl){
         const img=document.createElement('img');img.alt='';img.src=avatarUrl;img.onerror=()=>{img.remove();avatar.textContent=visitorFallback();};avatar.appendChild(img);
       }else avatar.textContent=visitorFallback();
       const info=document.createElement('div');info.className='visitor-info';
@@ -3189,12 +3217,12 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     const wrap = circleRoot.querySelector('.detail-card');
     if(!wrap || !post) return;
     const who = post.author==='me' ? state.myName : state.otherName;
-    const avatarUrl = post.author==='me' ? state.myAvatar : state.otherAvatar;
+    const avatarUrl = safeMediaUrl(post.author==='me' ? state.myAvatar : state.otherAvatar);
     const avatarClass = avatarUrl ? 'avatar' : 'avatar fallback';
-    const avatarStyle = avatarUrl ? ` style="background-image:url(${avatarUrl})"` : '';
+    const avatarStyle = avatarUrl ? ` style="background-image:${escapeAttr(cssBackgroundImage(avatarUrl))}"` : '';
     const avatarText = avatarUrl ? '' : escapeHtml(fallbackChar(who));
     const textHtml = renderDetailTextHtml(post.text);
-    const mediaHtml = (post.media && post.media.length) ? renderMediaHtml(post.media, 'detail-media', post.id).replace('<div class="post-media detail-media" data-open-viewer="'+post.id+'" role="button" tabindex="0">','<div class="post-media detail-media" id="detailMediaWrap" data-open-viewer="'+post.id+'" role="button" tabindex="0">') : '<div id="detailMediaWrap" class="hidden"></div>';
+    const mediaHtml = (post.media && post.media.length) ? renderMediaHtml(post.media, 'detail-media', post.id).replace('<div class="post-media detail-media" data-open-viewer="'+escapeAttr(post.id)+'" role="button" tabindex="0">','<div class="post-media detail-media" id="detailMediaWrap" data-open-viewer="'+escapeAttr(post.id)+'" role="button" tabindex="0">') : '<div id="detailMediaWrap" class="hidden"></div>';
     const timeHtml = detailTimeLabel(post.ts);
     const deleteHtml = post.author==='me' ? `<button class="detail-inline-delete" id="detailInlineDelete" aria-label="删除"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#5c74a8" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h2v9H7V9Zm4 0h2v9h-2V9Zm4 0h2v9h-2V9ZM6 8h12l-1 12H7L6 8Z"></path></svg></button>` : `<button class="detail-inline-delete hidden" id="detailInlineDelete" aria-label="删除"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#5c74a8" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h2v9H7V9Zm4 0h2v9h-2V9Zm4 0h2v9h-2V9ZM6 8h12l-1 12H7L6 8Z"></path></svg></button>`;
     const socialHtml = post.private ? `<div class="detail-social-wrap hidden" id="detailSocialWrap"></div><div class="detail-empty-note" id="detailPrivateNote">私密文字无法评论</div>` : `<div class="detail-social-wrap" id="detailSocialWrap">${renderSocialBox(post,'detail')}</div><div class="detail-empty-note hidden" id="detailPrivateNote">私密文字无法评论</div>`;
@@ -3269,15 +3297,17 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
   window.normalizeViewerToken = normalizeViewerToken;
 
   renderMediaHtml = function(media, extraClass='', postId=''){
-    media = media || [];
+    media = Array.isArray(media) ? media.filter(Boolean) : [];
     if(!media.length) return '';
-    const outerOpenAttr = postId ? ` data-open-viewer="${postId}::0" role="button" tabindex="0"` : '';
-    return `<div class="post-media ${extraClass}"${outerOpenAttr}><div class="${mediaGridClass(media)}">` + media.map((item, index)=>{
-      const itemOpenAttr = postId ? ` data-open-viewer="${postId}::${index}" role="button" tabindex="0"` : '';
+    const outerOpenAttr = postId ? ` data-open-viewer="${escapeAttr(postId+'::0')}" role="button" tabindex="0"` : '';
+    return `<div class="post-media ${escapeAttr(extraClass)}"${outerOpenAttr}><div class="${mediaGridClass(media)}">` + media.map((item, index)=>{
+      const itemOpenAttr = postId ? ` data-open-viewer="${escapeAttr(postId+'::'+index)}" role="button" tabindex="0"` : '';
+      const src=safeMediaUrl(item.src||'');
+      if(!src)return `<div class="media-item"${itemOpenAttr}></div>`;
       if(item.type === 'video'){
-        return `<div class="media-item"${itemOpenAttr}><video controls playsinline preload="metadata" src="${item.src}"></video><span class="media-badge">视频</span></div>`;
+        return `<div class="media-item"${itemOpenAttr}><video controls playsinline preload="metadata" src="${escapeAttr(src)}"></video><span class="media-badge">视频</span></div>`;
       }
-      return `<div class="media-item"${itemOpenAttr}><img src="${item.src}" alt=""></div>`;
+      return `<div class="media-item"${itemOpenAttr}><img src="${escapeAttr(src)}" alt=""></div>`;
     }).join('') + `</div></div>`;
   };
 
@@ -3291,9 +3321,10 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     const viewerMediaEl = qs('#viewerMedia');
     qs('#viewerDate').textContent = viewerDateLabel(post.ts);
     qs('#viewerText').innerHTML = linkifyText(post.text || '');
-    viewerMediaEl.innerHTML = current.type === 'video'
-      ? `<video controls playsinline preload="metadata" src="${current.src}"></video>`
-      : `<img src="${current.src}" alt="">`;
+    const currentSrc=safeMediaUrl(current.src||'');
+    viewerMediaEl.innerHTML = currentSrc ? (current.type === 'video'
+      ? `<video controls playsinline preload="metadata" src="${escapeAttr(currentSrc)}"></video>`
+      : `<img src="${escapeAttr(currentSrc)}" alt="">`) : '';
     viewerMediaEl.dataset.postId = post.id || '';
     viewerMediaEl.dataset.index = String(currentViewerIndex);
     window.currentViewerPostId = post.id || '';
@@ -3428,9 +3459,10 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     const current = media[currentPureIndex];
     const box = circleGetById('mediaOnlyMedia');
     if(!box) return;
-    box.innerHTML = current.type === 'video'
-      ? `<video controls playsinline preload="metadata" src="${current.src}"></video>`
-      : `<img src="${current.src}" alt="">`;
+    const currentSrc=safeMediaUrl(current.src||'');
+    box.innerHTML = currentSrc ? (current.type === 'video'
+      ? `<video controls playsinline preload="metadata" src="${escapeAttr(currentSrc)}"></video>`
+      : `<img src="${escapeAttr(currentSrc)}" alt="">`) : '';
   }
 
   function parsePureToken(token){
@@ -3655,6 +3687,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
       read:false
     });
     if(state.notifications.length > 50) state.notifications = state.notifications.slice(0, 50);
+    window.dispatchEvent(new Event('duo:notifications-changed'));
   }
 
   function markNoticesReadByPost(postId, silent){
@@ -3665,6 +3698,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     });
     if(changed){
       save();
+      window.dispatchEvent(new Event('duo:notifications-changed'));
       if(!silent) renderNoticeBar();
     }
   }
@@ -3842,6 +3876,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     }
 
     if(changed && typeof save === 'function') save();
+    if(changed) window.dispatchEvent(new Event('duo:notifications-changed'));
     if(typeof renderNoticeBar === 'function') renderNoticeBar();
   }
 
@@ -3864,7 +3899,8 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
   };
 
   syncNotificationsFromPosts();
-  setInterval(()=>{if(!window.__duoCircleRestorePaused)syncNotificationsFromPosts();}, 1200);
+  // Notification reconciliation is triggered by renderPosts and explicit state changes;
+  // do not poll the full post/comment history on a 1.2-second timer.
   document.addEventListener('visibilitychange', function(){
     if(!document.hidden) syncNotificationsFromPosts();
   });
@@ -3905,8 +3941,8 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     const media = post && Array.isArray(post.media) ? post.media : [];
     if(media.length){
       const first = media[0] || {};
-      if(first.type === 'video') return `<div class="${prefix}-thumb"><video src="${esc(first.src || '')}" muted playsinline></video></div>`;
-      return `<div class="${prefix}-thumb"><img src="${esc(first.src || '')}" alt=""></div>`;
+      if(first.type === 'video') return `<div class="${prefix}-thumb"><video src="${esc(safeMediaUrl(first.src || ''))}" muted playsinline></video></div>`;
+      return `<div class="${prefix}-thumb"><img src="${esc(safeMediaUrl(first.src || ''))}" alt=""></div>`;
     }
     const text = (post && post.text ? String(post.text) : '').trim();
     return `<div class="${prefix}-thumb"><div class="notice-post-text">${esc(text || '动态')}</div></div>`;
@@ -3950,7 +3986,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
   function pageRowHtml(notice, idx, total){
     const avatar = actorAvatar(notice);
     const name = esc(notice.actorName || state.otherName || '对方');
-    const avatarHtml = avatar ? `<div class="wx-interactions-avatar" style="background-image:url(${esc(avatar)})"></div>` : `<div class="wx-interactions-avatar fallback">${esc(fb(name))}</div>`;
+    const avatarHtml = safeMediaUrl(avatar) ? `<div class="wx-interactions-avatar" style="background-image:${escapeAttr(cssBackgroundImage(avatar))}"></div>` : `<div class="wx-interactions-avatar fallback">${esc(fb(name))}</div>`;
     const post = getPost(notice.postId);
     const divider = idx < total - 1 ? '<div class="wx-interactions-divider"></div>' : '';
     return `<button type="button" class="wx-interactions-item" data-open-notice-post="${esc(notice.postId || '')}">${avatarHtml}<div class="wx-interactions-main"><div class="wx-interactions-name">${name}</div>${descHtml(notice,'wx-interactions')}<div class="wx-interactions-time">${hm(notice.ts)}</div></div>${renderThumb(post,'wx-interactions')}${divider}</button>`;
@@ -4071,7 +4107,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     var name = latest.actorName || ((state.otherName) || '对方');
     var avatar = latest.actor === 'me' ? (((state.myAvatar) || '')) : (((state.otherAvatar) || ''));
     if(avatar){
-      return '<span class="outer-notice-pill-v16-avatar" style="background-image:url(' + esc(avatar) + ')"></span>';
+      return '<span class="outer-notice-pill-v16-avatar" style="background-image:' + escapeAttr(cssBackgroundImage(avatar)) + '"></span>';
     }
     return '<span class="outer-notice-pill-v16-avatar fallback">' + esc(fb(name)) + '</span>';
   }
@@ -4115,6 +4151,7 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
     if(!Array.isArray(state.notifications)) return;
     state.notifications.forEach(function(n){ if(n) n.read = true; });
     if(typeof save === 'function') save();
+    window.dispatchEvent(new Event('duo:notifications-changed'));
   }
   function openInteractions(){
     markAllRead();
@@ -4124,11 +4161,17 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
       var btn = circleGetById('profileInteractionsBtn');
       if(btn) btn.click();
     }
-    setTimeout(render, 0);
+    scheduleRender();
   }
+  var lastRenderSignature = null;
+  var renderQueued = false;
   function render(){
-    hideLegacy();
+    renderQueued = false;
     var list = noticeList();
+    var signature = JSON.stringify(list) + '|' + String(state.myAvatar || '') + '|' + String(state.otherAvatar || '');
+    if(signature === lastRenderSignature) return;
+    lastRenderSignature = signature;
+    hideLegacy();
     if(!list.length){
       removeWrap();
       return;
@@ -4148,13 +4191,18 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
       };
     }
   }
+  function scheduleRender(){
+    if(renderQueued) return;
+    renderQueued = true;
+    setTimeout(render, 0);
+  }
 
   ['renderPosts','openProfile','openDetail','deletePost','setPostPrivacy'].forEach(function(name){
     var fn = window[name];
     if(typeof fn === 'function' && !fn.__outerNoticePillV16Wrapped){
       var wrapped = function(){
         var out = fn.apply(this, arguments);
-        setTimeout(render, 0);
+        scheduleRender();
         return out;
       };
       wrapped.__outerNoticePillV16Wrapped = true;
@@ -4164,15 +4212,20 @@ setInterval(()=>{if(!window.__duoCircleRestorePaused)processPending();}, 4000);
 
   circleRoot.addEventListener('click', function(e){
     if(e.target && (e.target.id === 'profileBackBtn' || e.target.id === 'wxInteractionsBack' || e.target.id === 'detailBackBtn')){
-      setTimeout(render, 0);
+      scheduleRender();
     }
   }, true);
 
-  setInterval(render, 700);
+  window.addEventListener('duo:notifications-changed', scheduleRender);
+  window.addEventListener('storage', scheduleRender);
+  window.addEventListener('pageshow', scheduleRender);
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) scheduleRender();
+  });
   if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ setTimeout(render, 0); });
+    document.addEventListener('DOMContentLoaded', scheduleRender, {once:true});
   }else{
-    setTimeout(render, 0);
+    scheduleRender();
   }
 })();
 
@@ -5054,9 +5107,9 @@ function showToast(text){
   clearTimeout(showToast.t);
   showToast.t=setTimeout(()=>toastEl.classList.remove('show'),1800);
 }
-function escapeHtml(str){ return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+function escapeHtml(str){ return String(str??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function formatHM(date=new Date()){ return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`; }
-function metaHtml(time, read=false){ const flag=state.readReceiptStyle==='checks'?'<span class="read-flag read-checks '+(read?'':'hidden')+'" aria-label="已读"><span>✓</span><span>✓</span></span>':'<span class="read-flag read-text '+(read?'':'hidden')+'">已读</span>'; return `<span class="meta-line"><span class="time">${time}</span>${flag}</span>`; }
+function metaHtml(time, read=false){ const flag=state.readReceiptStyle==='checks'?'<span class="read-flag read-checks '+(read?'':'hidden')+'" aria-label="已读"><span>✓</span><span>✓</span></span>':'<span class="read-flag read-text '+(read?'':'hidden')+'">已读</span>'; return `<span class="meta-line"><span class="time">${escapeHtml(time)}</span>${flag}</span>`; }
 function uid(prefix='m'){ return prefix+Math.random().toString(36).slice(2,10); }
 function ensureChatState(){
   if(!Array.isArray(state.chatHistory)) state.chatHistory=[];
@@ -5066,24 +5119,33 @@ function ensureChatState(){
 function formatAudioSec(sec){ return `${Math.max(1,Math.round(sec||1))}''`; }
 function buildMessageRow(msg){
   if(msg.type==='system'){
-    const wrap=document.createElement('div'); wrap.className='system-line'; wrap.dataset.mid=msg.id||uid(); wrap.innerHTML=`<span>${escapeHtml(msg.text||'')}</span>`; return wrap;
+    const wrap=document.createElement('div');
+    wrap.className='system-line';
+    wrap.dataset.mid=String(msg.id||uid());
+    const textNode=document.createElement('span');
+    textNode.textContent=String(msg.text||'');
+    wrap.appendChild(textNode);
+    return wrap;
   }
   const row=document.createElement('div');
   row.className=`msg-row ${msg.sender==='me'?'me':'other'}`;
-  row.dataset.mid=msg.id||uid();
+  row.dataset.mid=String(msg.id||uid());
   let bubbleInner='';
-  const mediaSrc=msg.url || (msg.mediaId ? mediaUrlCache.get(msg.mediaId) : '') || '';
-  if(msg.type==='image') bubbleInner=mediaSrc?`<div class="bubble image-bubble"><img class="message-image" src="${mediaSrc}" alt="图片消息"></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'媒体文件丢失':'图片加载中'}</div>`;
-  else if(msg.type==='video') bubbleInner=mediaSrc?`<div class="bubble video-bubble"><video class="message-video" controls playsinline preload="metadata" src="${mediaSrc}"></video></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'媒体文件丢失':'视频加载中'}</div>`;
-  else if(msg.type==='audio') bubbleInner=mediaSrc?`<div class="bubble audio-bubble"><div><div>语音消息 · ${escapeHtml(msg.durationLabel||formatAudioSec(msg.durationSec||1))}</div><audio controls preload="metadata" src="${mediaSrc}"></audio></div></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'语音文件丢失':'语音加载中'}</div>`;
-  else if(msg.type==='sticker') bubbleInner=mediaSrc?`<div class="bubble sticker-bubble"><img src="${mediaSrc}" alt="表情包"></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'表情包文件丢失':'表情包加载中'}</div>`;
+  const mediaSrc=safeMediaUrl(msg.url || (msg.mediaId ? mediaUrlCache.get(msg.mediaId) : '') || '');
+  if(msg.type==='image') bubbleInner=mediaSrc?`<div class="bubble image-bubble"><img class="message-image" src="${escapeAttr(mediaSrc)}" alt="图片消息"></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'媒体文件丢失':'图片加载中'}</div>`;
+  else if(msg.type==='video') bubbleInner=mediaSrc?`<div class="bubble video-bubble"><video class="message-video" controls playsinline preload="metadata" src="${escapeAttr(mediaSrc)}"></video></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'媒体文件丢失':'视频加载中'}</div>`;
+  else if(msg.type==='audio') bubbleInner=mediaSrc?`<div class="bubble audio-bubble"><div><div>语音消息 · ${escapeHtml(msg.durationLabel||formatAudioSec(msg.durationSec||1))}</div><audio controls preload="metadata" src="${escapeAttr(mediaSrc)}"></audio></div></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'语音文件丢失':'语音加载中'}</div>`;
+  else if(msg.type==='sticker') bubbleInner=mediaSrc?`<div class="bubble sticker-bubble"><img src="${escapeAttr(mediaSrc)}" alt="表情包"></div>`:`<div class="bubble media-pending">${mediaLoadFailed.has(msg.mediaId)?'表情包文件丢失':'表情包加载中'}</div>`;
   else bubbleInner=`<div class="bubble">${escapeHtml(msg.text||'')}</div>`;
-  const meta = msg.sender==='me' ? metaHtml(msg.time||'刚刚', !!msg.read) : (msg.time||'');
-  if(msg.sender==='me'){
-    row.innerHTML=`<div class="message-line"><div class="bubble-wrap">${bubbleInner}</div><div class="chat-avatar ${state.media['avatar-me']?'has-img':''}"><img src="${state.media['avatar-me']||''}" alt=""><span>我</span></div></div><div class="meta">${meta}</div>`;
-  }else{
-    row.innerHTML=`<div class="message-line"><div class="chat-avatar ${state.media['avatar-other']?'has-img':''}"><img src="${state.media['avatar-other']||''}" alt=""><span>对</span></div><div class="bubble-wrap">${bubbleInner}</div></div><div class="meta">${meta}</div>`;
-  }
+  const meta = msg.sender==='me' ? metaHtml(msg.time||'刚刚', !!msg.read) : escapeHtml(msg.time||'');
+  const avatarKey=msg.sender==='me'?'avatar-me':'avatar-other';
+  const avatarSrc=safeMediaUrl(state.media&&state.media[avatarKey]||'');
+  const avatarClass=avatarSrc?'has-img':'';
+  const avatarLabel=msg.sender==='me'?'我':'对';
+  const avatarHtml=`<div class="chat-avatar ${avatarClass}"><img src="${escapeAttr(avatarSrc)}" alt=""><span>${avatarLabel}</span></div>`;
+  row.innerHTML=msg.sender==='me'
+    ? `<div class="message-line"><div class="bubble-wrap">${bubbleInner}</div>${avatarHtml}</div><div class="meta">${meta}</div>`
+    : `<div class="message-line">${avatarHtml}<div class="bubble-wrap">${bubbleInner}</div></div><div class="meta">${meta}</div>`;
   return row;
 }
 function renderChatHistory(loadMedia=true){
@@ -5178,7 +5240,8 @@ function createOtherRow(text,time='刚刚'){
 function createTypingRow(label){
   const row=document.createElement('div');
   row.className='msg-row other typing-row';
-  row.innerHTML=`<div class="message-line"><div class="chat-avatar ${state.media['avatar-other']?'has-img':''}"><img src="${state.media['avatar-other']||''}" alt=""><span>对</span></div><div class="bubble-wrap"><div class="typing-bubble"><span>${escapeHtml(label||'正在输入中')}</span><span class="typing-dots"><span></span><span></span><span></span></span></div></div></div>`;
+  const avatarSrc=safeMediaUrl(state.media&&state.media['avatar-other']||'');
+  row.innerHTML=`<div class="message-line"><div class="chat-avatar ${avatarSrc?'has-img':''}"><img src="${escapeAttr(avatarSrc)}" alt=""><span>对</span></div><div class="bubble-wrap"><div class="typing-bubble"><span>${escapeHtml(label||'正在输入中')}</span><span class="typing-dots"><span></span><span></span><span></span></span></div></div></div>`;
   return row;
 }
 function createMeRow(text,time=formatHM()){
@@ -5292,7 +5355,7 @@ function sendCurrentText(forceText){
   $('#inputHelper').classList.remove('show');
   $('#morePanel').classList.remove('show');
   const list=$('#chatList');
-  const row=list?list.querySelector('[data-mid="'+msg.id+'"]'):null;
+  const row=list?Array.from(list.querySelectorAll('[data-mid]')).find(node=>node.dataset.mid===String(msg.id)):null;
   triggerReply(row?row.querySelector('.meta'):null);
   return true;
 }
@@ -5322,7 +5385,7 @@ function syncCallAvatar(){
   const avatar=$('#callAvatar');
   if(!avatar) return;
   const img=avatar.querySelector('img');
-  img.src=state.media['avatar-other']||'';
+  img.src=safeMediaUrl(state.media['avatar-other']||'');
   avatar.classList.toggle('has-img',!!state.media['avatar-other']);
 }
 function syncMiniPreview(){
@@ -5332,7 +5395,7 @@ function syncMiniPreview(){
   mini.classList.toggle('video',state.call.type==='video');
   mini.classList.toggle('audio',state.call.type!=='video');
   const img=wrap.querySelector('img');
-  img.src=state.media['avatar-other']||'';
+  img.src=safeMediaUrl(state.media['avatar-other']||'');
   wrap.classList.toggle('has-img',!!state.media['avatar-other']);
 }
 function applyMiniCallPosition(){
@@ -5414,7 +5477,7 @@ function syncIncomingCallSettings(){
 window.__duoSyncCallSettings=function(){syncCallSettings();syncIncomingCallSettings();};
 function updateIncomingAvatar(){
   const avatar=$('#incomingCallAvatar');if(!avatar)return;
-  const img=avatar.querySelector('img');img.src=state.media['avatar-other']||'';
+  const img=avatar.querySelector('img');img.src=safeMediaUrl(state.media['avatar-other']||'');
   avatar.classList.toggle('has-img',!!state.media['avatar-other']);
   const name=(state.otherName||'对方').trim();
   $('#incomingCallName').textContent=name;
@@ -5675,8 +5738,8 @@ function applyImageToSlot(slotId,url){
   const slot=document.getElementById(slotId);
   if(!slot) return;
   const img=slot.querySelector('img');
-  img.src=url||'';
-  slot.classList.toggle('has-img',!!url);
+  img.src=safeMediaUrl(url||'');
+  slot.classList.toggle('has-img',!!safeMediaUrl(url||''));
 }
 function applyIcon(key,url){
   const homeMap={'home-chat':'icon-home-chat','home-space':'icon-home-space','home-settings':'icon-home-settings'};
@@ -5685,8 +5748,8 @@ function applyIcon(key,url){
   const home=document.getElementById(homeMap[key]);
   if(home){
     const img=home.querySelector('img');
-    img.src=url||'';
-    home.classList.toggle('has-img',!!url);
+    img.src=safeMediaUrl(url||'');
+    home.classList.toggle('has-img',!!safeMediaUrl(url||''));
   }
 }
 function applyAvatar(which,url){
@@ -5699,14 +5762,14 @@ function applyAvatar(which,url){
     const el=document.getElementById(id);
     if(!el) return;
     const img=el.querySelector('img');
-    if(img) img.src=url||'';
-    el.classList.toggle('has-img',!!url);
+    if(img) img.src=safeMediaUrl(url||'');
+    el.classList.toggle('has-img',!!safeMediaUrl(url||''));
   });
   const messageSelector=which==='avatar-me'?'#chatList .msg-row.me .chat-avatar':'#chatList .msg-row.other .chat-avatar';
   document.querySelectorAll(messageSelector).forEach(el=>{
     const img=el.querySelector('img');
-    if(img) img.src=url||'';
-    el.classList.toggle('has-img',!!url);
+    if(img) img.src=safeMediaUrl(url||'');
+    el.classList.toggle('has-img',!!safeMediaUrl(url||''));
   });
 }
 function applyBackground(which,url){
@@ -5714,7 +5777,8 @@ function applyBackground(which,url){
   applyImageToSlot(slotId,url);
   const chat=$('#chatList');
   if(url){
-    chat.style.backgroundImage=`linear-gradient(var(--chat-image-overlay),var(--chat-image-overlay-strong)), url("${url}")`;
+    const safeBackground=cssBackgroundImage(url);
+    chat.style.backgroundImage=safeBackground?`linear-gradient(var(--chat-image-overlay),var(--chat-image-overlay-strong)), ${safeBackground}`:'';
     chat.style.backgroundSize='cover';
     chat.style.backgroundPosition='center';
   }else{
@@ -5726,8 +5790,8 @@ function applyBackground(which,url){
 function applyHomeCover(url){
   const box=$('#homeCoverBtn');
   const img=$('#homeCoverImg');
-  img.src=url||'';
-  box.classList.toggle('has-img',!!url);
+  img.src=safeMediaUrl(url||'');
+  box.classList.toggle('has-img',!!safeMediaUrl(url||''));
 }
 function normalizeHex(v){
   const s=String(v||'').trim();
@@ -5953,7 +6017,7 @@ function openMediaPreview(file,kind){
   if(kind==='image'&&file.size>80*1024*1024){showToast('图片文件过大，请选择较小文件');return;}
   const previewUrl=URL.createObjectURL(file);pendingChatMedia={file,kind,previewUrl};
   $('#mediaPreviewTitle').textContent=kind==='video'?'发送视频':'发送图片';
-  $('#mediaPreviewContent').innerHTML=kind==='video'?`<video controls playsinline preload="metadata" src="${previewUrl}"></video>`:`<img src="${previewUrl}" alt="图片预览">`;
+  $('#mediaPreviewContent').innerHTML=kind==='video'?`<video controls playsinline preload="metadata" src="${escapeAttr(safeMediaUrl(previewUrl))}"></video>`:`<img src="${escapeAttr(safeMediaUrl(previewUrl))}" alt="图片预览">`;
   $('#mediaPreviewModal').classList.add('show');
 }
 async function sendPendingMedia(){
@@ -6360,7 +6424,89 @@ async function buildBackup(kind){
 function triggerDownloadBlob(name,blob){
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
+function validateBackupPayloadShape(payload){
+  const fail=(message)=>{throw new Error('备份数据校验失败：'+message);};
+  const object=(value,path)=>{if(!value||typeof value!=='object'||Array.isArray(value))fail(path+' 必须是对象');};
+  const array=(value,path,max)=>{if(!Array.isArray(value))fail(path+' 必须是数组');if(value.length>max)fail(path+' 数量超过限制');value.forEach((item,index)=>object(item,path+'['+index+']'));};
+  const text=(value,path,max)=>{if(value!==undefined&&value!==null&&(typeof value!=='string'||value.length>max))fail(path+' 类型或长度无效');};
+  const id=(value,path)=>{if(value!==undefined&&value!==null&&(typeof value!=='string'||!value.length||value.length>256||/[\u0000-\u001f\u007f]/.test(value)))fail(path+' 无效');};
+  let visited=0;
+  function isSafeUrl(value){
+    if(typeof value!=='string'||!value.trim())return true;
+    const raw=value.trim();
+    if(raw.length>1400000000||/[\u0000-\u0020\\<>"']/.test(raw))return false;
+    if(/^data:/i.test(raw))return /^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/(?:mp4|webm)|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(raw);
+    if(/^[a-z][a-z0-9+.-]*:/i.test(raw)){
+      try{const url=new URL(raw);return (url.protocol==='http:'||url.protocol==='https:')&&!url.username&&!url.password;}catch(_){return false;}
+    }
+    if(raw.startsWith('//')||raw.split(/[?#]/,1)[0].split('/').some(part=>part==='.'||part==='..'))return false;
+    try{const url=new URL(raw,'https://twodeers.invalid/');return url.protocol==='https:'&&url.origin==='https://twodeers.invalid';}catch(_){return false;}
+  }
+  function safeUrls(value,path,depth){
+    if(value===null||value===undefined)return;
+    if(++visited>500000||depth>40)fail('数据结构过深或字段过多');
+    if(Array.isArray(value)){value.forEach((item,index)=>safeUrls(item,path+'['+index+']',depth+1));return;}
+    if(typeof value!=='object')return;
+    Object.keys(value).forEach(key=>{
+      if(key==='__proto__'||key==='prototype'||key==='constructor')fail(path+'.'+key+' 包含禁止字段');
+      const item=value[key],next=path+'.'+key;
+      if(typeof item==='string'&&(/(?:src|url|href|avatar|cover|poster|dataurl|asseturl|image)/i.test(key)||/(?:^|\.)media(?:\.|$)/i.test(path))&&item.trim()){
+        if(!isSafeUrl(item))fail(next+' 不是允许的媒体或网页地址');
+      }else if(typeof item==='string'&&/^(?:text|content|title|name|alt|time|durationLabel|authorName|replyToName)$/i.test(key)){
+        if(item.length>200000)fail(next+' 文本过长');
+      }
+      if(item&&typeof item==='object')safeUrls(item,next,depth+1);
+    });
+  }
+  function validatePosts(posts,path){
+    if(posts===undefined)return;
+    array(posts,path,50000);
+    posts.forEach((post,index)=>{
+      const base=path+'['+index+']';id(post.id,base+'.id');text(post.text,base+'.text',200000);
+      if(post.ts!==undefined&&(!Number.isFinite(Number(post.ts))||Number(post.ts)<0))fail(base+'.ts 时间无效');
+      if(post.media!==undefined){array(post.media,base+'.media',9);post.media.forEach((media,j)=>{text(media.type,base+'.media['+j+'].type',32);text(media.src,base+'.media['+j+'].src',1400000000);});}
+      if(post.comments!==undefined){array(post.comments,base+'.comments',10000);post.comments.forEach((comment,j)=>{const cp=base+'.comments['+j+']';id(comment.id,cp+'.id');text(comment.text,cp+'.text',200000);text(comment.authorName,cp+'.authorName',500);text(comment.replyToName,cp+'.replyToName',500);});}
+    });
+  }
+  if(payload&&Array.isArray(payload.posts)&&('dynamicCards' in payload||'replyCards' in payload)){
+    object(payload,'朋友圈备份');validatePosts(payload.posts,'朋友圈动态');
+    if(window.__duoCircleApi?.validateState)window.__duoCircleApi.validateState(payload);
+    safeUrls(payload,'朋友圈备份',0);return;
+  }
+  object(payload,'备份根节点');
+  if(!['all','chat','param'].includes(payload.kind))fail('备份类型不受支持');
+  object(payload.data,'备份 data');
+  const data=payload.data,incoming=data.state||data;
+  object(incoming,'备份状态');
+  const arrays=[['chatHistory',200000],['stickers',10000],['notifications',10000],['mediaFiles',20000],['stickerTombstones',10000]];
+  arrays.forEach(([key,max])=>{if(incoming[key]!==undefined)array(incoming[key],key,max);});
+  validatePosts(incoming.posts,'posts');
+  for(const key of ['stickerFavorites','cardPhrases']){
+    if(incoming[key]!==undefined&&(!Array.isArray(incoming[key])||incoming[key].length>50000||incoming[key].some(value=>typeof value!=='string'||value.length>1000)))fail(key+' 必须是长度受限的字符串数组');
+  }
+  if(Array.isArray(incoming.chatHistory))incoming.chatHistory.forEach((message,index)=>{
+    const path='chatHistory['+index+']';id(message.id,path+'.id');
+    text(message.text,path+'.text',200000);text(message.content,path+'.content',200000);text(message.time,path+'.time',128);text(message.durationLabel,path+'.durationLabel',128);
+    text(message.sender,path+'.sender',32);text(message.type,path+'.type',32);text(message.mediaId,path+'.mediaId',256);
+  });
+  if(Array.isArray(incoming.stickers))incoming.stickers.forEach((sticker,index)=>{
+    const path='stickers['+index+']';id(sticker.id,path+'.id');text(sticker.name,path+'.name',500);text(sticker.mediaId,path+'.mediaId',256);
+    if(sticker.assetUrl!==undefined&&(sticker.source!=='builtin'||typeof isSafeBuiltinStickerAssetUrl!=='function'||!isSafeBuiltinStickerAssetUrl(sticker.assetUrl)))fail(path+'.assetUrl 不是项目内置表情资源地址');
+  });
+  if(data.mediaFiles!==undefined)array(data.mediaFiles,'mediaFiles',20000);
+  if(Array.isArray(data.mediaFiles))data.mediaFiles.forEach((media,index)=>{
+    const path='mediaFiles['+index+']';id(media.id,path+'.id');
+    text(media.dataUrl,path+'.dataUrl',128*1024*1024);
+    if(media.dataUrl!==undefined&&!/^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/(?:mp4|webm)|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(media.dataUrl))fail(path+'.dataUrl 不是允许的媒体 Data URL');
+  });
+  if(data.circleState&&typeof data.circleState==='object'&&!Array.isArray(data.circleState)){
+    validatePosts(data.circleState.posts,'circleState.posts');
+    if(window.__duoCircleApi?.validateState)window.__duoCircleApi.validateState(data.circleState);
+  }
+  safeUrls(payload,'备份',0);
+}
 async function applyBackupPayloadInternal(payload){
+  validateBackupPayloadShape(payload);
   // Circle's own native backup is a plain Circle state object, separate from Duo storage.
   if(payload&&Array.isArray(payload.posts)&&('dynamicCards' in payload||'replyCards' in payload)){
     setCircleState(payload);showToast('朋友圈备份已导入');return true;
@@ -6500,7 +6646,7 @@ $('#backupParamBtn')?.addEventListener('click',()=>downloadBackup('param'));
 $('#restoreAnyBtn').addEventListener('click',()=>$('#backupImporter').click());
 $('#backupImporter').addEventListener('change',e=>{
   const file=e.target.files&&e.target.files[0];if(!file)return;
-  if(file.size>128*1024*1024&&!confirm('该备份文件超过 128 MB，当前 WebView 需要整体解析 JSON，可能因设备内存不足而失败。仍要尝试恢复吗？')){e.target.value='';return;}
+  if(file.size>128*1024*1024){showToast('旧版 JSON 备份超过 128 MB 单文件读取上限');e.target.value='';return;}
   file.text().then(text=>applyBackupPayload(JSON.parse(text))).catch(err=>showToast('备份文件无法读取或恢复失败：'+(err.message||''))).finally(()=>{e.target.value='';});
 });
 async function clearChatOnly(){

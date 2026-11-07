@@ -6,6 +6,11 @@ import android.database.Cursor;
 import android.provider.OpenableColumns;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -36,6 +41,11 @@ public class MainActivity extends Activity {
     private long expectedBytes;
     private long writtenBytes;
     private Uri currentSaveUri;
+    private boolean backRequestPending;
+    private boolean savePickerPending;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable backTimeoutRunnable;
+    private OnBackInvokedCallback backInvokedCallback;
 
     private static final String INSTALL_NATIVE_DOWNLOAD = """
         (function(){
@@ -96,6 +106,7 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
+        registerSystemBackCallback();
 
         webView.addJavascriptInterface(new BackupBridge(), "DuoBackupBridge");
         assetLoader = new WebViewAssetLoader.Builder()
@@ -162,6 +173,62 @@ public class MainActivity extends Activity {
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) webView.loadUrl(HOME);
     }
 
+
+    private void registerSystemBackCallback() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            backInvokedCallback = this::handleSystemBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    backInvokedCallback
+            );
+        }
+    }
+
+    private void handleSystemBack() {
+        if (webView == null) {
+            finishDefaultBack();
+            return;
+        }
+        if (backRequestPending) return;
+        backRequestPending = true;
+        Runnable timeout = () -> {
+            if (!backRequestPending) return;
+            backRequestPending = false;
+            backTimeoutRunnable = null;
+            finishDefaultBack();
+        };
+        backTimeoutRunnable = timeout;
+        mainHandler.postDelayed(timeout, 600);
+        webView.evaluateJavascript(
+                "(function(){try{return !!(window.__duoHandleSystemBack && window.__duoHandleSystemBack());}catch(e){return false;}})()",
+                handled -> runOnUiThread(() -> {
+                    if (!backRequestPending) return;
+                    backRequestPending = false;
+                    if (backTimeoutRunnable != null) {
+                        mainHandler.removeCallbacks(backTimeoutRunnable);
+                        backTimeoutRunnable = null;
+                    }
+                    if (isFinishing()) return;
+                    if (!"true".equals(handled)) finishDefaultBack();
+                })
+        );
+    }
+
+    private void finishDefaultBack() {
+        if (Build.VERSION.SDK_INT >= 33) finish();
+        else MainActivity.super.onBackPressed();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            handleSystemBack();
+            return;
+        }
+        handleSystemBack();
+    }
+
     private final class BackupBridge {
         @JavascriptInterface
         public void requestSave(String name, String mimeType, long size) {
@@ -170,6 +237,11 @@ public class MainActivity extends Activity {
                 return;
             }
             synchronized (saveLock) {
+                if (savePickerPending || saveStream != null) {
+                    notifyPicker(false, "系统保存窗口已打开，请先完成当前保存操作");
+                    return;
+                }
+                savePickerPending = true;
                 closeSaveStreamLocked();
                 expectedBytes = size;
                 writtenBytes = 0;
@@ -240,6 +312,7 @@ public class MainActivity extends Activity {
             expectedBytes = 0;
             writtenBytes = 0;
             currentSaveUri = null;
+            savePickerPending = false;
         }
     }
 
@@ -306,7 +379,7 @@ public class MainActivity extends Activity {
             try {
                 OutputStream output = getContentResolver().openOutputStream(data.getData(), "w");
                 if (output == null) throw new IOException("无法打开目标文件");
-                synchronized (saveLock) { closeSaveStreamLocked(); saveStream = output; currentSaveUri = data.getData(); }
+                synchronized (saveLock) { closeSaveStreamLocked(); saveStream = output; currentSaveUri = data.getData(); savePickerPending = false; }
                 notifyPicker(true, "");
             } catch (Exception e) {
                 cancelSaveInternal();
@@ -323,6 +396,14 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (backTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(backTimeoutRunnable);
+            backTimeoutRunnable = null;
+        }
+        if (Build.VERSION.SDK_INT >= 33 && backInvokedCallback != null) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backInvokedCallback);
+            backInvokedCallback = null;
+        }
         cancelSaveInternal();
         if (fileChooserCallback != null) {
             fileChooserCallback.onReceiveValue(null);

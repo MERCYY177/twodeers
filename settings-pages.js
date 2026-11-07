@@ -339,6 +339,15 @@
     `;
     document.head.appendChild(style);
 
+    // Android system Back first closes the currently open settings category.
+    // Return false when the category hub is already visible so Android can
+    // continue with the normal Activity back/exit behavior.
+    window.__duoHandleSystemBack=function(){
+      if(!currentCategory)return false;
+      closeCategoryPage();
+      return true;
+    };
+
     window.__duoOpenSettingsCategory=open;
     window.__duoCloseSettingsCategory=closeCategoryPage;
     window.__duoSettingsPagesReady=true;

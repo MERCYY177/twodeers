@@ -11,6 +11,7 @@
   let suppressClickUntil=0;
   const $=selector=>document.querySelector(selector);
   const escapeAttr=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  function safeBuiltinAssetUrl(value){if(typeof value!=='string'||!value.startsWith('assets/builtin-stickers/')||/[\\\u0000-\u001f\u007f\"'<>?#]/.test(value))return '';const parts=value.split('/');if(parts.some(part=>!part||part==='.'||part==='..'))return '';try{if(parts.some(part=>{const d=decodeURIComponent(part);return d==='.'||d==='..'||/[\\/\u0000-\u001f\u007f]/.test(d);}))return '';}catch(_){return '';}return value;}
   function snapshot(){
     try{
       const value=window.__duoStickerState?.exportSnapshot?.();
@@ -25,7 +26,7 @@
     const favorites=new Set(data.favorites||state.stickerFavorites||[]);
     if(!items.length){grid.innerHTML='<div class="kb-sticker-empty">暂无表情包</div>';return;}
     for(const item of items){
-      if(item.source==='builtin'&&item.assetUrl){stickerObjectUrls.set(item.id,item.assetUrl);continue;}
+      if(item.source==='builtin'&&item.assetUrl){const builtinUrl=safeBuiltinAssetUrl(item.assetUrl);if(builtinUrl)stickerObjectUrls.set(item.id,builtinUrl);continue;}
       const current=stickerObjectUrls.get(item.id);
       if(current&&current.startsWith('blob:'))continue;
       if(!item.mediaId)continue;

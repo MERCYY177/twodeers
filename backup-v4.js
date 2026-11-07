@@ -3,7 +3,7 @@
   'use strict';
   if(window.__duoBackupV4Installed)return;
   window.__duoBackupV4Installed=true;
-  const MAX_ARCHIVE=1024*1024*1024, CHUNK=1024*1024;
+  const MAX_ARCHIVE=1024*1024*1024, MAX_JSON_MEMBER=128*1024*1024, MAX_MANIFEST=16*1024*1024, CHUNK=1024*1024;
   const enc=new TextEncoder(), dec=new TextDecoder('utf-8',{fatal:true});
   const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
   class Sha256{
@@ -19,8 +19,51 @@
   function u32(n){return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]);}
   function localHeader(name,size,crc){const n=enc.encode(name),h=new Uint8Array(30);const d=new DataView(h.buffer);d.setUint32(0,0x04034b50,true);d.setUint16(4,20,true);d.setUint16(6,0x0800,true);d.setUint16(8,0,true);d.setUint16(10,0,true);d.setUint16(12,0x21,true);d.setUint32(14,crc,true);d.setUint32(18,size,true);d.setUint32(22,size,true);d.setUint16(26,n.length,true);d.setUint16(28,0,true);return [h,n];}
   function centralHeader(name,size,crc,offset){const n=enc.encode(name),h=new Uint8Array(46),d=new DataView(h.buffer);d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);d.setUint16(8,0x0800,true);d.setUint16(10,0,true);d.setUint16(12,0,true);d.setUint16(14,0x21,true);d.setUint32(16,crc,true);d.setUint32(20,size,true);d.setUint32(24,size,true);d.setUint16(28,n.length,true);d.setUint16(30,0,true);d.setUint16(32,0,true);d.setUint16(34,0,true);d.setUint16(36,0,true);d.setUint32(38,0,true);d.setUint32(42,offset,true);return [h,n];}
-  async function makeZip(entries){if(entries.length>65534)throw new Error('备份条目数量超过 ZIP 限制');let total=0,offset=0;const parts=[],central=[],resources=[];for(const e of entries){if(!(e.blob instanceof Blob)||!e.path||e.path.startsWith('/')||e.path.split('/').includes('..'))throw new Error('备份资源路径或内容无效');if(e.blob.size>0xffffffff)throw new Error('单项资源超过 ZIP32 限制');total+=e.blob.size;if(total>MAX_ARCHIVE)throw new Error('备份资源合计超过 1 GB 限制');const h=await inspectBlob(e.blob),name=e.path;const meta={path:name,size:e.blob.size,crc32:h.crc32,sha256:h.sha256,type:e.type||'file',mimeType:e.mimeType||e.blob.type||'application/octet-stream'};for(const k of ['id','name','kind','format','createdAt'])if(e[k]!==undefined)meta[k]=e[k];resources.push(meta);const [lh,ln]=localHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0);parts.push(lh,ln,e.blob);const [ch,cn]=centralHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0,offset);central.push(ch,cn);offset+=lh.length+ln.length+e.blob.size;if(offset>0xffffffff)throw new Error('备份总长度超过 ZIP32 4 GB 偏移范围');}const manifest={format:'twodeers-backup',formatVersion:4,kind:window.__duoBackupKind||'all',createdAt:new Date().toISOString(),resourceCount:resources.length,totalResourceBytes:total,hashAlgorithm:'SHA-256',checksumAlgorithm:'CRC-32',compression:'store',fontsCurrentId:window.__duoBackupFontCurrentId||null,resources};const mb=new Blob([JSON.stringify(manifest,null,2)],{type:'application/json'});const mh=await inspectBlob(mb);const [lh,ln]=localHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0);parts.push(lh,ln,mb);const mo=offset;offset+=lh.length+ln.length+mb.size;const [ch,cn]=centralHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0,mo);central.push(ch,cn);const centralSize=central.reduce((n,x)=>n+x.length,0);const eocd=new Uint8Array(22),d=new DataView(eocd.buffer);d.setUint32(0,0x06054b50,true);d.setUint16(8,entries.length+1,true);d.setUint16(10,entries.length+1,true);d.setUint32(12,centralSize,true);d.setUint32(16,offset,true);d.setUint16(20,0,true);parts.push(...central,eocd);return new Blob(parts,{type:'application/zip'});}
-  function jsonBlob(value){return new Blob([JSON.stringify(value)],{type:'application/json;charset=utf-8'});}
+  function safePath(path){
+    if(typeof path!=='string'||!path||path.length>=1024||path.startsWith('/')||path.includes('\\')||/[\u0000-\u001f\u007f:?*<>"|#]/.test(path))return false;
+    const parts=path.split('/');
+    if(parts.some(part=>!part||part==='.'||part==='..'))return false;
+    for(const part of parts){
+      try{const decoded=decodeURIComponent(part);if(decoded==='.'||decoded==='..'||/[\/\\\u0000-\u001f\u007f]/.test(decoded))return false;}catch(_){return false;}
+    }
+    return enc.encode(path).length<=65535;
+  }
+  function safeBuiltinStickerPath(value){
+    if(typeof value!=='string'||!value.startsWith('assets/builtin-stickers/')||/[\\\u0000-\u001f\u007f\"'<>?#]/.test(value))return false;
+    const parts=value.split('/');
+    if(parts.some(part=>!part||part==='.'||part==='..'))return false;
+    try{return !parts.some(part=>{const decoded=decodeURIComponent(part);return decoded==='.'||decoded==='..'||/[\\/\u0000-\u001f\u007f]/.test(decoded);});}catch(_){return false;}
+  }
+  async function makeZip(entries){
+    if(!Array.isArray(entries)||entries.length>65534)throw new Error('备份条目数量超过 ZIP 限制');
+    let total=0,offset=0;const parts=[],central=[],resources=[],seen=new Set();
+    for(const e of entries){
+      if(!e||!(e.blob instanceof Blob)||!safePath(e.path)||e.path==='manifest.json'||seen.has(e.path))throw new Error('备份资源路径无效、重复或保留');
+      seen.add(e.path);
+      if(e.blob.size>0xffffffff)throw new Error('单项资源超过 ZIP32 限制');
+      total+=e.blob.size;if(!Number.isSafeInteger(total)||total>MAX_ARCHIVE)throw new Error('备份资源合计超过 1 GB 限制');
+      const h=await inspectBlob(e.blob),name=e.path;
+      const meta={path:name,size:e.blob.size,crc32:h.crc32,sha256:h.sha256,type:e.type||'file',mimeType:e.mimeType||e.blob.type||'application/octet-stream'};
+      for(const k of ['id','name','kind','format','createdAt'])if(e[k]!==undefined)meta[k]=e[k];
+      resources.push(meta);
+      const [lh,ln]=localHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0);
+      parts.push(lh,ln,e.blob);
+      const [ch,cn]=centralHeader(name,e.blob.size,parseInt(h.crc32,16)>>>0,offset);central.push(ch,cn);
+      offset+=lh.length+ln.length+e.blob.size;if(offset>0xffffffff)throw new Error('备份总长度超过 ZIP32 4 GB 偏移范围');
+    }
+    const manifest={format:'twodeers-backup',formatVersion:4,kind:window.__duoBackupKind||'all',createdAt:new Date().toISOString(),resourceCount:resources.length,totalResourceBytes:total,hashAlgorithm:'SHA-256',checksumAlgorithm:'CRC-32',compression:'store',fontsCurrentId:window.__duoBackupFontCurrentId||null,resources};
+    const manifestText=JSON.stringify(manifest,null,2);
+    if(enc.encode(manifestText).length>MAX_MANIFEST)throw new Error('备份清单超过 16 MB 限制');
+    const mb=new Blob([manifestText],{type:'application/json'}),mh=await inspectBlob(mb);
+    const [lh,ln]=localHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0);parts.push(lh,ln,mb);
+    const mo=offset;offset+=lh.length+ln.length+mb.size;if(offset>0xffffffff)throw new Error('备份总长度超过 ZIP32 4 GB 偏移范围');
+    const [ch,cn]=centralHeader('manifest.json',mb.size,parseInt(mh.crc32,16)>>>0,mo);central.push(ch,cn);
+    const centralSize=central.reduce((n,x)=>n+x.length,0);if(centralSize>64*1024*1024)throw new Error('备份中央目录超过 64 MB 限制');
+    if(offset+centralSize+22>MAX_ARCHIVE)throw new Error('生成后的备份 ZIP 超过 1 GB 上限');
+    const eocd=new Uint8Array(22),d=new DataView(eocd.buffer);d.setUint32(0,0x06054b50,true);d.setUint16(8,entries.length+1,true);d.setUint16(10,entries.length+1,true);d.setUint32(12,centralSize,true);d.setUint32(16,offset,true);d.setUint16(20,0,true);parts.push(...central,eocd);
+    return new Blob(parts,{type:'application/zip'});
+  }
+  function jsonBlob(value){const blob=new Blob([JSON.stringify(value)],{type:'application/json;charset=utf-8'});if(blob.size>MAX_JSON_MEMBER)throw new Error('备份 JSON 数据文件超过 128 MB 限制');return blob;}
   async function buildV4Internal(kind){
     if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
     if(kind!=='chat'){
@@ -69,23 +112,176 @@
       return await buildV4Internal(kind);
     }finally{overlay?.remove();exportInProgress=false;window.__duoExportInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
   }
-  function safePath(path){return typeof path==='string'&&path.length>0&&path.length<1024&&!path.startsWith('/')&&!path.includes('\\')&&!path.split('/').some(x=>x==='..'||x==='.'||x==='');}
+  async function readJsonBlob(blob,path,maxBytes=MAX_JSON_MEMBER){if(!(blob instanceof Blob)||blob.size>maxBytes)throw new Error(path+' 超过 JSON 单文件读取上限（'+Math.floor(maxBytes/1024/1024)+' MB）');let text;try{text=await blob.text();return JSON.parse(text);}catch(error){if(error instanceof SyntaxError)throw new Error(path+' 不是有效 JSON');throw error;}}
+  async function readJsonMember(map,path,maxBytes=MAX_JSON_MEMBER){const entry=map.get(path);if(!entry)throw new Error('缺少备份文件：'+path);if(entry.size>maxBytes)throw new Error(path+' 超过 JSON 单文件读取上限（'+Math.floor(maxBytes/1024/1024)+' MB）');return readJsonBlob(entry.blob,path,maxBytes);}
+  function assertImportedObject(value,path){if(!value||typeof value!=='object'||Array.isArray(value))throw new Error(path+' 格式无效');}
+  function assertImportedArray(value,path,max,objects=true){
+    if(!Array.isArray(value)||value.length>max)throw new Error(path+' 数量或格式无效');
+    if(objects&&value.some(item=>!item||typeof item!=='object'||Array.isArray(item)))throw new Error(path+' 包含无效条目');
+  }
+  function isSafeImportedUrl(raw){
+    if(typeof raw!=='string'||!raw.trim())return true;
+    const value=raw.trim();
+    if(value.length>1400000000||/[\u0000-\u0020\\<>\"']/.test(value))return false;
+    if(/^data:/i.test(value))return /^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/(?:mp4|webm)|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(value);
+    if(/^[a-z][a-z0-9+.-]*:/i.test(value)){
+      try{const url=new URL(value);return (url.protocol==='http:'||url.protocol==='https:')&&!url.username&&!url.password;}catch(_){return false;}
+    }
+    if(value.startsWith('//'))return false;
+    if(value.split(/[?#]/,1)[0].split('/').some(part=>part==='.'||part==='..'))return false;
+    try{const url=new URL(value,'https://twodeers.invalid/');return url.origin==='https://twodeers.invalid'&&url.protocol==='https:';}catch(_){return false;}
+  }
+  function validateImportedUrls(value,path='备份',depth=0,budget={count:0}){
+    if(value===null||value===undefined)return;
+    if(++budget.count>500000||depth>40)throw new Error('备份数据结构过深或字段过多');
+    if(Array.isArray(value)){value.forEach((item,index)=>validateImportedUrls(item,path+'['+index+']',depth+1,budget));return;}
+    if(typeof value!=='object')return;
+    for(const [key,item] of Object.entries(value)){
+      if(key==='__proto__'||key==='prototype'||key==='constructor')throw new Error(path+'.'+key+' 包含禁止字段');
+      const next=path+'.'+key;
+      const urlField=/(?:src|url|href|avatar|cover|poster|asseturl|dataurl|image)/i.test(key)||/(?:^|\.)media(?:\.|$)/i.test(path);
+      if(urlField&&typeof item==='string'&&item.trim()&&!isSafeImportedUrl(item))throw new Error(next+' 不是允许的媒体或网页地址');
+      if(/^(?:text|content|title|name|alt|time|durationLabel|authorName|replyToName)$/i.test(key)&&typeof item==='string'&&item.length>200000)throw new Error(next+' 文本过长');
+      if(item&&typeof item==='object')validateImportedUrls(item,next,depth+1,budget);
+    }
+  }
+  async function validateV4Payloads(kind,map,data){
+    const stateData=data.state||data;
+    assertImportedObject(stateData,'state.json');
+    for(const [key,max] of [['chatHistory',200000],['stickers',10000],['notifications',10000],['posts',50000],['stickerTombstones',10000]]){
+      if(stateData[key]!==undefined)assertImportedArray(stateData[key],key,max,true);
+    }
+    for(const key of ['stickerFavorites','cardPhrases']){
+      if(stateData[key]!==undefined&&(!Array.isArray(stateData[key])||stateData[key].length>50000||stateData[key].some(value=>typeof value!=='string'||value.length>1000)))throw new Error(key+' 字段格式无效');
+    }
+    if(Array.isArray(stateData.chatHistory))stateData.chatHistory.forEach((message,index)=>{
+      if(message.id!==undefined&&(typeof message.id!=='string'||message.id.length>256||/[\u0000-\u001f\u007f]/.test(message.id)))throw new Error('聊天消息 ID 无效：'+index);
+      for(const key of ['text','content','time','durationLabel'])if(message[key]!==undefined&&message[key]!==null&&(typeof message[key]!=='string'||message[key].length>(key==='time'||key==='durationLabel'?128:200000)))throw new Error('聊天消息文本无效：'+index+'/'+key);
+      for(const key of ['sender','type'])if(message[key]!==undefined&&typeof message[key]!=='string')throw new Error('聊天消息类型字段无效：'+index+'/'+key);
+      if(message.mediaId!==undefined&&message.mediaId!==null&&(typeof message.mediaId!=='string'||message.mediaId.length>256))throw new Error('聊天媒体 ID 无效：'+index);
+    });
+    if(Array.isArray(stateData.posts))stateData.posts.forEach((post,index)=>{
+      if(post.id!==undefined&&(typeof post.id!=='string'||post.id.length>256||/[\u0000-\u001f\u007f]/.test(post.id)))throw new Error('朋友圈动态 ID 无效：'+index);
+      if(post.text!==undefined&&(typeof post.text!=='string'||post.text.length>200000))throw new Error('朋友圈动态文本无效：'+index);
+      if(post.ts!==undefined&&(!Number.isFinite(Number(post.ts))||Number(post.ts)<0))throw new Error('朋友圈动态时间无效：'+index);
+      if(post.media!==undefined){assertImportedArray(post.media,'朋友圈媒体',9,true);}
+      if(post.comments!==undefined){assertImportedArray(post.comments,'朋友圈评论',10000,true);post.comments.forEach((comment,j)=>{if(comment.id!==undefined&&(typeof comment.id!=='string'||comment.id.length>256))throw new Error('朋友圈评论 ID 无效：'+index+'/'+j);if(comment.text!==undefined&&(typeof comment.text!=='string'||comment.text.length>200000))throw new Error('朋友圈评论内容无效：'+index+'/'+j);});}
+    });
+    if(stateData.stickers)stateData.stickers.forEach((sticker,index)=>{
+      if(sticker.id!==undefined&&(typeof sticker.id!=='string'||sticker.id.length>256))throw new Error('表情 ID 无效：'+index);
+      if(sticker.mediaId!==undefined&&sticker.mediaId!==null&&(typeof sticker.mediaId!=='string'||sticker.mediaId.length>256))throw new Error('表情媒体 ID 无效：'+index);
+      if(sticker.name!==undefined&&typeof sticker.name!=='string')throw new Error('表情名称无效：'+index);
+      if(sticker.assetUrl!==undefined&&(sticker.source!=='builtin'||!safeBuiltinStickerPath(sticker.assetUrl)))throw new Error('内置表情资源地址无效：'+index);
+    });
+    if(kind!=='chat'){
+      for(const path of ['mailbox-data.json','card-system.json','font-library.json'])if(!map.has(path))throw new Error('参数/总备份缺少必需模块文件：'+path);
+      const mailbox=await readJsonMember(map,'mailbox-data.json');
+      assertImportedObject(mailbox,'mailbox-data.json');
+      const box=mailbox.mailbox||mailbox;
+      assertImportedObject(box,'mailbox-data.json.mailbox');
+      assertImportedArray(box.items===undefined?[]:box.items,'信件列表',5000,true);
+      assertImportedArray(box.pending===undefined?[]:box.pending,'待处理信件',1000,true);
+      assertImportedArray(mailbox.drafts===undefined?[]:mailbox.drafts,'信件草稿',5000,true);
+      validateImportedUrls(mailbox,'mailbox-data.json');
+      for(const letter of box.items||[]){
+        for(const key of ['id','title','content'])if(letter[key]!==undefined&&typeof letter[key]!=='string')throw new Error('信件字段类型无效');
+        if(letter.images!==undefined)assertImportedArray(letter.images,'信件图片',6,true);
+        for(const image of letter.images||[])if(typeof image.id!=='string'||image.id.length>256)throw new Error('信件图片 ID 无效');
+      }
+      for(const draft of mailbox.drafts||[])if(draft.images!==undefined)assertImportedArray(draft.images,'草稿图片',6,true);
+      const cards=await readJsonMember(map,'card-system.json');
+      assertImportedObject(cards,'card-system.json');
+      validateImportedUrls(cards,'card-system.json');
+      for(const key of ['chatIds','chatTexts','momentsDynamicIds','momentsDynamicTexts','momentsReplyIds','momentsReplyTexts','appliedEventIds','momentsDynamic','momentsReply']){
+        if(cards[key]!==undefined&&(!Array.isArray(cards[key])||cards[key].length>50000||cards[key].some(item=>typeof item!=='string'||item.length>1000)))throw new Error('字卡字段无效：'+key);
+      }
+      if(cards.recentDrawnRepliesV1!==undefined)assertImportedArray(cards.recentDrawnRepliesV1,'最近字卡记录',200,true);
+      const fonts=await readJsonMember(map,'font-library.json');
+      assertImportedObject(fonts,'font-library.json');
+      validateImportedUrls(fonts,'font-library.json');
+      assertImportedArray(fonts.fonts||[],'字体清单',500,true);
+      for(const font of fonts.fonts||[]){
+        if(typeof font.id!=='string'||font.id.length>256||typeof font.path!=='string'||!safePath(font.path)||!['ttf','otf','woff','woff2'].includes(String(font.format||'').toLowerCase()))throw new Error('字体元数据无效');
+        if(!map.has(font.path))throw new Error('字体资源缺失：'+font.id);
+      }
+    }
+    if(kind==='all'){
+      if(!map.has('circle-state.json'))throw new Error('总备份缺少朋友圈状态文件');
+      const circle=await readJsonMember(map,'circle-state.json');
+      assertImportedObject(circle,'circle-state.json');
+      if(window.__duoCircleApi?.validateState)window.__duoCircleApi.validateState(circle);
+      validateImportedUrls(circle,'circle-state.json');
+    }
+    validateImportedUrls(data);
+  }
   async function unzipStored(blob){
     if(!(blob instanceof Blob)||blob.size<22||blob.size>MAX_ARCHIVE)throw new Error('ZIP 文件为空、过小或超过 1 GB');
-    const tailStart=Math.max(0,blob.size-65557),tail=new DataView(await blob.slice(tailStart).arrayBuffer());let eocd=-1;for(let p=tail.byteLength-22;p>=0;p--){if(tail.getUint32(p,true)===0x06054b50){eocd=p;break;}}if(eocd<0)throw new Error('ZIP 目录结束标记缺失');
-    const count=tail.getUint16(eocd+10,true),centralSize=tail.getUint32(eocd+12,true),centralOffset=tail.getUint32(eocd+16,true);if(count<1||count>65535||centralSize>64*1024*1024||centralOffset+centralSize>blob.size)throw new Error('ZIP 目录参数超出允许范围');
-    const cbuf=await blob.slice(centralOffset,centralOffset+centralSize).arrayBuffer(),dv=new DataView(cbuf),map=new Map();let p=0;
-    for(let i=0;i<count;i++){if(p+46>dv.byteLength||dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 中央目录损坏');const flags=dv.getUint16(p+8,true),method=dv.getUint16(p+10,true),crc=dv.getUint32(p+16,true),size=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);if((flags&1)||method!==0||size!==usize||size>MAX_ARCHIVE)throw new Error('仅支持未加密、无压缩的安全 ZIP 备份');const name=dec.decode(new Uint8Array(cbuf,p+46,nl));if(!safePath(name)||map.has(name))throw new Error('ZIP 文件路径非法或重复：'+name);const local= new DataView(await blob.slice(off,off+30).arrayBuffer());if(local.byteLength!==30||local.getUint32(0,true)!==0x04034b50)throw new Error('ZIP 本地文件头损坏');const lflags=local.getUint16(6,true),lmethod=local.getUint16(8,true),lcrc=local.getUint32(14,true),lsize=local.getUint32(18,true),lusize=local.getUint32(22,true),lnl=local.getUint16(26,true),lel=local.getUint16(28,true);if(lflags!==flags||lmethod!==method||lcrc!==crc||lsize!==size||lusize!==usize)throw new Error('ZIP 本地文件头与中央目录不一致：'+name);const localName=dec.decode(new Uint8Array(await blob.slice(off+30,off+30+lnl).arrayBuffer()));if(localName!==name)throw new Error('ZIP 本地文件名与中央目录不一致：'+name);const dataStart=off+30+lnl+lel;if(dataStart+size>centralOffset)throw new Error('ZIP 数据长度越界：'+name);map.set(name,{blob:blob.slice(dataStart,dataStart+size),size,crc32:crc.toString(16).padStart(8,'0')});p+=46+nl+el+cl;}
-    if(!map.has('manifest.json'))throw new Error('缺少 manifest.json');const manifest=JSON.parse(await map.get('manifest.json').blob.text());if(manifest.format!=='twodeers-backup'||manifest.formatVersion!==4||!['all','chat','param'].includes(manifest.kind)||!Array.isArray(manifest.resources))throw new Error('不是受支持的双人空间 V4 备份');
-    if(manifest.resources.length!==map.size-1||manifest.resourceCount!==manifest.resources.length)throw new Error('manifest 资源数量与 ZIP 内容不一致');
-    const declaredBytes=manifest.resources.reduce((n,x)=>n+(Number(x&&x.size)||0),0);
+    const tailStart=Math.max(0,blob.size-65557),tail=new DataView(await blob.slice(tailStart).arrayBuffer());
+    let eocd=-1;
+    for(let p=tail.byteLength-22;p>=0;p--){if(tail.getUint32(p,true)===0x06054b50){eocd=p;break;}}
+    if(eocd<0)throw new Error('ZIP 目录结束标记缺失');
+    const disk=tail.getUint16(eocd+4,true),centralDisk=tail.getUint16(eocd+6,true),diskCount=tail.getUint16(eocd+8,true),count=tail.getUint16(eocd+10,true);
+    const centralSize=tail.getUint32(eocd+12,true),centralOffset=tail.getUint32(eocd+16,true),commentLength=tail.getUint16(eocd+20,true);
+    const eocdAbsolute=tailStart+eocd;
+    if(disk!==0||centralDisk!==0||diskCount!==count||count<1||count>65535||commentLength!==0||eocd+22!==tail.byteLength||centralSize>64*1024*1024||centralOffset+centralSize!==eocdAbsolute)throw new Error('ZIP 目录边界、磁盘编号或条目数量无效');
+    const cbuf=await blob.slice(centralOffset,centralOffset+centralSize).arrayBuffer(),dv=new DataView(cbuf),map=new Map(),ranges=[];
+    let p=0;
+    for(let i=0;i<count;i++){
+      if(p+46>dv.byteLength||dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP 中央目录损坏');
+      const flags=dv.getUint16(p+8,true),method=dv.getUint16(p+10,true),crc=dv.getUint32(p+16,true),size=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
+      const nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),diskStart=dv.getUint16(p+34,true),off=dv.getUint32(p+42,true);
+      const entryEnd=p+46+nl+el+cl;
+      if(entryEnd>dv.byteLength)throw new Error('ZIP 中央目录条目长度越界');
+      if(diskStart!==0||flags!==0x0800||method!==0||size!==usize||size>MAX_ARCHIVE||off>=centralOffset)throw new Error('仅支持 UTF-8、未加密、无压缩且边界有效的安全 ZIP 备份');
+      const name=dec.decode(new Uint8Array(cbuf,p+46,nl));
+      if(!safePath(name)||map.has(name))throw new Error('ZIP 文件路径非法或重复：'+name);
+      if(off+30>centralOffset)throw new Error('ZIP 本地文件头偏移越界：'+name);
+      const localBuffer=await blob.slice(off,off+30).arrayBuffer();
+      if(localBuffer.byteLength!==30)throw new Error('ZIP 本地文件头不完整：'+name);
+      const local=new DataView(localBuffer);
+      if(local.getUint32(0,true)!==0x04034b50)throw new Error('ZIP 本地文件头损坏：'+name);
+      const lflags=local.getUint16(6,true),lmethod=local.getUint16(8,true),lcrc=local.getUint32(14,true),lsize=local.getUint32(18,true),lusize=local.getUint32(22,true),lnl=local.getUint16(26,true),lel=local.getUint16(28,true);
+      if(lflags!==flags||lmethod!==method||lcrc!==crc||lsize!==size||lusize!==usize)throw new Error('ZIP 本地文件头与中央目录不一致：'+name);
+      if(off+30+lnl+lel+size>centralOffset)throw new Error('ZIP 数据长度越界：'+name);
+      const localName=dec.decode(new Uint8Array(await blob.slice(off+30,off+30+lnl).arrayBuffer()));
+      if(localName!==name||lnl!==nl)throw new Error('ZIP 本地文件名与中央目录不一致：'+name);
+      const dataStart=off+30+lnl+lel,dataEnd=dataStart+size;
+      ranges.push([off,dataEnd,name]);
+      map.set(name,{blob:blob.slice(dataStart,dataEnd),size,crc32:crc.toString(16).padStart(8,'0')});
+      p=entryEnd;
+    }
+    if(p!==dv.byteLength)throw new Error('ZIP 中央目录包含未识别的尾随数据');
+    ranges.sort((a,b)=>a[0]-b[0]);
+    let archiveCursor=0;
+    for(const range of ranges){if(range[0]<archiveCursor)throw new Error('ZIP 本地文件内容区域重叠：'+range[2]);if(range[0]!==archiveCursor)throw new Error('ZIP 本地文件区域之间存在未校验数据');archiveCursor=range[1];}
+    if(archiveCursor!==centralOffset)throw new Error('ZIP 中央目录之前存在未校验数据');
+    if(!map.has('manifest.json'))throw new Error('缺少 manifest.json');
+    const manifest=await readJsonMember(map,'manifest.json',MAX_MANIFEST);
+    if(!manifest||typeof manifest!=='object'||Array.isArray(manifest)||manifest.format!=='twodeers-backup'||manifest.formatVersion!==4||!['all','chat','param'].includes(manifest.kind)||!Array.isArray(manifest.resources))throw new Error('不是受支持的双人空间 V4 备份');
+    if(manifest.resources.length!==map.size-1||manifest.resourceCount!==manifest.resources.length||manifest.resources.length>65534)throw new Error('manifest 资源数量与 ZIP 内容不一致');
+    if(!Number.isSafeInteger(manifest.totalResourceBytes)||manifest.totalResourceBytes<0)throw new Error('manifest 总资源字节数字段无效');
+    const declaredBytes=manifest.resources.reduce((n,x)=>n+(Number.isSafeInteger(x&&x.size)&&x.size>=0?x.size:NaN),0);
     if(!Number.isSafeInteger(declaredBytes)||declaredBytes!==manifest.totalResourceBytes||declaredBytes>MAX_ARCHIVE)throw new Error('manifest 总资源字节数与清单不一致或超出限制');
-    for(const item of manifest.resources){if(!item||!safePath(item.path)||!map.has(item.path))throw new Error('备份缺少资源：'+(item&&item.path||''));const file=map.get(item.path);if(item.size!==file.size)throw new Error('资源字节数不匹配：'+item.path);const got=await inspectBlob(file.blob);if(got.sha256!==item.sha256||got.crc32!==item.crc32||got.crc32!==file.crc32)throw new Error('资源校验失败：'+item.path);file.meta=item;}
+    const declaredPaths=new Set();
+    for(const item of manifest.resources){
+      if(!item||typeof item!=='object'||!safePath(item.path)||item.path==='manifest.json'||!map.has(item.path))throw new Error('备份缺少资源或资源路径非法：'+(item&&item.path||''));
+      if(declaredPaths.has(item.path))throw new Error('manifest 存在重复资源路径：'+item.path);
+      declaredPaths.add(item.path);
+      if(!Number.isSafeInteger(item.size)||item.size<0||typeof item.sha256!=='string'||!/^[a-f0-9]{64}$/i.test(item.sha256)||typeof item.crc32!=='string'||!/^[a-f0-9]{8}$/i.test(item.crc32))throw new Error('manifest 资源校验字段无效：'+item.path);
+      const file=map.get(item.path);
+      if(item.size!==file.size)throw new Error('资源字节数不匹配：'+item.path);
+      const got=await inspectBlob(file.blob);
+      if(got.sha256!==item.sha256||got.crc32!==item.crc32||got.crc32!==file.crc32)throw new Error('资源校验失败：'+item.path);
+      file.meta=item;
+    }
+    for(const name of map.keys())if(name!=='manifest.json'&&!declaredPaths.has(name))throw new Error('ZIP 中存在未被 manifest 声明的资源：'+name);
+    if(declaredPaths.size!==map.size-1)throw new Error('manifest 未完整覆盖 ZIP 资源');
     return {manifest,map};
   }
   async function restoreV4Internal(blob){
     const parsed=await unzipStored(blob),{manifest,map}=parsed,kind=manifest.kind;
-    const data=JSON.parse(await map.get('state.json').blob.text());if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('state.json 格式无效');
+    const data=await readJsonMember(map,'state.json');if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('state.json 格式无效');
+    await validateV4Payloads(kind,map,data);
     if(kind==='all'||kind==='param'){
       for(const path of ['mailbox-data.json','card-system.json','font-library.json'])if(!map.has(path))throw new Error('参数/总备份缺少必需模块文件：'+path);
       if(!window.__duoMailbox||typeof window.__duoMailbox.importData!=='function')throw new Error('信件模块不可用，无法恢复此备份');
@@ -115,12 +311,12 @@
       if(kind==='all')incomingState=data.state||data;
       const chatSource=kind==='chat'?data:(kind==='all'?incomingState:null);
       if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id))throw new Error('备份包未包含聊天 / 表情引用的媒体：'+id);}}
-      if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=JSON.parse(await map.get('mailbox-data.json').blob.text()),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const draft of mailbox.drafts||[])for(const image of draft.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件 / 草稿引用的图片：'+id);}
+      if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=await readJsonMember(map,'mailbox-data.json'),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const draft of mailbox.drafts||[])for(const image of draft.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件 / 草稿引用的图片：'+id);}
       for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
       if(kind==='all'){
         if(!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
         if(!incomingState||typeof incomingState!=='object'||Array.isArray(incomingState))throw new Error('总备份状态格式无效');
-        const circleData=map.has('circle-state.json')?JSON.parse(await map.get('circle-state.json').blob.text()):null;
+        const circleData=map.has('circle-state.json')?await readJsonMember(map,'circle-state.json'):null;
         if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);setCircleState(circleData);circleWritten=true;}
         Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);window.__duoStickerState?.applyImportedState?.(incomingState.stickers,incomingState.stickerFavorites,incomingState.stickerTombstones);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);
       }else if(kind==='chat'){
@@ -139,13 +335,13 @@
       }
       if(kind==='param'&&map.has('circle-settings.json')){
         const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法恢复朋友圈参数');
-        const current=getCircleState()||{},settings=JSON.parse(await map.get('circle-settings.json').blob.text());
+        const current=getCircleState()||{},settings=await readJsonMember(map,'circle-settings.json');
         const merged={...current,...settings};api.validateState(merged);setCircleState(merged);circleWritten=true;
       }
-      if(kind!=='chat'){mailboxWritten=true;window.__duoMailbox.importData(JSON.parse(await map.get('mailbox-data.json').blob.text()));}
-      if(kind!=='chat'){cardsWritten=true;window.__duoCardSystem.importData(JSON.parse(await map.get('card-system.json').blob.text()));}
+      if(kind!=='chat'){mailboxWritten=true;window.__duoMailbox.importData(await readJsonMember(map,'mailbox-data.json'));}
+      if(kind!=='chat'){cardsWritten=true;window.__duoCardSystem.importData(await readJsonMember(map,'card-system.json'));}
       if(kind!=='chat'){
-        const fm=JSON.parse(await map.get('font-library.json').blob.text());
+        const fm=await readJsonMember(map,'font-library.json');
         const restored=[];for(const f of fm.fonts||[]){const x=map.get(f.path);if(!x)throw new Error('字体资源缺失：'+f.id);restored.push({...f,blob:x.blob});}
         fontsWritten=true;await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true});
       }
@@ -192,7 +388,7 @@
   }
   async function exportV4(kind){try{const blob=await buildV4(kind);triggerDownloadBlob('双人空间_'+kind+'_backup_v4.zip',blob);showToast(kind==='all'?'V4 总备份已导出':'V4 备份已导出');}catch(e){showToast('V4 备份失败：'+(e.message||e));throw e;}}
   document.addEventListener('click',function(e){const b=e.target&&e.target.closest?e.target.closest('#backupAllBtn,#backupChatBtn,#backupParamBtn'):null;if(!b)return;e.preventDefault();e.stopImmediatePropagation();exportV4(b.id==='backupAllBtn'?'all':b.id==='backupChatBtn'?'chat':'param').catch(()=>{});},true);
-  document.addEventListener('change',function(e){if(!e.target||e.target.id!=='backupImporter')return;const file=e.target.files&&e.target.files[0];if(!file)return;e.stopImmediatePropagation();if(/\.zip$/i.test(file.name)||file.type==='application/zip'){restoreV4(file).catch(err=>showToast('V4 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}else{file.text().then(t=>applyBackupPayload(JSON.parse(t))).catch(err=>showToast('旧版 JSON 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}},true);
+  document.addEventListener('change',function(e){if(!e.target||e.target.id!=='backupImporter')return;const file=e.target.files&&e.target.files[0];if(!file)return;e.stopImmediatePropagation();if(file.size>MAX_ARCHIVE){showToast('备份文件超过 1 GB 上限');e.target.value='';return;}if(/\.zip$/i.test(file.name)||file.type==='application/zip'){restoreV4(file).catch(err=>showToast('V4 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}else{if(file.size>MAX_JSON_MEMBER){showToast('旧版 JSON 备份超过 128 MB 单文件读取上限');e.target.value='';return;}file.text().then(t=>applyBackupPayload(JSON.parse(t))).catch(err=>showToast('旧版 JSON 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}},true);
   const importer=document.getElementById('backupImporter');if(importer)importer.accept='.json,.zip,application/json,application/zip';
   window.__duoBackupV4={build:buildV4,restore:restoreV4,unzip:unzipStored,inspect:inspectBlob,version:4};
 })();

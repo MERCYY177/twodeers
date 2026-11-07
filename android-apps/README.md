@@ -27,7 +27,7 @@ cd android-apps
 gradle :app:assembleDebug
 ```
 
-Gradle 的 `stageWebProject` 任务会把仓库根目录的 `index.html`、JS/CSS/JSON 及 `assets/**` 暂存到 APK 的 `assets/site/`，入口为 `https://appassets.androidplatform.net/assets/site/index.html`。网页使用本地 HTTPS Origin，IndexedDB 与 localStorage 保存在该 APK 的 WebView 数据空间中；它们不会自动继承 GitHub Pages Origin 的数据。
+Gradle 的 `verifyBuiltinStickers` 会先校验仓库内 352 项表情清单及每个资源文件，再由 `stageWebProject` 把仓库根目录的 `index.html`、JS/CSS/JSON 及 `assets/**` 暂存到 APK 的 `assets/site/`。构建不再依赖不存在的原始 ZIP 或 Python 脚本。入口为 `https://appassets.androidplatform.net/assets/site/index.html`。网页使用本地 HTTPS Origin，IndexedDB 与 localStorage 保存在该 APK 的 WebView 数据空间中；它们不会自动继承 GitHub Pages Origin 的数据。
 
 ## 文件处理
 
@@ -42,3 +42,16 @@ Gradle 的 `stageWebProject` 任务会把仓库根目录的 `index.html`、JS/CS
 ## 验证边界
 
 此工程目前提供可由 GitHub Actions 构建的 debug APK 工程；本工作环境没有 Android SDK、模拟器或真机，未在本机执行 APK 构建、文件选择器真机验证、重启持久化或卸载重装恢复测试。CI workflow 产物为 debug APK，不是签名 release APK。
+
+
+## Android 系统备份策略
+
+Manifest 将 `android:allowBackup` 设为 `false`，并同时配置 Android 旧版 `backup_rules.xml` 与 Android 12+ `data_extraction_rules.xml`，明确排除云端备份和设备间迁移。应用仍会正常把聊天、信件和媒体保存到本机 WebView 存储；V4 ZIP 只在用户主动点击备份后生成，且仍由用户选择 SAF 保存位置。手动导入也仍由用户选择备份文件触发。
+
+## 系统返回键
+
+系统返回键会先询问网页设置导航；若当前打开参数区分类子页面，则先返回参数区首页。只有网页没有可关闭的设置子页面时，才交回 Android Activity 的默认返回行为。
+
+## 本次加固静态验收
+
+在仓库根目录执行 `node tools/verify-twodeers-hardening.mjs`，检查 Android 自动备份排除配置、352 项内置表情资源、APK 构建资源前置校验、系统返回键接入、通知事件更新和备份导入校验，并对根目录 JS 与 `index.html` 内联脚本做语法检查。

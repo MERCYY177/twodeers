@@ -46,7 +46,7 @@
       let url=getImageUrl(item.id);
       if(!url){try{const rec=await getMediaRecord(item.id);if(generation!==composeGeneration||draftId!==activeDraftId)return;if(rec?.blob){url=URL.createObjectURL(rec.blob);imageUrls.set(item.id,url);}}catch(_){}}
       if(generation!==composeGeneration||draftId!==activeDraftId)return;
-      html.push('<div class="mail-image-thumb">'+(url?'<img src="'+url+'" alt="'+esc(item.name)+'">':'<span>附件缺失</span>')+'<button type="button" data-mail-image-remove="'+esc(item.id)+'" aria-label="移除图片">×</button></div>');
+      html.push('<div class="mail-image-thumb">'+(url?'<img src="'+esc(url)+'" alt="'+esc(item.name)+'">':'<span>附件缺失</span>')+'<button type="button" data-mail-image-remove="'+esc(item.id)+'" aria-label="移除图片">×</button></div>');
     }
     if(generation!==composeGeneration||draftId!==activeDraftId)return;
     host.innerHTML=html.join('');

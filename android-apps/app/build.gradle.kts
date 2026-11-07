@@ -4,26 +4,47 @@ plugins {
 
 val repoRoot = rootProject.projectDir.parentFile
 val stagedAssets = layout.buildDirectory.dir("generated/twodeers-assets")
-val generatedBuiltinStickerSite = layout.buildDirectory.dir("generated/builtin-sticker-site")
-val prepareBuiltinStickers by tasks.registering(Exec::class) {
-    group = "build"
-    description = "Prepare all 352 offline built-in stickers, converting HEIF to JPEG."
-    val archiveOne = repoRoot.resolve("sticker-source/表情包1.zip")
-    val archiveTwo = repoRoot.resolve("sticker-source/表情包2.zip")
-    val script = repoRoot.resolve("tools/prepare-builtin-stickers.py")
-    inputs.files(archiveOne, archiveTwo, script)
-    outputs.dir(generatedBuiltinStickerSite)
-    doFirst { generatedBuiltinStickerSite.get().asFile.deleteRecursively() }
-    commandLine(
-        "python3", script.absolutePath,
-        "--archive-one", archiveOne.absolutePath,
-        "--archive-two", archiveTwo.absolutePath,
-        "--output-root", generatedBuiltinStickerSite.get().asFile.absolutePath
-    )
+
+// The checked-in 352-item manifest and its finished image files are the single
+// source of truth. APK builds must not depend on absent source ZIPs or Python.
+val verifyBuiltinStickers by tasks.registering {
+    group = "verification"
+    description = "Verify all 352 checked-in offline built-in sticker assets."
+    inputs.file(repoRoot.resolve("assets/builtin-stickers/manifest.json"))
+    inputs.dir(repoRoot.resolve("assets/builtin-stickers"))
+    doLast {
+        val manifestFile = repoRoot.resolve("assets/builtin-stickers/manifest.json")
+        check(manifestFile.isFile) { "Missing built-in sticker manifest: $manifestFile" }
+        val parsed = groovy.json.JsonSlurper().parse(manifestFile) as Map<*, *>
+        val items = parsed["items"] as? List<*> ?: error("Built-in sticker manifest has no items array")
+        check(parsed["version"] == 1) { "Unsupported built-in sticker manifest version" }
+        check(parsed["totalCount"] == 352 && items.size == 352) {
+            "Built-in sticker manifest must contain exactly 352 items; found ${items.size}"
+        }
+        val missing = mutableListOf<String>()
+        val invalid = mutableListOf<String>()
+        items.forEach { raw ->
+            val item = raw as? Map<*, *> ?: run { invalid += "non-object item"; return@forEach }
+            val url = item["assetUrl"] as? String
+            if (url.isNullOrBlank() || !url.startsWith("assets/builtin-stickers/")) {
+                invalid += "invalid assetUrl: ${url ?: "(missing)"}"
+                return@forEach
+            }
+            val relative = java.net.URLDecoder.decode(url, "UTF-8")
+            val asset = repoRoot.resolve(relative)
+            if (!asset.isFile) missing += relative
+            else {
+                val expected = (item["size"] as? Number)?.toLong()
+                if (expected != null && expected != asset.length()) invalid += "size mismatch: $relative"
+            }
+        }
+        check(invalid.isEmpty()) { "Invalid built-in sticker manifest entries: ${invalid.take(12).joinToString()}" }
+        check(missing.isEmpty()) { "Missing built-in sticker assets: ${missing.take(12).joinToString()}" }
+    }
 }
+
 val stageWebProject by tasks.registering(Sync::class) {
-    dependsOn(prepareBuiltinStickers)
-    from(generatedBuiltinStickerSite)
+    dependsOn(verifyBuiltinStickers)
     from(repoRoot) {
         include("index.html")
         include("*.js")
