@@ -749,6 +749,8 @@ try {
   const persistedTheme = await page.evaluate(() => state.appearanceSettings.palette);
   assert.equal(persistedTheme, 'ocean', 'theme choice should persist after reload');
 
+  await page.evaluate(() => goto('chatPage'));
+  await page.waitForFunction(() => document.getElementById('chatPage')?.classList.contains('active'));
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
