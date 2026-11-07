@@ -1120,9 +1120,20 @@ try {
     window.__duoCardSystem.importData({version:1,chatIds:[],chatTexts:[],momentsDynamic:[],momentsReply:[],momentsDynamicIds:[],momentsReplyIds:[],recentDrawnRepliesV1:[],notificationsEnabled:true});
     await window.__duoBackupV4.restore(archive);
     const mail=window.__duoMailbox.exportData(),cards=window.__duoCardSystem.exportData(),circle=window.__duoCircleApi.exportState();
-    return {letter:mail.mailbox.items.some(x=>x.title==='浏览器验收信件'),recent:cards.recentDrawnRepliesV1.some(x=>x.textSnapshot==='浏览器验收字卡'),dynamic:circle.dynamicCards.includes('朋友圈动态验收字卡'),reply:circle.replyCards.includes('朋友圈回复验收字卡'),chat:state.cardPhrases.includes('浏览器验收字卡')};
+    return {
+      letter:mail.mailbox.items.some(x=>x.title==='浏览器验收信件'),
+      recent:cards.recentDrawnRepliesV1.some(x=>x.textSnapshot==='浏览器验收字卡'),
+      dynamic:circle.dynamicCards.includes('朋友圈动态验收字卡'),
+      reply:circle.replyCards.includes('朋友圈回复验收字卡'),
+      chat:state.cardPhrases.includes('浏览器验收字卡'),
+      mailMin:mail.mailbox.settings.minIncomingMin,mailMax:mail.mailbox.settings.maxIncomingMin,
+      mailReplyMin:mail.mailbox.settings.minReplyMin,mailReplyMax:mail.mailbox.settings.maxReplyMin,
+      cardMin:mail.mailbox.settings.cardCountMin,cardMax:mail.mailbox.settings.cardCountMax,
+      callFrequency:state.incomingCallSettings.frequency,
+      callMin:state.incomingCallSettings.minIntervalSec,callMax:state.incomingCallSettings.maxIntervalSec
+    };
   });
-  assert.deepEqual(roundTrip,{letter:true,recent:true,dynamic:true,reply:true,chat:true},'V4 all restore must round-trip mailbox, all card pools and recent-use records');
+  assert.deepEqual(roundTrip,{letter:true,recent:true,dynamic:true,reply:true,chat:true,mailMin:720,mailMax:2160,mailReplyMin:2,mailReplyMax:15,cardMin:3,cardMax:4,callFrequency:'medium',callMin:1800,callMax:5400},'V4 all restore must round-trip letters, cards, call frequency and mailbox settings');
   const paramBackup = await page.evaluate(async () => {const parsed=await window.__duoBackupV4.unzip(await window.__duoBackupV4.build('param'));return {circle:parsed.map.has('circle-settings.json'),mailbox:parsed.map.has('mailbox-data.json'),cards:parsed.map.has('card-system.json')};});
   assert.deepEqual(paramBackup,{circle:true,mailbox:true,cards:true},'parameter backup must include Circle settings, mailbox and card-system data');
   await page.evaluate(() => goto('homePage'));
