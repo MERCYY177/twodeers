@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const settings=readFileSync(new URL('../settings-pages.js',import.meta.url),'utf8');
+const mailbox=readFileSync(new URL('../mailbox-manager.js',import.meta.url),'utf8');
 
 test('首页信箱位于参数区之前，且入口命名为信箱',()=>{
   const mailbox=html.indexOf('<div class="label">信箱</div>');
@@ -95,4 +96,12 @@ test('访客记录从独立备份恢复，旧备份导入不会覆盖已有访�
   assert.match(html,/if\(backupCount>primaryCount\)/);
   assert.match(html,/visitorHadRecords&&\(!Array\.isArray\(state\.visitorRecords\)\|\|!state\.visitorRecords\.length\)&&!allowEmptyVisitorWrite/);
   assert.match(html,/return buildSanitizedState\(data\)/);
+});
+
+test('信件正文图片保留原始比例，只有编辑器缩略图允许裁切',()=>{
+  assert.ok(mailbox.includes('.mail-image-thumb img{width:100%;height:100%;object-fit:cover;display:block}'));
+  assert.ok(mailbox.includes('.mail-read-images{display:grid;'));
+  assert.ok(mailbox.includes('.mail-read-image img{display:block;width:auto;height:auto;max-width:100%;max-height:70vh;object-fit:contain}'));
+  assert.match(mailbox,/async function compressMailJpeg\(file\)[\\s\\S]*?file\.type!=='image\\/jpeg'/);
+  assert.match(mailbox,/image\\/\\(jpeg\\|png\\|webp\\|gif\\|avif\\)/);
 });
