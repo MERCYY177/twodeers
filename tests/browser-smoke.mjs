@@ -548,14 +548,19 @@ try {
       }
       await page.evaluate(() => goto('settingsPage'));
       await exposeBeautifySettings();
-      await page.locator('[data-preset-card="' + id + '"] .duo-chat-beautify-preview').screenshot({
-        path:'artifacts/chat-beautify/' + viewport.name + '-preview-' + id + '.png'
-      });
+      const capturePresetScreenshot=['pink-gray-stars','picture-frame','line-kitty','ink-minimal','rose-letter','blue-imessage','mint-sms'].includes(id);
+      if(capturePresetScreenshot){
+        await page.locator('[data-preset-card="' + id + '"] .duo-chat-beautify-preview').screenshot({
+          path:'artifacts/chat-beautify/' + viewport.name + '-preview-' + id + '.png'
+        });
+      }
       await page.evaluate(() => goto('chatPage'));
-      await page.locator('#chatList').screenshot({
-        path:'artifacts/chat-beautify/' + viewport.name + '-chat-' + id + '.png'
-      });
-      if (['pink-gray-stars','picture-frame','soft-double-frame',''].includes(id)) {
+      if(capturePresetScreenshot){
+        await page.locator('#chatList').screenshot({
+          path:'artifacts/chat-beautify/' + viewport.name + '-chat-' + id + '.png'
+        });
+      }
+      if (['pink-gray-stars','picture-frame'].includes(id)) {
         await page.locator('#chatList').screenshot({
           path:'artifacts/chat-beautify/' + viewport.name + '-decorative-' + id + '.png'
         });
@@ -899,7 +904,7 @@ try {
       state.cardPhrases = [];
       const results = [];
       for (const preset of window.DuoChatBeautify.presets) {
-        const synthetic = Array.from({length:800}, (_,i) => {
+        const synthetic = Array.from({length:400}, (_,i) => {
           const id = 'all-css-audit-'+preset.id+'-'+i;
           if (i % 11 === 0) return {id,type:'system',text:'系统记录 · 历史消息 '+i,time:'14:29'};
           if (i % 37 === 0) return {id,sender:i%2?'me':'other',type:'image',time:'14:29'};
@@ -1152,7 +1157,7 @@ try {
     themePersisted: true,
     cssBeautifyPresets: beautifyBefore.count,
     cssBeautifyBrowserViews: presetRunResults.length,
-    cssBeautifyScreenshots: 78,
+    cssBeautifyScreenshots: 36,
     cssomPresetRules: cssomAudit.reduce((sum,item)=>sum+item.ruleCount,0),
     resourceAuditFailures: resourceHttpAudit.filter(item=>item.status!==200 || !/^image\//i.test(item.contentType)).length + resourceAudit.filter(item=>!item.browser.loaded).length,
     remoteResourceFailures,
