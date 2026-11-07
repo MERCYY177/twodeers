@@ -115,3 +115,9 @@ test('页面浮层层级统一走命名 token，备份与恢复遮罩保持最�
   assert.ok(html.includes('z-index:var(--z-incoming-call,110)'));
   assert.ok(mailbox.includes('z-index:var(--z-mail-modal,80)'));
 });
+
+test('移除旧信箱模态框与旧双栏表情包样式残留',()=>{
+  assert.doesNotMatch(html,/mail-settings-modal|mail-settings-sheet|mailMoreBtn|mailMoreMenu|mail-header-menu-host/);
+  assert.doesNotMatch(html,/emoji-zone-title|sticker-item button:active|emoji-panel-columns|emoji-column-stickers/);
+  assert.match(html,/\.chat-header-menu-host\{position:relative\}/);
+});
