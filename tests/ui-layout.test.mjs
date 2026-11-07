@@ -102,6 +102,6 @@ test('信件正文图片保留原始比例，只有编辑器缩略图允许裁�
   assert.ok(mailbox.includes('.mail-image-thumb img{width:100%;height:100%;object-fit:cover;display:block}'));
   assert.ok(mailbox.includes('.mail-read-images{display:grid;'));
   assert.ok(mailbox.includes('.mail-read-image img{display:block;width:auto;height:auto;max-width:100%;max-height:70vh;object-fit:contain}'));
-  assert.match(mailbox,/async function compressMailJpeg\(file\)[\\s\\S]*?file\.type!=='image\\/jpeg'/);
-  assert.match(mailbox,/image\\/\\(jpeg\\|png\\|webp\\|gif\\|avif\\)/);
+  assert.ok(mailbox.includes("async function compressMailJpeg(file){"));
+  assert.ok(mailbox.includes("file.type!=='image/jpeg'")&&mailbox.includes("image/(jpeg|png|webp|gif|avif)"));
 });
