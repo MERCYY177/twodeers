@@ -54,8 +54,9 @@
     event.preventDefault();event.stopImmediatePropagation();
     const id=favorite.dataset.stickerFavorite;
     try{
-      const result=window.__duoStickerState?.toggleFavorite?.(id);
-      if(!result)throw new Error('表情包已不存在');
+      const data=snapshot();
+      if(!data.items.some(item=>item.id===id))throw new Error('表情包已不存在');
+      window.__duoStickerState?.toggleFavorite?.(id);
       if(save()===false)throw new Error('收藏状态镜像未能保存');
       void render();
     }catch(error){showToast('收藏状态保存失败：'+(error.message||error));}

@@ -380,7 +380,7 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <style id="uiLayoutFixes">
 .header-more-btn{width:40px;height:40px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;color:#555;font-size:28px;line-height:1;padding:0 0 7px}
 .chat-header-menu-host,.mail-header-menu-host{position:relative}
-.header-popup-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:80;min-width:148px;padding:6px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:13px;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.header-popup-menu{position:fixed;right:auto;top:8px;left:8px;z-index:12000;min-width:148px;max-width:min(260px,calc(100vw - 16px));max-height:min(70vh,560px);overflow:auto;padding:6px;background:var(--panel,#fff);border:1px solid var(--line);border-radius:13px;box-shadow:0 12px 32px rgba(0,0,0,.20);isolation:isolate;contain:layout paint}
 .header-popup-menu[hidden]{display:none}
 .header-popup-menu button{display:block;width:100%;padding:12px 13px;text-align:left;border-radius:9px;color:var(--text);font-size:14px;white-space:nowrap}
 .header-popup-menu button:active{background:var(--soft)}
@@ -5697,9 +5697,8 @@ function renderEmojiPanel(){
   $('#emojiGrid').innerHTML=emojis.map(e=>`<button type="button" data-emoji="${e}" aria-label="${e}">${e}</button>`).join('');
 }
 function renderStickerList(){
-  const list=$('#stickerList');if(!list)return;
-  if(!state.stickers.length){list.innerHTML='<div class="empty-stickers">还没有表情包，点击“添加图片 / GIF”。</div>';return;}
-  list.innerHTML=state.stickers.map((s,i)=>{const url=stickerObjectUrls.get(s.id)||'';const safeId=String(s.id).replace(/["&<>]/g,'');return `<div class="sticker-item" data-sticker-index="${i}"><img src="${url}" alt="表情包"><button class="sticker-send" type="button" data-sticker-send="${i}" data-sticker-send-id="${safeId}" aria-label="发送表情包">发送</button><button class="sticker-del" type="button" data-sticker-del="${i}" data-sticker-del-id="${safeId}" aria-label="删除表情包">×</button></div>`;}).join('');
+  // The external sticker-library module owns the dedicated picker grid.
+  if(window.__duoStickerLibrary?.render)return window.__duoStickerLibrary.render();
 }
 async function ensureStickerMedia(sticker){
   if(!sticker||typeof sticker.id!=='string')return null;
@@ -5933,14 +5932,34 @@ $('#phraseList').addEventListener('click',e=>{
   if(dele){const idx=Number(dele.dataset.phraseDel);if(Number.isInteger(idx)&&idx>=0){try{if(window.__duoCardSystem?.remove)window.__duoCardSystem.remove('chat',idx);else{const removed=state.cardPhrases.splice(idx,1)[0];if(save()===false){state.cardPhrases.splice(idx,0,removed);throw new Error('保存失败');}renderPhraseList();renderParamPhraseList();}}catch(error){showToast(error.message||'字卡删除失败');}}}
 });
 // Header overflow menus mirror the reference project's contextual settings entry points.
-function closeHeaderMenus(){['chatMoreMenu','mailMoreMenu'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=true;});}
-$('#chatMoreBtn').addEventListener('click',e=>{e.stopPropagation();const menu=$('#chatMoreMenu');const opening=menu.hidden;closeHeaderMenus();menu.hidden=!opening;});
+function closeHeaderMenus(){
+  ['chatMoreMenu','mailMoreMenu'].forEach(id=>{const el=$('#'+id);if(el)el.hidden=true;});
+  ['chatMoreBtn','mailMoreBtn'].forEach(id=>{const btn=$('#'+id);if(btn)btn.setAttribute('aria-expanded','false');});
+}
+function positionHeaderMenu(button,menu){
+  if(!button||!menu)return;
+  if(menu.parentNode!==document.body)document.body.appendChild(menu);
+  menu.hidden=false;
+  const rect=button.getBoundingClientRect(),width=menu.getBoundingClientRect().width||148,height=menu.getBoundingClientRect().height||120;
+  const left=Math.max(8,Math.min(window.innerWidth-width-8,rect.right-width));
+  let top=rect.bottom+8;
+  if(top+height>window.innerHeight-8)top=Math.max(8,rect.top-height-8);
+  menu.style.left=Math.round(left)+'px';menu.style.top=Math.round(top)+'px';menu.style.right='auto';
+}
+function toggleHeaderMenu(buttonId,menuId){
+  const button=$('#'+buttonId),menu=$('#'+menuId);if(!button||!menu)return;
+  const opening=menu.hidden;closeHeaderMenus();if(!opening)return;
+  positionHeaderMenu(button,menu);button.setAttribute('aria-expanded','true');
+}
+$('#chatMoreBtn').addEventListener('click',e=>{e.stopPropagation();toggleHeaderMenu('chatMoreBtn','chatMoreMenu');});
 $('#chatMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-chat-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.chatMenu==='call'){syncCallSettings();openCallChoice();}else if(item.dataset.chatMenu==='settings'){if(typeof window.__duoOpenSettingsCategory==='function')window.__duoOpenSettingsCategory('calls');else showToast('通话设置尚未加载');}});
-$('#mailMoreBtn').addEventListener('click',e=>{e.stopPropagation();const menu=$('#mailMoreMenu');const opening=menu.hidden;closeHeaderMenus();menu.hidden=!opening;});
+$('#mailMoreBtn').addEventListener('click',e=>{e.stopPropagation();toggleHeaderMenu('mailMoreBtn','mailMoreMenu');});
 $('#mailMoreMenu').addEventListener('click',e=>{const item=e.target.closest('[data-mail-menu]');if(!item)return;closeHeaderMenus();if(item.dataset.mailMenu==='settings')$('#mailSettingsModal').hidden=false;});
 $('#mailSettingsClose').addEventListener('click',()=>{$('#mailSettingsModal').hidden=true;});
 $('#mailSettingsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.hidden=true;});
-document.addEventListener('click',e=>{if(!e.target.closest('.chat-header-menu-host,.mail-header-menu-host'))closeHeaderMenus();});
+document.addEventListener('click',e=>{if(!e.target.closest('#chatMoreMenu,#mailMoreMenu,.chat-header-menu-host,.mail-header-menu-host'))closeHeaderMenus();});
+window.addEventListener('resize',closeHeaderMenus);
+document.addEventListener('scroll',closeHeaderMenus,true);
 $('#callChoiceCancel').addEventListener('click',closeCallChoice);
 $('#callChoiceModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCallChoice();});
 $$('[data-call-type]').forEach(btn=>btn.addEventListener('click',()=>startCall(btn.dataset.callType)));

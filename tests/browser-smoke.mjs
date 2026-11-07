@@ -82,8 +82,36 @@ try {
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   assert.ok(await page.locator('#stickerGrid [data-sticker-id]').count() > 0, 'built-in and uploaded sticker items should render into the dedicated grid');
-  await page.locator('#stickerClose').click();
-  assert.equal(await page.locator('#stickerOverlay.show').count(), 0, 'the sticker sheet close action should work');
+  const favoriteBefore = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
+  await page.locator('#stickerGrid [data-sticker-favorite]').first().click();
+  const favoriteAfter = await page.locator('#stickerGrid [data-sticker-favorite]').first().getAttribute('aria-label');
+  assert.notEqual(favoriteAfter, favoriteBefore, 'favorite must toggle without sending the sticker');
+  await page.locator('#stickerGrid [data-sticker-favorite]').first().click();
+
+  await page.evaluate(() => {
+    window.__stickerSendSmokeId = '';
+    window.__stickerSendSmokeOriginal = window.sendSticker;
+    window.sendSticker = async id => {
+      window.__stickerSendSmokeId = id;
+      document.getElementById('stickerOverlay').classList.remove('show');
+    };
+  });
+  const firstSticker = page.locator('#stickerGrid [data-sticker-id]').first();
+  const expectedStickerId = await firstSticker.getAttribute('data-sticker-id');
+  await firstSticker.click();
+  assert.equal(await page.evaluate(() => window.__stickerSendSmokeId), expectedStickerId,
+    'tapping the sticker image itself must invoke direct send');
+  assert.equal(await page.locator('#stickerOverlay.show').count(), 0, 'sending a sticker must close the sheet');
+  await page.evaluate(() => { window.sendSticker = window.__stickerSendSmokeOriginal; });
+
+  await page.locator('#chatMoreBtn').click();
+  assert.equal(await page.locator('#chatMoreMenu').evaluate(el => el.parentElement === document.body), true,
+    'header menu must be portalled out of the header stacking context');
+  assert.equal(await page.locator('#chatMoreMenu').evaluate(el => getComputedStyle(el).position), 'fixed',
+    'header menu must use viewport-fixed positioning');
+  assert.ok(await page.locator('#chatMoreMenu').evaluate(el => Number(getComputedStyle(el).zIndex) >= 10000),
+    'header menu must sit above chat decorations');
+  await page.locator('#chatMoreBtn').click();
 
   const exposeBeautifySettings = () => page.evaluate(() => {
     if (typeof goto === 'function') goto('settingsPage');
