@@ -58,17 +58,6 @@ jobs:
         run: |
           node tools/verify-source.mjs
           npm test
-      - name: Run browser regression against the deployable website
-        run: |
-          python3 -m http.server 8080 --bind 127.0.0.1 --directory dist > /tmp/twodeers-web-http.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
-            sleep 1
-          done
-          FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
-          TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
       - name: Create deployable ZIP
         run: |
           python3 - <<'PY'
@@ -89,3 +78,14 @@ jobs:
           path: twodeers-web-deploy-352-stickers.zip
           if-no-files-found: error
           retention-days: 14
+      - name: Run browser regression against the deployable website
+        run: |
+          python3 -m http.server 8080 --bind 127.0.0.1 --directory dist > /tmp/twodeers-web-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
+            sleep 1
+          done
+          FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
+          TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
