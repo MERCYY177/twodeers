@@ -755,7 +755,7 @@ try {
   await page.locator('#emojiBtn').click();
   await page.waitForFunction(() => document.querySelector('#stickerOverlay')?.classList.contains('show'));
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j+a8AAAAASUVORK5CYII=', 'base64');
-  const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+  const gif = Buffer.from('R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQIDAAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQIDAAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7', 'base64');
   await page.locator('#stickerUploader').setInputFiles([
     { name: 'smoke.png', mimeType: 'image/png', buffer: png },
     { name: 'smoke.gif', mimeType: 'image/gif', buffer: gif }
@@ -1040,14 +1040,35 @@ try {
   await page.locator('#mailDraftBtn').click();
   const draftCount = await page.locator('#mailDraftList [data-mail-draft]').count();
   assert.equal(draftCount,1,'typing and explicit save should persist a draft');
+  await page.locator('#mailImageInput').setInputFiles([
+    {name:'letter-animated.gif',mimeType:'image/gif',buffer:gif}
+  ]);
+  await page.waitForFunction(() => {
+    const draft=window.__duoMailbox.exportData().drafts.find(item=>item.title==='浏览器验收信件');
+    return draft?.images?.length===1 && draft.images[0].mimeType==='image/gif';
+  });
   await page.locator('#mailComposeSend').click();
   const mailboxAudit = await page.evaluate(() => {
     const data=window.__duoMailbox.exportData();
-    return {outgoing:data.mailbox.items.some(x=>x.type==='outgoing'&&x.title==='浏览器验收信件'),drafts:data.drafts.length,fragments:data.mailbox.items.find(x=>x.title==='浏览器验收信件')?.cardFragments?.length||0};
+    const letter=data.mailbox.items.find(x=>x.type==='outgoing'&&x.title==='浏览器验收信件');
+    return {outgoing:!!letter,drafts:data.drafts.length,fragments:letter?.cardFragments?.length||0,imageMime:letter?.images?.[0]?.mimeType||'',imageId:letter?.images?.[0]?.id||''};
   });
   assert.equal(mailboxAudit.outgoing,true,'manual letters should be persisted independently');
   assert.equal(mailboxAudit.drafts,0,'sent drafts should be removed from the draft list');
   assert.equal(mailboxAudit.fragments,1,'selected card fragments should be snapshotted into the letter');
+  assert.equal(mailboxAudit.imageMime,'image/gif','mail attachments must preserve the original animated GIF MIME type');
+  const mailMediaType=await page.evaluate(async id=>(await getMediaRecord(id))?.blob?.type||'',mailboxAudit.imageId);
+  assert.equal(mailMediaType,'image/gif','mail GIF media must be stored without JPEG re-encoding');
+  const mailLetterId=await page.evaluate(title=>window.__duoMailbox.exportData().mailbox.items.find(x=>x.title===title)?.id,'浏览器验收信件');
+  await page.locator('#mailLetterList [data-mail-open="'+mailLetterId+'"]').click();
+  await page.waitForFunction(()=>!!document.querySelector('#mailReadImages .mail-read-image img')?.complete);
+  const mailImageLayout=await page.locator('#mailReadImages .mail-read-image img').evaluate(img=>({
+    objectFit:getComputedStyle(img).objectFit,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,
+    maxHeight:getComputedStyle(img).maxHeight,width:getComputedStyle(img).width,height:getComputedStyle(img).height
+  }));
+  assert.equal(mailImageLayout.objectFit,'contain','letter body images must never crop their edges');
+  assert.ok(mailImageLayout.naturalWidth>0&&mailImageLayout.naturalHeight>0,'letter body GIF should decode at its original aspect ratio');
+  await page.locator('#mailReadClose').click();
   const extendedBackup = await page.evaluate(async () => {
     const blob=await window.__duoBackupV4.build('all');
     const parsed=await window.__duoBackupV4.unzip(blob);
