@@ -130,7 +130,7 @@ try {
       const grid=document.getElementById('stickerGrid');
       const rect=sheet.getBoundingClientRect(),gridRect=grid.getBoundingClientRect();
       return {
-        columns:getComputedStyle(grid).gridTemplateColumns.trim().split(/\\s+/).length,
+        columns:(()=>{const items=[...grid.querySelectorAll('[data-sticker-id]')];const firstTop=items[0]?.getBoundingClientRect().top??0;return items.filter(item=>Math.abs(item.getBoundingClientRect().top-firstTop)<1).length;})(),
         sheetWidth:rect.width,gridWidth:gridRect.width,
         viewportWidth:innerWidth,scrollHeight:grid.scrollHeight,clientHeight:grid.clientHeight,
         overflowX:document.documentElement.scrollWidth>innerWidth
