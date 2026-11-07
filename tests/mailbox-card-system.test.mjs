@@ -192,12 +192,13 @@ test('mailbox records only card fragments still present in the edited letter bod
   assert.equal(sandbox.composeCardFragments[0].cardId,'card-a');
 });
 
-test('mailbox image path enforces file limits and safely falls back when JPEG compression is unavailable', () => {
+test('mailbox image path enforces file limits and preserves original uploaded image bytes', () => {
   assert.match(mailboxSource,/MAX_IMAGES=6,MAX_IMAGE_BYTES=8\*1024\*1024,MAX_TOTAL_IMAGE_BYTES=24\*1024\*1024/);
   assert.ok(mailboxSource.includes("/^image\\/(jpeg|png|webp|gif|avif)$/i"));
-  assert.match(mailboxSource,/async function compressMailJpeg\(file\)/);
-  assert.match(mailboxSource,/typeof createImageBitmap!=='function'\)return file/);
-  assert.match(mailboxSource,/compressed&&compressed\.size>0&&compressed\.size<file\.size\?compressed:file/);
+  assert.match(mailboxSource,/if\(file\.size>MAX_IMAGE_BYTES\)/);
+  assert.match(mailboxSource,/if\(currentBytes\+added\.reduce/);
+  assert.ok(mailboxSource.includes('const stored=file; // Keep the exact source bytes; only the editor preview may crop visually.'));
+  assert.ok(!mailboxSource.includes('compressMailJpeg'));
 });
 
 test('mail reading generation prevents an older letter attachment request from contaminating the newer letter', async () => {
