@@ -122,3 +122,9 @@ test('移除旧信箱模态框与旧双栏表情包样式残留',()=>{
   assert.doesNotMatch(html,/emoji-zone-title|sticker-item button:active|emoji-panel-columns|emoji-column-stickers/);
   assert.match(html,/\.chat-header-menu-host\{position:relative\}/);
 });
+
+test('每条聊天消息建立独立装饰层级，但保留主题所需的可见溢出',()=>{
+  assert.ok(html.includes('.msg-row{display:block;position:relative;isolation:isolate;margin:0 0 12px}'));
+  assert.doesNotMatch(html,/\.msg-row\{[^}]*overflow\s*:\s*hidden/);
+  assert.ok(html.includes('.bubble{padding:10px 12px;'));
+});
