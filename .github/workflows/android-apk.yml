@@ -52,31 +52,73 @@ jobs:
           echo "APK count: $count"
           test "$count" -eq 4
           find app/build/outputs/apk -type f -name '*.apk' -print
-      - name: Upload 贝贝鹿 APK
+      - name: Split APKs into verified transfer chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/twodeers-apk-parts
+          mkdir -p /tmp/twodeers-apk-parts
+          for flavor in beibeilu lu1 lu2 lu3; do
+            apk="android-apps/app/build/outputs/apk/${flavor}/debug/app-${flavor}-debug.apk"
+            test -s "$apk"
+            split -b 75M -d --additional-suffix=.bin "$apk" "/tmp/twodeers-apk-parts/${flavor}-"
+            cat /tmp/twodeers-apk-parts/${flavor}-*.bin > "/tmp/twodeers-apk-parts/${flavor}-reassembled.apk"
+            cmp "$apk" "/tmp/twodeers-apk-parts/${flavor}-reassembled.apk"
+            sha256sum "$apk" | tee "/tmp/twodeers-apk-parts/${flavor}.sha256"
+          done
+      - name: Upload 贝贝鹿 APK part 1
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-apk-beibeilu
-          path: android-apps/app/build/outputs/apk/beibeilu/debug/app-beibeilu-debug.apk
+          name: twodeers-beibeilu-part-1
+          path: /tmp/twodeers-apk-parts/beibeilu-00.bin
           if-no-files-found: error
           retention-days: 14
-      - name: Upload 鹿1 APK
+      - name: Upload 贝贝鹿 APK part 2
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-apk-lu1
-          path: android-apps/app/build/outputs/apk/lu1/debug/app-lu1-debug.apk
+          name: twodeers-beibeilu-part-2
+          path: /tmp/twodeers-apk-parts/beibeilu-01.bin
           if-no-files-found: error
           retention-days: 14
-      - name: Upload 鹿2 APK
+      - name: Upload 鹿1 APK part 1
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-apk-lu2
-          path: android-apps/app/build/outputs/apk/lu2/debug/app-lu2-debug.apk
+          name: twodeers-lu1-part-1
+          path: /tmp/twodeers-apk-parts/lu1-00.bin
           if-no-files-found: error
           retention-days: 14
-      - name: Upload 鹿3 APK
+      - name: Upload 鹿1 APK part 2
         uses: actions/upload-artifact@v4
         with:
-          name: twodeers-apk-lu3
-          path: android-apps/app/build/outputs/apk/lu3/debug/app-lu3-debug.apk
+          name: twodeers-lu1-part-2
+          path: /tmp/twodeers-apk-parts/lu1-01.bin
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿2 APK part 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-lu2-part-1
+          path: /tmp/twodeers-apk-parts/lu2-00.bin
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿2 APK part 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-lu2-part-2
+          path: /tmp/twodeers-apk-parts/lu2-01.bin
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿3 APK part 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-lu3-part-1
+          path: /tmp/twodeers-apk-parts/lu3-00.bin
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿3 APK part 2
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-lu3-part-2
+          path: /tmp/twodeers-apk-parts/lu3-01.bin
           if-no-files-found: error
           retention-days: 14
