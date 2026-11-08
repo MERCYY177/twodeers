@@ -1,3 +1,5 @@
+import java.net.URLDecoder
+
 plugins {
     id("com.android.application")
 }
@@ -30,12 +32,12 @@ val verifyBuiltinStickers by tasks.registering {
                 invalid += "invalid assetUrl: ${url ?: "(missing)"}"
                 return@forEach
             }
-            val relative = java.net.URLDecoder.decode(url, "UTF-8")
+            val relative: String = URLDecoder.decode(url, Charsets.UTF_8.name())
             val asset = repoRoot.resolve(relative)
-            if (!asset.isFile) missing += relative
+            if (!asset.isFile) missing.add(relative)
             else {
                 val expected = (item["size"] as? Number)?.toLong()
-                if (expected != null && expected != asset.length()) invalid += "size mismatch: $relative"
+                if (expected != null && expected != asset.length()) invalid.add("size mismatch: $relative")
             }
         }
         check(invalid.isEmpty()) { "Invalid built-in sticker manifest entries: ${invalid.take(12).joinToString()}" }
