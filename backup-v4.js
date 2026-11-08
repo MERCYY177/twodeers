@@ -77,7 +77,7 @@
     const cardSnapshot=kind!=='chat'?window.__duoCardSystem.exportData():null;
     const entries=[];let stateData={},mediaIds=[];
     const mailboxMediaIds=new Set();
-    if(mailboxSnapshot){const mailbox=mailboxSnapshot.mailbox||mailboxSnapshot;for(const letter of mailbox.items||[])for(const image of letter.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);for(const draft of mailboxSnapshot.drafts||[])for(const image of draft.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);}
+    if(mailboxSnapshot){const mailbox=mailboxSnapshot.mailbox||mailboxSnapshot;for(const letter of mailbox.items||[])for(const image of letter.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);}
     if(kind==='all'){stateData={state:stateSnapshot};mediaIds=[...new Set([...(stateSnapshot.chatHistory||[]),...(stateSnapshot.stickers||[])].filter(x=>x&&x.mediaId).map(x=>x.mediaId).concat([...mailboxMediaIds]))];}
     else if(kind==='chat'){
       const ids=new Set((stateSnapshot.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(stateSnapshot.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
@@ -181,14 +181,12 @@
       assertImportedObject(box,'mailbox-data.json.mailbox');
       assertImportedArray(box.items===undefined?[]:box.items,'信件列表',5000,true);
       assertImportedArray(box.pending===undefined?[]:box.pending,'待处理信件',1000,true);
-      assertImportedArray(mailbox.drafts===undefined?[]:mailbox.drafts,'信件草稿',5000,true);
       validateImportedUrls(mailbox,'mailbox-data.json');
       for(const letter of box.items||[]){
         for(const key of ['id','title','content'])if(letter[key]!==undefined&&typeof letter[key]!=='string')throw new Error('信件字段类型无效');
         if(letter.images!==undefined)assertImportedArray(letter.images,'信件图片',6,true);
         for(const image of letter.images||[])if(typeof image.id!=='string'||image.id.length>256)throw new Error('信件图片 ID 无效');
       }
-      for(const draft of mailbox.drafts||[])if(draft.images!==undefined)assertImportedArray(draft.images,'草稿图片',6,true);
       const cards=await readJsonMember(map,'card-system.json');
       assertImportedObject(cards,'card-system.json');
       validateImportedUrls(cards,'card-system.json');
@@ -311,7 +309,7 @@
       if(kind==='all')incomingState=data.state||data;
       const chatSource=kind==='chat'?data:(kind==='all'?incomingState:null);
       if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id))throw new Error('备份包未包含聊天 / 表情引用的媒体：'+id);}}
-      if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=await readJsonMember(map,'mailbox-data.json'),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const draft of mailbox.drafts||[])for(const image of draft.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件 / 草稿引用的图片：'+id);}
+      if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=await readJsonMember(map,'mailbox-data.json'),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件引用的图片：'+id);}
       for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
       if(kind==='all'){
         if(!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');

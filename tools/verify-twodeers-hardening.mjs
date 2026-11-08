@@ -218,4 +218,85 @@ for (const file of xmlFiles) {
   assert.equal(result.status, 0, `${file}: ${result.stderr}`);
 }
 
-console.log(`PASS: 352 sticker assets; manual-only Android backup rules; Gradle source checks; Android 13+ and legacy Back hooks; single SAF save picker; legacy/V4 import URL validation; message text/metadata escaping; malformed V4 manifest rejection; 128 MB JSON cap; ${scriptIndex} inline scripts and root JS syntax; Android XML parsing.`);
+
+// Mailbox alignment regression: mirror KKK's received/sent view and card-only
+// scheduled letters; drafts and canned fallback text must not exist.
+const mailboxSource = read('mailbox-manager.js');
+const legacyDrafts = 'twodeers_mailbox_drafts_v1';
+assert.match(mailboxSource, /const KEY='twodeers_mailbox_letters_v1',LEGACY_DRAFT_KEY=/);
+assert.match(mailboxSource, /localStorage\.removeItem\(LEGACY_DRAFT_KEY\)/);
+assert.match(mailboxSource, /delete x\.drafts;delete x\.draft;/);
+assert.match(mailboxSource, /function isLegacyPresetLetter\(item\)/);
+assert.match(mailboxSource, /stored\.items\.length!==box\.items\.length\)persist\(\)/);
+assert.match(mailboxSource, /function exportData\(\)\{return \{mailbox:clone\(box\)\};\}/);
+assert.match(mailboxSource, /function contentForCards\(cards\)[\s\S]*?if\(!cards\.length\)return ''/);
+assert.doesNotMatch(mailboxSource, /const fallback=|contentForCards\([^)]*,\s*fallback\)|function saveDraft|persistDrafts|insertCard/);
+assert.match(mailboxSource, /const imageUrls=new Map\(\),MAX_IMAGES=6,MAX_COMPOSE_IMAGES=4/);
+assert.match(mailboxSource, /if\(!box\.settings\.autoReply\)box\.pending=\[\]/);
+assert.match(mailboxSource, /if\(!Number\.isInteger\(incomingMinHours\)\|\|!Number\.isInteger\(incomingMaxHours\)/);
+assert.match(mailboxSource, /saveSettings\('信箱设置已恢复默认'\);\s*\}/);
+assert.match(mailboxSource, /aria-selected',active\?'true':'false'/);
+for (const label of ['允许主动来信','主动来信间隔','自动回信','自动回信等待','每封信最少使用','每封信最多使用']) assert.ok(mailboxSource.includes(label), `missing mailbox setting: ${label}`);
+assert.doesNotMatch(index, /mailDraftOpenBtn|mailDraftList|mailDraftBtn|mailInsertCardBtn|mail-draft-row|草稿箱|继续草稿|插入聊天字卡/);
+assert.match(index, /data-mail-tab="in"[\s\S]*?收到的信[\s\S]*?data-mail-tab="out"[\s\S]*?寄出的信/);
+assert.match(index, /<textarea id="mailComposeContent" placeholder="今天想跟你说……"><\/textarea>/);
+assert.doesNotMatch(index, /id="mailComposeContent"[^>]*>[^<\s]/);
+assert.match(index, /<div class="mail-settings-title">信箱设置<\/div>/);
+assert.doesNotMatch(index, /id="mailSettingsClose"|mailSettingsModal[\s\S]{0,300}小字说明/);
+assert.match(index, /#mailSettingsModal\{position:fixed!important;inset:0!important;z-index:2147483435!important/);
+assert.doesNotMatch(backup, /信件 \/ 草稿引用/);
+
+const mailboxStore = new Map([[legacyDrafts, JSON.stringify([{ id: 'legacy', content: 'should be discarded' }])], ['twodeers_mailbox_letters_v1', JSON.stringify({ items: [{ id: 'fallback-in', type: 'incoming', title: '一封新来信', content: '今天想给你写一封信。', cardFragments: [], images: [] }, { id: 'fallback-reply', type: 'incoming', title: '回信：测试', content: '我收到你的信啦，等我慢慢回你。', replyToId: 'sent-x', cardFragments: [], images: [] }, { id: 'real-mail', type: 'incoming', title: '真实来信', content: '正常内容', cardFragments: [], images: [] }], pending: [], settings: { autoIncoming: false, autoReply: true, minIncomingMin: 720, maxIncomingMin: 2160, minReplyMin: 2, maxReplyMin: 15, cardCountMin: 2, cardCountMax: 4 } })]]);
+const mailboxDocument = {
+  querySelector() { return null; }, querySelectorAll() { return []; }, addEventListener() {},
+  createElement() { return { textContent: '', setAttribute() {}, classList: { add() {}, remove() {} } }; },
+  head: { appendChild() {} }, hidden: false,
+};
+const mailboxWindow = {
+  addEventListener() {},
+  __duoCardSystem: { recordUsageEvent() { return true; }, getCardIdAt() { return 'card-test'; }, getCardId() { return 'card-test'; } },
+};
+const mailboxLocalStorage = {
+  getItem(key) { return mailboxStore.has(key) ? mailboxStore.get(key) : null; },
+  setItem(key, value) { mailboxStore.set(key, String(value)); },
+  removeItem(key) { mailboxStore.delete(key); },
+};
+Object.assign(mailboxWindow, { document: mailboxDocument, localStorage: mailboxLocalStorage });
+const mailboxSandbox = {
+  window: mailboxWindow, document: mailboxDocument, localStorage: mailboxLocalStorage,
+  state: { cardPhrases: [] }, showToast() {}, setInterval() { return 1; }, clearTimeout() {}, setTimeout() { return 1; },
+  URL, Blob, console, Math, Date, Set, Map, Promise, Number, String, Object, Array, JSON, RegExp, Error,
+};
+vm.runInNewContext(mailboxSource, mailboxSandbox, { filename: 'mailbox-manager.js' });
+assert.equal(mailboxStore.has(legacyDrafts), false, 'legacy saved drafts must be removed');
+let mailboxData = mailboxWindow.__duoMailbox.exportData();
+assert.deepEqual(Array.from(mailboxData.mailbox.items, item => item.id), ['real-mail'], 'only exact legacy canned fallback letters are migrated out');
+assert.equal(Object.hasOwn(mailboxData, 'drafts'), false);
+assert.equal(Object.hasOwn(mailboxData.mailbox, 'drafts'), false);
+mailboxWindow.__duoMailbox.importData({ mailbox: { items: [], drafts: [{ id: 'legacy', content: 'old draft' }], settings: mailboxData.mailbox.settings } });
+mailboxData = mailboxWindow.__duoMailbox.exportData();
+assert.equal(Object.hasOwn(mailboxData.mailbox, 'drafts'), false, 'legacy imported drafts must be discarded');
+const now = Date.now();
+mailboxWindow.__duoMailbox.importData({ mailbox: {
+  items: [{ id: 'sent-1', type: 'outgoing', title: 'test', content: 'hello', createdAt: now, images: [] }],
+  pending: [{ id: 'job-1', type: 'reply', sourceId: 'sent-1', due: now - 1 }], nextIncomingAt: now - 1,
+  settings: { autoIncoming: true, autoReply: true, minIncomingMin: 720, maxIncomingMin: 2160, minReplyMin: 2, maxReplyMin: 15, cardCountMin: 2, cardCountMax: 4 },
+} });
+mailboxWindow.__duoMailbox.processDue();
+mailboxData = mailboxWindow.__duoMailbox.exportData().mailbox;
+assert.equal(mailboxData.items.filter(item => item.type === 'incoming').length, 0, 'empty card pool must not create canned letters');
+assert.equal(mailboxData.pending.length, 0, 'due reply is not replaced by a canned fallback');
+assert.ok(mailboxData.nextIncomingAt > Date.now(), 'incoming schedule advances even when card pool is empty');
+mailboxSandbox.state.cardPhrases = ['第一张聊天字卡内容', '第二张聊天字卡内容'];
+mailboxWindow.__duoMailbox.importData({ mailbox: {
+  items: [], pending: [], nextIncomingAt: Date.now() - 1,
+  settings: { autoIncoming: true, autoReply: true, minIncomingMin: 720, maxIncomingMin: 2160, minReplyMin: 2, maxReplyMin: 15, cardCountMin: 2, cardCountMax: 2 },
+} });
+mailboxWindow.__duoMailbox.processDue();
+mailboxData = mailboxWindow.__duoMailbox.exportData().mailbox;
+const generated = mailboxData.items.filter(item => item.type === 'incoming');
+assert.equal(generated.length, 1, 'scheduled incoming letter is generated from actual chat cards');
+assert.ok(generated[0].content.includes('第一张聊天字卡内容') || generated[0].content.includes('第二张聊天字卡内容'));
+assert.equal(generated[0].cardFragments.length, 2);
+
+console.log(`PASS: 352 sticker assets; manual-only Android backup rules; Gradle source checks; Android 13+ and legacy Back hooks; single SAF save picker; legacy/V4 import URL validation; message text/metadata escaping; malformed V4 manifest rejection; 128 MB JSON cap; mailbox KKK alignment (no drafts, exact old canned fallback migration, received/sent tabs, card-driven incoming letters); ${scriptIndex} inline scripts and root JS syntax; Android XML parsing.`);

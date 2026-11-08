@@ -453,8 +453,9 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .context-settings-head strong{font-size:16px}.context-settings-head button{width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--text);font-size:22px;line-height:1}
 #callSettingsPanelMount>.panel-card{margin:10px 0 0;padding:0;border:0;box-shadow:none;background:transparent}
 #callSettingsPanelMount>.panel-card>h3{display:none}
-#mailSettingsModal{z-index:1300!important}
-.mail-settings-modal .mail-sheet{max-height:min(88dvh,760px);padding:16px}
+#mailSettingsModal{position:fixed!important;inset:0!important;z-index:2147483435!important;align-items:center!important;justify-content:center!important;padding:18px!important;background:rgba(0,0,0,.42)!important}
+.mail-settings-modal .mail-sheet{width:min(360px,100%)!important;max-height:min(88dvh,760px)!important;overflow:auto;padding:18px!important;border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 38px rgba(0,0,0,.2)}
+.mail-settings-title{font-size:16px;font-weight:850;margin:0 0 12px;color:var(--text)}
 #mailSettingsMount>.duo-mail-settings{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
 .duo-appearance-overlay{position:fixed;inset:0;z-index:2147481000;display:none;flex-direction:column;background:var(--bg);color:var(--text)}
 .duo-appearance-overlay.show{display:flex}
@@ -4549,13 +4550,21 @@ window.__duoCircleApi = {
 <div class="top-safe"></div>
 <div class="header"><button class="back" data-go="homePage" type="button">‹</button><div class="header-title"><h2>信箱</h2></div><button class="round-btn" id="mailSettingsBtn" type="button" aria-label="信箱设置" aria-haspopup="dialog" aria-controls="mailSettingsModal" title="信箱设置">⚙</button></div>
 <div class="page-scroll">
-<div class="panel-card"><div class="mail-actions"><button class="primary" id="mailComposeBtn" type="button">写一封信</button><button class="mini-btn" id="mailDraftOpenBtn" type="button">继续草稿</button></div><p class="data-note" id="mailUnreadCount">暂无未读</p><h3 style="margin-top:18px">收件箱</h3><div id="mailLetterList"></div><h3 style="margin-top:18px">草稿箱</h3><div id="mailDraftList"></div></div>
+<div class="panel-card">
+  <p class="data-note" id="mailUnreadCount">暂无未读</p>
+  <div class="mail-tabs" role="tablist" aria-label="信件分类">
+    <button class="mail-tab active" type="button" data-mail-tab="in" role="tab" aria-selected="true">收到的信</button>
+    <button class="mail-tab" type="button" data-mail-tab="out" role="tab" aria-selected="false">寄出的信</button>
+  </div>
+  <div id="mailLetterList"></div>
+  <div class="mail-footer"><button class="mail-write" id="mailComposeBtn" type="button">✎　提笔写信</button></div>
 </div>
-<div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（可选）"/><textarea id="mailComposeContent" placeholder="写下你想说的话……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailInsertCardBtn" type="button">插入聊天字卡</button><button class="mini-btn" id="mailImagePickBtn" type="button">添加图片</button><button class="mini-btn" id="mailDraftBtn" type="button">保存草稿</button><button class="primary" id="mailComposeSend" type="button">寄出</button></div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
+</div>
+<div class="mail-modal" id="mailComposeModal"><div class="mail-sheet"><div class="editor-head"><strong>写信</strong><button class="icon-close" id="mailComposeCancel" type="button">×</button></div><input id="mailComposeTitle" maxlength="120" placeholder="信件标题（选填）"/><textarea id="mailComposeContent" placeholder="今天想跟你说……"></textarea><div class="mail-actions"><button class="mini-btn" id="mailImagePickBtn" type="button">＋ 添加图片</button><button class="primary" id="mailComposeSend" type="button">封 · 寄出</button></div><div class="mail-image-grid" id="mailComposeImagesPreview"></div><input id="mailImageInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple hidden></div></div>
 <div class="mail-modal" id="mailReadModal"><div class="mail-sheet"><div class="editor-head"><strong id="mailReadTitle">信件</strong><button class="icon-close" id="mailReadClose" type="button">×</button></div><small id="mailReadMeta"></small><div class="mail-read-content" id="mailReadContent"></div><div class="mail-read-images" id="mailReadImages"></div><div class="mail-actions"><button class="mini-btn danger-btn" id="mailDeleteBtn" type="button">删除信件</button><button class="primary" id="mailReplyBtn" type="button" hidden>回复这封信</button></div></div></div>
 <div class="mail-modal mail-settings-modal" id="mailSettingsModal" aria-hidden="true">
   <div class="mail-sheet" role="dialog" aria-modal="true" aria-label="信箱设置">
-    <div class="editor-head"><strong>信箱设置</strong><button class="icon-close" id="mailSettingsClose" type="button" aria-label="关闭信箱设置">×</button></div>
+    <div class="mail-settings-title">信箱设置</div>
     <div id="mailSettingsMount"></div>
   </div>
 </div>
@@ -5054,8 +5063,6 @@ function latestPersistedMediaReferences(){
     (persisted?.stickers||[]).forEach(sticker=>{if(sticker?.mediaId)ids.add(sticker.mediaId);});
     const mailbox=JSON.parse(localStorage.getItem('twodeers_mailbox_letters_v1')||'null');
     (mailbox?.items||[]).forEach(letter=>(letter?.images||[]).forEach(image=>{if(image?.id)ids.add(image.id);}));
-    const drafts=JSON.parse(localStorage.getItem('twodeers_mailbox_drafts_v1')||'[]');
-    (Array.isArray(drafts)?drafts:[]).forEach(draft=>(draft?.images||[]).forEach(image=>{if(image?.id)ids.add(image.id);}));
   }catch(error){throw new Error('无法读取最新媒体引用，已停止自动清理：'+(error.message||error));}
   const library=readStickerLibraryStore();
   (library?.items||[]).forEach(sticker=>{if(sticker.mediaId)ids.add(sticker.mediaId);});
