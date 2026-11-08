@@ -52,10 +52,31 @@ jobs:
           echo "APK count: $count"
           test "$count" -eq 4
           find app/build/outputs/apk -type f -name '*.apk' -print
-      - name: Upload four APKs
+      - name: Upload 贝贝鹿 APK
         uses: actions/upload-artifact@v4
         with:
-          name: beibeilu-four-apks
-          path: android-apps/app/build/outputs/apk/*/debug/*.apk
+          name: twodeers-apk-beibeilu
+          path: android-apps/app/build/outputs/apk/beibeilu/debug/app-beibeilu-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿1 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-apk-lu1
+          path: android-apps/app/build/outputs/apk/lu1/debug/app-lu1-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿2 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-apk-lu2
+          path: android-apps/app/build/outputs/apk/lu2/debug/app-lu2-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload 鹿3 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-apk-lu3
+          path: android-apps/app/build/outputs/apk/lu3/debug/app-lu3-debug.apk
           if-no-files-found: error
           retention-days: 14
