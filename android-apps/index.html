@@ -45,14 +45,11 @@
 
 <h2 id="网页源码检查">网页源码检查</h2>
 
-<p>在仓库根目录使用 Node.js 22：</p>
+<p>在仓库根目录安装 Node.js 22 后，可运行随源码包提供的专项检查脚本：</p>
 
-<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npm ci
-npm run verify
-npm <span class="nb">test</span>
-</code></pre></div></div>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>node tools/verify-twodeers-hardening.mjs</code></pre></div></div>
 
-<p>需要运行真实浏览器回归时，先启动本地 HTTP 服务，再执行 <code class="language-plaintext highlighter-rouge">npm run test:browser</code>；若使用系统安装的 Chromium，可设置 <code class="language-plaintext highlighter-rouge">CHROMIUM_PATH</code> 指向浏览器可执行文件。CI 使用锁定的 Playwright 版本并安装对应 Chromium。</p>
+<p>当前源码包没有 <code class="language-plaintext highlighter-rouge">package.json</code>、npm 锁文件或 Playwright 浏览器测试配置，因此不提供 <code class="language-plaintext highlighter-rouge">npm ci</code>、<code class="language-plaintext highlighter-rouge">npm test</code> 或浏览器测试命令。真实浏览器和真机视觉回归需要在配置好对应运行环境后单独执行。</p>
 
 <h2 id="gradle-版本">Gradle 版本</h2>
 

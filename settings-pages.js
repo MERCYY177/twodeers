@@ -188,6 +188,7 @@
 
   function buildCategoryPages(){
     const profilePanels=Array.from($('#settingsIcon')?.children||[]).filter(node=>node.classList?.contains('panel-card'));
+    const readReceipt=$('#paramReadReceiptPanel');
     const reply=$('#paramReplySettingsPanel');
     const rhythm=$('#paramChatRhythmPanel');
     const rules=$('#paramChatRulesPanel');
@@ -205,7 +206,8 @@
       {key:'background',label:'背景图',nodes:[profilePanels[2]]}
     ]);
     defineCategory('chat','聊天设置',[
-      {key:'reply',label:'回复与已读',nodes:[reply]},
+      {key:'read-receipt',label:'已读设置',nodes:[readReceipt]},
+      {key:'reply',label:'回复设置',nodes:[reply]},
       {key:'rhythm',label:'聊天节奏',nodes:[rhythm]},
       {key:'rules',label:'聊天规则',nodes:[rules]}
     ]);
@@ -276,7 +278,8 @@
 
     buildCardManager();
     if(window.__duoCardSystem?.render)window.__duoCardSystem.render();
-    setPanelId('回复与已读','paramReplySettingsPanel');
+    setPanelId('回复设置','paramReplySettingsPanel');
+    setPanelId('已读设置','paramReadReceiptPanel');
     setPanelId('聊天节奏','paramChatRhythmPanel');
     setPanelId('聊天规则','paramChatRulesPanel');
     setPanelId('聊天外观','paramAppearancePanel');

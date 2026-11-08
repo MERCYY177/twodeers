@@ -4354,8 +4354,8 @@ window.__duoCircleApi = {
 <button type="button" data-settings-category="stickers"><strong>表情包管理</strong></button>
 <button type="button" data-settings-category="privacy"><strong>隐私与数据管理</strong></button>
 </div>
-<div class="panel-card">
-<h3>回复与已读</h3>
+<div class="panel-card" id="paramReplySettingsPanel">
+<h3>回复设置</h3>
 <div class="two-col">
 <div class="field">
 <label>最快回复（秒）</label>
@@ -4366,6 +4366,9 @@ window.__duoCircleApi = {
 <input id="replyMaxSec" min="0" placeholder="12" step="1" type="number"/>
 </div>
 </div>
+</div>
+<div class="panel-card" id="paramReadReceiptPanel">
+<h3>已读设置</h3>
 <div class="item-row">
 <div class="lab">已读样式</div>
 <div class="seg" id="readReceiptSeg" role="group" aria-label="已读样式">
@@ -4373,7 +4376,6 @@ window.__duoCircleApi = {
 <button type="button" data-read-style="checks"><span class="read-option-checks" aria-hidden="true">✓✓</span> 双对勾</button>
 </div>
 </div>
-
 </div>
 <div class="panel-card">
 <h3>聊天节奏</h3>
@@ -4432,14 +4434,6 @@ window.__duoCircleApi = {
 <button class="active" data-bubble="round">圆框</button>
 <button data-bubble="square">方框</button>
 </div>
-</div>
-<div class="item-row">
-<div class="lab">戳一戳</div>
-
-</div>
-<div class="item-row">
-<div class="lab">输入辅助栏</div>
-
 </div>
 
 </div>
@@ -5222,7 +5216,7 @@ function renderParamPhraseList(){
   const list=$('#paramPhraseList'),count=$('#paramPhraseCount');
   if(!list||!count)return;
   count.textContent='当前 '+state.cardPhrases.length+' 条字卡';
-  list.innerHTML=state.cardPhrases.length?state.cardPhrases.map((text,idx)=>`<div class="param-phrase-item"><div class="param-phrase-text">${escapeHtml(text)}</div><button class="param-phrase-delete" type="button" data-param-phrase-del="${idx}">删除</button></div>`).join(''):'<div class="param-phrase-empty">字卡池为空。添加自己的字卡后，聊天自动回复和戳一戳才会使用这些内容。</div>';
+  list.innerHTML=state.cardPhrases.length?state.cardPhrases.map((text,idx)=>`<div class="param-phrase-item"><div class="param-phrase-text">${escapeHtml(text)}</div><button class="param-phrase-delete" type="button" data-param-phrase-del="${idx}">删除</button></div>`).join(''):'<div class="param-phrase-empty">字卡池为空。</div>';
 }
 function syncCallSettings(){
   state.callSettings=Object.assign({enabled:true,audioEnabled:true,videoEnabled:true},state.callSettings||{});

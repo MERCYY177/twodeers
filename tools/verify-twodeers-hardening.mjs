@@ -60,6 +60,15 @@ assert.equal((activity.match(/startActivityForResult\(intent, BACKUP_SAVE_REQUES
 assert.match(read('settings-pages.js'), /window\.__duoHandleSystemBack=function/);
 
 const index = read('index.html');
+// User-facing settings regression: remove obsolete empty rows and expose the
+// two read-receipt modes as the first dedicated Chat Settings subpage.
+assert.doesNotMatch(index, /戳一戳|输入辅助栏/);
+assert.match(index, /<div class="panel-card" id="paramReadReceiptPanel">\s*<h3>已读设置<\/h3>/);
+assert.match(index, /id="readReceiptSeg"[\s\S]*?data-read-style="text"[\s\S]*?data-read-style="checks"/);
+assert.match(index, /state\.readReceiptStyle = btn\.dataset\.readStyle==='checks' \? 'checks' : 'text'/);
+const settingsPages = read('settings-pages.js');
+assert.match(settingsPages, /const readReceipt=\$\('#paramReadReceiptPanel'\)/);
+assert.ok(settingsPages.indexOf("{key:'read-receipt',label:'已读设置',nodes:[readReceipt]}") < settingsPages.indexOf("{key:'reply',label:'回复设置',nodes:[reply]}"));
 assert.doesNotMatch(index, /setInterval\(render,\s*700\)/);
 assert.doesNotMatch(index, /setInterval\(\(\)=>\{if\(!window\.__duoCircleRestorePaused\)syncNotificationsFromPosts\(\);\},\s*1200\)/);
 assert.match(index, /duo:notifications-changed/);

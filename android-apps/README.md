@@ -4,15 +4,13 @@
 
 ## 网页源码检查
 
-在仓库根目录使用 Node.js 22：
+在仓库根目录安装 Node.js 22 后，运行随源码包提供的专项检查脚本：
 
 ```bash
-npm ci
-npm run verify
-npm test
+node tools/verify-twodeers-hardening.mjs
 ```
 
-需要运行真实浏览器回归时，先启动本地 HTTP 服务，再执行 `npm run test:browser`；若使用系统安装的 Chromium，可设置 `CHROMIUM_PATH` 指向浏览器可执行文件。CI 使用锁定的 Playwright 版本并安装对应 Chromium。
+该源码包没有 `package.json`、npm 锁文件或 Playwright 浏览器测试配置，因此不提供 `npm ci`、`npm test` 或 `npm run test:browser` 命令。浏览器和真机视觉回归需要在配置好对应运行环境后单独执行。
 
 ## Gradle 版本
 
