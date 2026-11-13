@@ -79,17 +79,17 @@ android {
         create("lu1") {
             dimension = "instance"
             applicationIdSuffix = ".lu1"
-            resValue("string", "app_name", "鹿1")
+            resValue("string", "app_name", "传讯1")
         }
         create("lu2") {
             dimension = "instance"
             applicationIdSuffix = ".lu2"
-            resValue("string", "app_name", "鹿2")
+            resValue("string", "app_name", "传讯2")
         }
         create("lu3") {
             dimension = "instance"
             applicationIdSuffix = ".lu3"
-            resValue("string", "app_name", "鹿3")
+            resValue("string", "app_name", "传讯3")
         }
     }
 
