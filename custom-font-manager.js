@@ -35,6 +35,16 @@
 
   function error(message) { return new Error(message); }
 
+  function markRevisionOrReject(coordinator, operation) {
+    if (!coordinator || typeof coordinator.markDataChanged !== 'function') return;
+    if (coordinator.markDataChanged() === false) {
+      var failure = new Error(operation + '已提交，但跨标签页数据版本标记失败；当前页面已进入只读保护，请重新加载并检查字体库');
+      failure.name = 'RevisionMarkerError';
+      failure.dataCommitted = true;
+      throw failure;
+    }
+  }
+
   function openDatabase() {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise(function (resolve, reject) {
@@ -67,8 +77,8 @@
   function transactionDone(tx) {
     return new Promise(function (resolve, reject) {
       tx.oncomplete = function () { resolve(true); };
-      tx.onerror = function () { reject(tx.error || error('字体数据写入失败')); };
-      tx.onabort = function () { reject(tx.error || error('字体数据写入已取消')); };
+      tx.onerror = function () { reject(global.__duoRuntimeCoordinator?.normalizeQuotaError?.(tx.error || error('字体数据写入失败'), '字体库写入') || tx.error || error('字体数据写入失败')); };
+      tx.onabort = function () { reject(global.__duoRuntimeCoordinator?.normalizeQuotaError?.(tx.error || error('字体数据写入已取消'), '字体库写入') || tx.error || error('字体数据写入已取消')); };
     });
   }
 
@@ -89,11 +99,12 @@
   }
 
   function setCurrentId(id) {
+    if (global.__duoRuntimeCoordinator) { try { global.__duoRuntimeCoordinator.assertWritable('保存字体选择'); } catch (e) { return Promise.reject(e); } }
     return openDatabase().then(function (db) {
       var tx = db.transaction(META_STORE, 'readwrite');
       var done = transactionDone(tx);
       tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: id || null, updatedAt: Date.now() });
-      return done;
+      return done.then(function (value) { markRevisionOrReject(global.__duoRuntimeCoordinator, '字体选择'); return value; });
     });
   }
 
@@ -277,6 +288,7 @@
       return getFont(id).then(function (record) {
         if (!record) {
           if (global.document.documentElement.classList.contains('chuanxun-local-font-active')) restoreCssDefault();
+          if (options.throwOnError) throw error('当前字体记录不存在：' + id);
           if (!options.silent) return setCurrentId(null).then(function () { return null; });
           return null;
         }
@@ -286,24 +298,36 @@
         });
       });
     }).catch(function (e) {
+      if (options.throwOnError) throw e;
       console.warn('[本地字体] 恢复字体失败，保留系统默认字体', e);
       return null;
     });
   }
 
+  function beginFontMutation(label) {
+    var coordinator = global.__duoRuntimeCoordinator;
+    if (!coordinator) return null;
+    if (typeof coordinator.beginMutation === 'function') return coordinator.beginMutation(label || '修改字体库');
+    if (typeof coordinator.assertWritable === 'function') coordinator.assertWritable(label || '修改字体库');
+    return null;
+  }
+
   function saveFontRecord(record) {
+    if (global.__duoRuntimeCoordinator) global.__duoRuntimeCoordinator.assertWritable('保存字体');
     return openDatabase().then(function (db) {
-      var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
+      var tx = beginFontSnapshotTransaction(db, null, '字体快照写入');
       var done = transactionDone(tx);
       tx.objectStore(FONT_STORE).put(record);
       tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: record.id, updatedAt: Date.now() });
-      return done;
+      return done.then(function (value) { markRevisionOrReject(global.__duoRuntimeCoordinator, '字体保存'); return value; });
     });
   }
 
   function importFont(file) {
     if (!file) return Promise.reject(error('没有选择字体文件'));
     if (!file.size || file.size > MAX_FILE_SIZE) return Promise.reject(error('字体文件不能为空，且不能超过 50 MB'));
+    var endMutation;
+    try { endMutation = beginFontMutation('导入字体'); } catch (e) { return Promise.reject(e); }
     return file.arrayBuffer().then(function (buffer) {
       var format = detectFormat(buffer, file.name);
       var blob = new Blob([buffer], { type: MIME_BY_FORMAT[format] });
@@ -346,14 +370,16 @@
           throw e;
         }
       });
-    });
+    }).finally(function () { if (endMutation) endMutation(); });
   }
 
   function applyFont(id) {
+    var endMutation;
+    try { endMutation = beginFontMutation('更改当前字体'); } catch (e) { return Promise.reject(e); }
     return getFont(id).then(function (record) {
       if (!record) throw error('找不到选中的字体文件');
       return buildFontFace(record).then(function (loaded) { return applyLoadedFace(record, loaded, true); });
-    });
+    }).finally(function () { if (endMutation) endMutation(); });
   }
 
   function previewFont(id, target) {
@@ -373,6 +399,8 @@
 
   function deleteFont(id) {
     if (!id) return Promise.reject(error('请先选择要删除的字体'));
+    var endMutation;
+    try { endMutation = beginFontMutation('删除字体'); } catch (e) { return Promise.reject(e); }
     return getMeta(CURRENT_KEY).then(function (currentId) {
       return openDatabase().then(function (db) {
         var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
@@ -380,6 +408,7 @@
         tx.objectStore(FONT_STORE).delete(id);
         if (currentId === id) tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: null, updatedAt: Date.now() });
         return done.then(function () {
+          markRevisionOrReject(global.__duoRuntimeCoordinator, '字体删除');
           if (activeFontId === id) {
             restoreCssDefault();
             clearLegacyFontPreference();
@@ -393,17 +422,19 @@
           return true;
         });
       });
-    });
+    }).finally(function () { if (endMutation) endMutation(); });
   }
 
   function restoreDefault() {
+    var endMutation;
+    try { endMutation = beginFontMutation('恢复默认字体'); } catch (e) { return Promise.reject(e); }
     return setCurrentId(null).then(function () {
       restoreCssDefault();
       clearLegacyFontPreference();
       publish({ type: 'font-current-changed', fontId: null });
       refreshUi();
       return true;
-    });
+    }).finally(function () { if (endMutation) endMutation(); });
   }
 
   function bytesLabel(size) {
@@ -567,21 +598,82 @@
     });
   }
 
-  function importData(payload, options) {
-    options = options || {};
-    var source = payload && Array.isArray(payload.fonts) ? payload.fonts : [];
+  function beginFontSnapshotTransaction(db, options, operation) {
+    var strict = options && options.durability === 'strict';
+    var tx;
+    try {
+      tx = strict ? db.transaction([FONT_STORE, META_STORE], 'readwrite', { durability: 'strict' }) : db.transaction([FONT_STORE, META_STORE], 'readwrite');
+    } catch (e) {
+      if (strict) throw error((operation || '字体快照写入') + '无法建立严格持久化事务：' + (e.message || e));
+      throw e;
+    }
+    if (strict && tx.durability !== 'strict') {
+      try { tx.abort(); } catch (_) {}
+      throw error((operation || '字体快照写入') + '：当前浏览器不支持严格持久化事务，已停止写入');
+    }
+    return tx;
+  }
+
+  function assertImportDurability() {
+    return openDatabase().then(function (db) {
+      var tx = beginFontSnapshotTransaction(db, { durability: 'strict' }, 'V4 字体恢复预检');
+      try { tx.abort(); } catch (e) { throw error('V4 字体恢复严格事务预检失败：' + (e.message || e)); }
+      return true;
+    });
+  }
+
+  function writeFontSnapshot(snapshot, options) {
+    var coordinator = global.__duoRuntimeCoordinator;
+    var endMutation = null;
+    try { if (coordinator && typeof coordinator.beginMutation === 'function') endMutation = coordinator.beginMutation('写入字体数据库'); }
+    catch (error) { return Promise.reject(error); }
+    return openDatabase().then(function (db) {
+      var tx = beginFontSnapshotTransaction(db, options, '字体快照写入');
+      var done = transactionDone(tx);
+      var fontStore = tx.objectStore(FONT_STORE);
+      fontStore.clear();
+      (snapshot.fonts || []).forEach(function (record) { fontStore.put(record); });
+      tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: snapshot.currentFontId || null, updatedAt: Date.now() });
+      return done.then(function (value) { markRevisionOrReject(coordinator, '字体快照写入'); return value; });
+    }).finally(function () { if (endMutation) endMutation(); });
+  }
+
+  function fontSnapshotSignature(snapshot) {
+    return JSON.stringify({
+      currentFontId: snapshot.currentFontId || null,
+      fonts: (snapshot.fonts || []).map(function (item) {
+        return { id: item.id, size: item.size, format: item.format, fileName: item.fileName };
+      }).sort(function (a, b) { return a.id.localeCompare(b.id); })
+    });
+  }
+
+  function validateFontData(payload, requireFontsArray) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return Promise.reject(error('字体备份格式无效'));
+    if (requireFontsArray && !Array.isArray(payload.fonts)) return Promise.reject(error('字体备份缺少字体文件清单'));
+    // Keep importData's legacy tolerance for a missing fonts property; crash
+    // recovery opts into the strict form because its snapshot must be complete.
+    var source = Array.isArray(payload.fonts) ? payload.fonts : [];
     if (source.length > 500) return Promise.reject(error('字体备份条目过多'));
+    var incomingIds = new Set();
+    for (var i = 0; i < source.length; i++) {
+      var item = source[i];
+      if (!item || typeof item.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(item.id) || incomingIds.has(item.id)) return Promise.reject(error('字体备份 ID 无效或重复'));
+      incomingIds.add(item.id);
+    }
+    if (payload.currentFontId !== undefined && payload.currentFontId !== null && (typeof payload.currentFontId !== 'string' || !incomingIds.has(payload.currentFontId))) {
+      return Promise.reject(error('当前字体 ID 不存在于导入字体清单'));
+    }
     var totalBytes = 0;
-    // Validate fonts one at a time to avoid loading a library of large FontFace objects concurrently.
     return source.reduce(function (chain, item) {
       return chain.then(function (records) {
-        if (!item || typeof item.id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(item.id)) throw error('字体备份 ID 无效');
         var blob = item.blob instanceof Blob ? item.blob : null;
         if (!blob || !blob.size || blob.size > MAX_FILE_SIZE) throw error('字体备份文件缺失或超过 50 MB');
+        if (item.size !== undefined && Number(item.size) !== blob.size) throw error('字体备份文件大小与元数据不一致：' + item.id);
         totalBytes += blob.size;
         if (totalBytes > 1024 * 1024 * 1024) throw error('字体库总大小超过 1 GB');
         return blob.slice(0, 16).arrayBuffer().then(function (head) {
           var format = detectFormat(head, item.fileName || ('font.' + item.format));
+          if (item.format && String(item.format).toLowerCase() !== format) throw error('字体文件实际格式与元数据不一致：' + item.id);
           var record = { id: item.id, name: String(item.name || '自定义字体').slice(0, 120), fileName: String(item.fileName || ('font.' + format)).slice(0, 180), format: format, mimeType: MIME_BY_FORMAT[format], size: blob.size, blob: blob, createdAt: Number(item.createdAt) || Date.now() };
           return buildFontFace(record).then(function (loaded) {
             try { global.document.fonts.delete(loaded.face); } catch (_) {}
@@ -591,17 +683,54 @@
         });
       });
     }, Promise.resolve([])).then(function (records) {
-      return openDatabase().then(function (db) {
-        var tx = db.transaction([FONT_STORE, META_STORE], 'readwrite');
-        var done = transactionDone(tx);
-        if (options.replace === true) tx.objectStore(FONT_STORE).clear();
-        records.forEach(function (record) { tx.objectStore(FONT_STORE).put(record); });
-        var wanted = payload.currentFontId && records.some(function (record) { return record.id === payload.currentFontId; }) ? payload.currentFontId : null;
-        tx.objectStore(META_STORE).put({ key: CURRENT_KEY, value: wanted, updatedAt: Date.now() });
-        return done.then(function () { return restoreCurrent(); });
-      });
+      return { currentFontId: payload.currentFontId || null, fonts: records };
     });
   }
+
+  // Crash recovery uses this preflight before touching any other module. It
+  // validates the actual font bytes and FontFace parser without mutating IDB.
+  function validateData(payload) {
+    return validateFontData(payload, true).then(function () { return true; });
+  }
+
+  function importData(payload, options) {
+    options = options || {};
+    var endMutation;
+    try { endMutation = beginFontMutation('恢复字体库'); } catch (e) { return Promise.reject(e); }
+    return validateFontData(payload, false).then(function (validated) {
+      var records = validated.fonts;
+      var incomingIds = new Set(records.map(function (item) { return item.id; }));
+      return exportData().then(function (oldSnapshot) {
+        var merged = options.replace === true ? records.slice() : (oldSnapshot.fonts || []).filter(function (old) { return !incomingIds.has(old.id); }).concat(records);
+        var wanted = validated.currentFontId || (options.replace === true ? null : (oldSnapshot.currentFontId || null));
+        if (wanted && !merged.some(function (record) { return record.id === wanted; })) throw error('导入后的当前字体不存在');
+        var nextSnapshot = { currentFontId: wanted, fonts: merged };
+        var changed = false;
+        var writeOptions = options.durability === 'strict' ? { durability: 'strict' } : undefined;
+        return writeFontSnapshot(nextSnapshot, writeOptions).then(function () {
+          changed = true;
+          activeFontId = '';
+          return restoreCurrent({ throwOnError: true }).then(function () { return exportData(); });
+        }).then(function (check) {
+          if (fontSnapshotSignature(check) !== fontSnapshotSignature(nextSnapshot)) throw error('字体库写入后回读校验不一致');
+          refreshUi();
+          return true;
+        }).catch(function (importError) {
+          if (!changed) throw importError;
+          return writeFontSnapshot(oldSnapshot, writeOptions).then(function () {
+            activeFontId = '';
+            return restoreCurrent({ throwOnError: true });
+          }).then(function () {
+            throw importError;
+          }).catch(function (rollbackError) {
+            if (rollbackError === importError) throw importError;
+            throw error((importError.message || '字体导入失败') + '；字体库回滚失败：' + (rollbackError.message || rollbackError));
+          });
+        });
+      });
+    }).finally(function () { if (endMutation) endMutation(); });
+  }
+
 
   var api = {
     importFont: importFont,
@@ -616,7 +745,10 @@
     _detectFormat: detectFormat,
     _dbName: DB_NAME,
     exportData: exportData,
-    importData: importData
+    validateData: validateData,
+    importData: importData,
+    assertImportDurability: assertImportDurability,
+    _fontSnapshotSignature: fontSnapshotSignature
   };
   global.ChuanXunFontManager = api;
 

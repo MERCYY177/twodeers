@@ -78,11 +78,18 @@
     const entries=[];let stateData={},mediaIds=[];
     const mailboxMediaIds=new Set();
     if(mailboxSnapshot){const mailbox=mailboxSnapshot.mailbox||mailboxSnapshot;for(const letter of mailbox.items||[])for(const image of letter.images||[])if(image&&image.id)mailboxMediaIds.add(image.id);}
-    if(kind==='all'){stateData={state:stateSnapshot};mediaIds=[...new Set([...(stateSnapshot.chatHistory||[]),...(stateSnapshot.stickers||[])].filter(x=>x&&x.mediaId).map(x=>x.mediaId).concat([...mailboxMediaIds]))];}
+    if(kind==='all'){
+      stateData={state:stateSnapshot};
+      const circleMediaIds=window.__duoCircleMedia?.collectIdsFromState?.(circleSnapshot)||new Set();
+      mediaIds=[...new Set([...(stateSnapshot.chatHistory||[]),...(stateSnapshot.stickers||[])].filter(x=>x&&x.mediaId).map(x=>x.mediaId).concat([...mailboxMediaIds],[...circleMediaIds]))];
+    }
     else if(kind==='chat'){
       const ids=new Set((stateSnapshot.chatHistory||[]).filter(m=>m.mediaId).map(m=>m.mediaId));(stateSnapshot.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});mediaIds=[...ids];
-      stateData={chatHistory:stateSnapshot.chatHistory,stickers:stateSnapshot.stickers,stickerFavorites:stateSnapshot.stickerFavorites||[],stickerTombstones:stateSnapshot.stickerTombstones||[],media:{'avatar-me':stateSnapshot.media?.['avatar-me'],'avatar-other':stateSnapshot.media?.['avatar-other'],'bg-chat':stateSnapshot.media?.['bg-chat']},bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,readReceiptStyle:stateSnapshot.readReceiptStyle||'text',typing:stateSnapshot.typing,offline:stateSnapshot.offline,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId};
-    }else if(kind==='param'){mediaIds=[...mailboxMediaIds];stateData={icons:stateSnapshot.icons,media:stateSnapshot.media,avatarShape:stateSnapshot.avatarShape,bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,customCSS:stateSnapshot.customCSS,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,readReceiptStyle:stateSnapshot.readReceiptStyle||'text',typing:stateSnapshot.typing,offline:stateSnapshot.offline,cardPhrases:stateSnapshot.cardPhrases,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId,cardUsageOutbox:stateSnapshot.cardUsageOutbox||[]};
+      stateData={chatHistory:stateSnapshot.chatHistory,stickers:stateSnapshot.stickers,stickerFavorites:stateSnapshot.stickerFavorites||[],stickerTombstones:stateSnapshot.stickerTombstones||[],media:{'avatar-me':stateSnapshot.media?.['avatar-me'],'avatar-other':stateSnapshot.media?.['avatar-other'],'bg-chat':stateSnapshot.media?.['bg-chat']},bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,readReceiptStyle:stateSnapshot.readReceiptStyle||'text',enterKeySendEnabled:stateSnapshot.enterKeySendEnabled===true,typing:stateSnapshot.typing,offline:stateSnapshot.offline,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId};
+    }else if(kind==='param'){
+      const profileMediaIds=window.__duoCircleMedia?.collectIdsFromState?.(circleSnapshot,{profileOnly:true})||new Set();
+      mediaIds=[...new Set([...mailboxMediaIds,...profileMediaIds])];
+      stateData={icons:stateSnapshot.icons,media:stateSnapshot.media,avatarShape:stateSnapshot.avatarShape,bubbleShape:stateSnapshot.bubbleShape,bubbleColors:stateSnapshot.bubbleColors,appearanceColors:stateSnapshot.appearanceColors,appearanceSettings:stateSnapshot.appearanceSettings,customCSS:stateSnapshot.customCSS,replyWindow:stateSnapshot.replyWindow,showReadReceipt:stateSnapshot.showReadReceipt,readReceiptStyle:stateSnapshot.readReceiptStyle||'text',enterKeySendEnabled:stateSnapshot.enterKeySendEnabled===true,typing:stateSnapshot.typing,offline:stateSnapshot.offline,cardPhrases:stateSnapshot.cardPhrases,callSettings:stateSnapshot.callSettings,incomingCallSettings:stateSnapshot.incomingCallSettings,chatBeautifyPresetId:stateSnapshot.chatBeautifyPresetId,cardUsageOutbox:stateSnapshot.cardUsageOutbox||[]};
     }
     entries.push({path:'state.json',blob:jsonBlob(stateData),type:'state'});
     if(kind==='all')entries.push({path:'circle-state.json',blob:jsonBlob(circleSnapshot),type:'circle-state'});
@@ -97,20 +104,41 @@
       entries.push({path:'card-system.json',blob:jsonBlob(cardSnapshot),type:'card-system'});
     }
     for(const id of mediaIds){const rec=await getMediaRecord(id);if(!rec||!rec.blob)throw new Error('备份媒体缺失：'+id);entries.push({path:'media/'+encodeURIComponent(id)+'.blob',blob:rec.blob,type:'media',id:rec.id,kind:rec.kind,name:rec.name,mimeType:rec.mimeType,createdAt:rec.createdAt});}
-    let fontsCurrentId=null;
-    if(kind!=='chat'){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
+    let fontsCurrentId=null,fontSnapshotSignature=null;
+    if(kind!=='chat'){const exported=await window.ChuanXunFontManager.exportData();fontsCurrentId=exported.currentFontId||null;const fontMeta=[];for(const f of exported.fonts||[]){if(!f.blob)throw new Error('字体文件缺失：'+f.id);const p='fonts/'+encodeURIComponent(f.id)+'.'+f.format;entries.push({path:p,blob:f.blob,type:'font',id:f.id,name:f.name,format:f.format,mimeType:f.mimeType,createdAt:f.createdAt});fontMeta.push({id:f.id,name:f.name,fileName:f.fileName,format:f.format,mimeType:f.mimeType,size:f.size,createdAt:f.createdAt,path:p});}fontSnapshotSignature=JSON.stringify({currentFontId:fontsCurrentId,fonts:fontMeta.map(x=>({id:x.id,size:x.size,format:x.format,path:x.path})).sort((a,b)=>a.id.localeCompare(b.id))});entries.push({path:'font-library.json',blob:jsonBlob({currentFontId:fontsCurrentId,fonts:fontMeta}),type:'font-library'});}
     window.__duoBackupKind=kind;window.__duoBackupFontCurrentId=fontsCurrentId;
-    try{return await makeZip(entries);}finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
+    try{
+      const archive=await makeZip(entries);
+      if(JSON.stringify(state)!==JSON.stringify(stateSnapshot))throw new Error('生成备份期间聊天/参数状态发生变化，已取消不一致备份');
+      if(kind!=='chat'&&JSON.stringify(getCircleState()||{})!==JSON.stringify(circleSnapshot))throw new Error('生成备份期间朋友圈状态发生变化，已取消不一致备份');
+      if(kind!=='chat'){
+        if(JSON.stringify(window.__duoMailbox.exportData())!==JSON.stringify(mailboxSnapshot))throw new Error('生成备份期间信件数据发生变化，已取消不一致备份');
+        if(JSON.stringify(window.__duoCardSystem.exportData())!==JSON.stringify(cardSnapshot))throw new Error('生成备份期间字卡数据发生变化，已取消不一致备份');
+        const latestFonts=await window.ChuanXunFontManager.exportData();
+        const latestSignature=JSON.stringify({currentFontId:latestFonts.currentFontId||null,fonts:(latestFonts.fonts||[]).map(x=>({id:x.id,size:x.size,format:x.format,path:'fonts/'+encodeURIComponent(x.id)+'.'+x.format})).sort((a,b)=>a.id.localeCompare(b.id))});
+        if(latestSignature!==fontSnapshotSignature)throw new Error('生成备份期间字体库发生变化，已取消不一致备份');
+      }
+      return archive;
+    }finally{delete window.__duoBackupKind;delete window.__duoBackupFontCurrentId;}
   }
   let exportInProgress=false;
   async function buildV4(kind){
+    window.__duoVoiceCapture?.assertIdle?.('生成 V4 备份');
+    if(!['all','chat','param'].includes(kind))throw new Error('不支持的备份类型');
     if(exportInProgress||window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('当前已有备份导出或恢复任务正在执行');
-    exportInProgress=true;window.__duoExportInProgress=true;let overlay=null;
+    const coordinator=window.__duoRuntimeCoordinator;
+    coordinator?.assertWritable?.('生成 V4 备份');
+    // Acquire the shared lock synchronously before any await; otherwise two exports
+    // can both pass the guard while waiting for the same legacy Circle migration.
+    const endMutation=coordinator?.beginMutation?.('生成 V4 备份');
+    exportInProgress=true;window.__duoExportInProgress=true;let overlay=null,tasksPaused=false;
     try{
+      await window.__duoCircleMedia?.waitForMigration?.();
+      if(kind!=='chat')await window.__duoCircleMedia?.migrateLegacy?.({allowExport:true});
       overlay=document.createElement('div');overlay.id='duoBackupOverlay';overlay.textContent='正在冻结数据并生成备份，请勿关闭页面…';overlay.style.cssText='position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,20,20,.68);color:#fff;font:600 15px/1.6 sans-serif;text-align:center;';document.body.appendChild(overlay);
-      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();tasksPaused=true;
       return await buildV4Internal(kind);
-    }finally{overlay?.remove();exportInProgress=false;window.__duoExportInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
+    }finally{overlay?.remove();exportInProgress=false;window.__duoExportInProgress=false;if(tasksPaused){window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}endMutation?.();}
   }
   async function readJsonBlob(blob,path,maxBytes=MAX_JSON_MEMBER){if(!(blob instanceof Blob)||blob.size>maxBytes)throw new Error(path+' 超过 JSON 单文件读取上限（'+Math.floor(maxBytes/1024/1024)+' MB）');let text;try{text=await blob.text();return JSON.parse(text);}catch(error){if(error instanceof SyntaxError)throw new Error(path+' 不是有效 JSON');throw error;}}
   async function readJsonMember(map,path,maxBytes=MAX_JSON_MEMBER){const entry=map.get(path);if(!entry)throw new Error('缺少备份文件：'+path);if(entry.size>maxBytes)throw new Error(path+' 超过 JSON 单文件读取上限（'+Math.floor(maxBytes/1024/1024)+' MB）');return readJsonBlob(entry.blob,path,maxBytes);}
@@ -119,11 +147,59 @@
     if(!Array.isArray(value)||value.length>max)throw new Error(path+' 数量或格式无效');
     if(objects&&value.some(item=>!item||typeof item!=='object'||Array.isArray(item)))throw new Error(path+' 包含无效条目');
   }
+  function validateManifestResourceIdentities(manifest){
+    if(!manifest||!Array.isArray(manifest.resources))throw new Error('V4 清单资源列表无效');
+    const mediaIds=new Set(),fontIds=new Set();
+    for(const item of manifest.resources){
+      if(!item||typeof item!=='object')throw new Error('V4 资源条目无效');
+      if(item.type==='media'){
+        if(typeof item.id!=='string'||!/^[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,255}$/.test(item.id))throw new Error('V4 媒体 ID 无效');
+        if(mediaIds.has(item.id))throw new Error('V4 清单存在重复媒体 ID：'+item.id);
+        mediaIds.add(item.id);
+        if(typeof item.kind!=='string'||!/^[A-Za-z0-9_-]{1,64}$/.test(item.kind))throw new Error('V4 媒体类型无效：'+item.id);
+        const expected='media/'+encodeURIComponent(item.id)+'.blob';
+        if(item.path!==expected)throw new Error('V4 媒体资源路径与 ID 不匹配：'+item.id);
+      }else if(item.type==='font'){
+        if(typeof item.id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(item.id))throw new Error('V4 字体 ID 无效');
+        if(fontIds.has(item.id))throw new Error('V4 清单存在重复字体 ID：'+item.id);
+        fontIds.add(item.id);
+        const format=String(item.format||'').toLowerCase();
+        if(!['ttf','otf','woff','woff2'].includes(format))throw new Error('V4 字体格式无效：'+item.id);
+        const expected='fonts/'+encodeURIComponent(item.id)+'.'+format;
+        if(item.path!==expected)throw new Error('V4 字体资源路径与 ID 不匹配：'+item.id);
+      }
+    }
+    return {mediaIds,fontIds};
+  }
+  function validateFontLibraryManifest(fonts,manifest,map){
+    assertImportedObject(fonts,'font-library.json');
+    assertImportedArray(fonts.fonts||[],'字体清单',500,true);
+    const declared=new Map();
+    for(const item of manifest.resources.filter(resource=>resource.type==='font'))declared.set(item.id,item);
+    const ids=new Set(),paths=new Set();
+    for(const font of fonts.fonts||[]){
+      const id=font.id,format=String(font.format||'').toLowerCase(),path=font.path;
+      if(typeof id!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(id)||ids.has(id))throw new Error('字体清单 ID 无效或重复：'+String(id||''));
+      ids.add(id);
+      if(typeof path!=='string'||!safePath(path)||paths.has(path)||!['ttf','otf','woff','woff2'].includes(format))throw new Error('字体元数据路径或格式无效：'+id);
+      paths.add(path);
+      const expected='fonts/'+encodeURIComponent(id)+'.'+format;
+      if(path!==expected)throw new Error('字体元数据路径与 ID 不匹配：'+id);
+      const resource=declared.get(id),file=map.get(path);
+      if(!resource||resource.path!==path||!file||resource.size!==font.size||file.size!==font.size)throw new Error('字体元数据与 ZIP 资源不匹配：'+id);
+      if(resource.format!==format)throw new Error('字体格式元数据不一致：'+id);
+    }
+    if(declared.size!==ids.size)throw new Error('V4 字体资源与字体库清单数量不一致');
+    if(fonts.currentFontId!==null&&fonts.currentFontId!==undefined&&(!ids.has(fonts.currentFontId)||typeof fonts.currentFontId!=='string'))throw new Error('当前字体 ID 不存在于字体清单');
+    if((manifest.fontsCurrentId||null)!==(fonts.currentFontId||null))throw new Error('V4 清单当前字体与字体库文件不一致');
+    return true;
+  }
   function isSafeImportedUrl(raw){
     if(typeof raw!=='string'||!raw.trim())return true;
     const value=raw.trim();
     if(value.length>1400000000||/[\u0000-\u0020\\<>\"']/.test(value))return false;
-    if(/^data:/i.test(value))return /^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/(?:mp4|webm)|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(value);
+    if(/^idb-media:/i.test(value))return /^idb-media:[A-Za-z0-9_-][A-Za-z0-9_.:-]{0,255}$/.test(value);
+    if(/^data:/i.test(value))return /^data:(?:image\/(?:png|jpe?g|webp|gif|avif)|video\/[a-z0-9.+-]+|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(value);
     if(/^[a-z][a-z0-9+.-]*:/i.test(value)){
       try{const url=new URL(value);return (url.protocol==='http:'||url.protocol==='https:')&&!url.username&&!url.password;}catch(_){return false;}
     }
@@ -145,7 +221,7 @@
       if(item&&typeof item==='object')validateImportedUrls(item,next,depth+1,budget);
     }
   }
-  async function validateV4Payloads(kind,map,data){
+  async function validateV4Payloads(kind,map,data,manifest){
     const stateData=data.state||data;
     assertImportedObject(stateData,'state.json');
     for(const [key,max] of [['chatHistory',200000],['stickers',10000],['notifications',10000],['posts',50000],['stickerTombstones',10000]]){
@@ -195,13 +271,8 @@
       }
       if(cards.recentDrawnRepliesV1!==undefined)assertImportedArray(cards.recentDrawnRepliesV1,'最近字卡记录',200,true);
       const fonts=await readJsonMember(map,'font-library.json');
-      assertImportedObject(fonts,'font-library.json');
       validateImportedUrls(fonts,'font-library.json');
-      assertImportedArray(fonts.fonts||[],'字体清单',500,true);
-      for(const font of fonts.fonts||[]){
-        if(typeof font.id!=='string'||font.id.length>256||typeof font.path!=='string'||!safePath(font.path)||!['ttf','otf','woff','woff2'].includes(String(font.format||'').toLowerCase()))throw new Error('字体元数据无效');
-        if(!map.has(font.path))throw new Error('字体资源缺失：'+font.id);
-      }
+      validateFontLibraryManifest(fonts,manifest||{resources:[]},map);
     }
     if(kind==='all'){
       if(!map.has('circle-state.json'))throw new Error('总备份缺少朋友圈状态文件');
@@ -256,6 +327,7 @@
     if(!map.has('manifest.json'))throw new Error('缺少 manifest.json');
     const manifest=await readJsonMember(map,'manifest.json',MAX_MANIFEST);
     if(!manifest||typeof manifest!=='object'||Array.isArray(manifest)||manifest.format!=='twodeers-backup'||manifest.formatVersion!==4||!['all','chat','param'].includes(manifest.kind)||!Array.isArray(manifest.resources))throw new Error('不是受支持的双人空间 V4 备份');
+    validateManifestResourceIdentities(manifest);
     if(manifest.resources.length!==map.size-1||manifest.resourceCount!==manifest.resources.length||manifest.resources.length>65534)throw new Error('manifest 资源数量与 ZIP 内容不一致');
     if(!Number.isSafeInteger(manifest.totalResourceBytes)||manifest.totalResourceBytes<0)throw new Error('manifest 总资源字节数字段无效');
     const declaredBytes=manifest.resources.reduce((n,x)=>n+(Number.isSafeInteger(x&&x.size)&&x.size>=0?x.size:NaN),0);
@@ -279,7 +351,7 @@
   async function restoreV4Internal(blob){
     const parsed=await unzipStored(blob),{manifest,map}=parsed,kind=manifest.kind;
     const data=await readJsonMember(map,'state.json');if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('state.json 格式无效');
-    await validateV4Payloads(kind,map,data);
+    await validateV4Payloads(kind,map,data,manifest);
     if(kind==='all'||kind==='param'){
       for(const path of ['mailbox-data.json','card-system.json','font-library.json'])if(!map.has(path))throw new Error('参数/总备份缺少必需模块文件：'+path);
       if(!window.__duoMailbox||typeof window.__duoMailbox.importData!=='function')throw new Error('信件模块不可用，无法恢复此备份');
@@ -290,18 +362,60 @@
     }
     if(kind==='all'&&!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
     const mediaEntries=manifest.resources.filter(x=>x.type==='media'),fontEntries=manifest.resources.filter(x=>x.type==='font');
+    const availableMediaIds=new Set(mediaEntries.map(item=>item.id));
+    const circleReferenceIds=(circle,options)=>window.__duoCircleMedia?.collectIdsFromState?.(circle,options)||new Set();
+    if(kind==='all'){
+      const circleData=await readJsonMember(map,'circle-state.json');
+      for(const id of circleReferenceIds(circleData))if(!availableMediaIds.has(id))throw new Error('总备份缺少朋友圈引用的媒体文件：'+id);
+    }else if(kind==='param'){
+      const circleSettings=await readJsonMember(map,'circle-settings.json');
+      for(const id of circleReferenceIds(circleSettings,{profileOnly:true}))if(!availableMediaIds.has(id))throw new Error('参数备份缺少头像/背景引用的媒体文件：'+id);
+    }
+    const oldMediaReferences=latestPersistedMediaReferences();
     const newMedia=new Map(),oldState=JSON.stringify(state),oldStorage=localStorage.getItem(STORAGE_KEY),oldStickerLibrary=window.__duoStickerState?.exportSnapshot?.()||null,oldCircle=(kind==='all'||kind==='param')?getCircleState():null;
     const oldFonts=(kind!=='chat'&&window.ChuanXunFontManager)?await window.ChuanXunFontManager.exportData():null;
     const oldMailbox=(kind!=='chat'&&window.__duoMailbox)?window.__duoMailbox.exportData():null;
     const oldCards=(kind!=='chat'&&window.__duoCardSystem)?window.__duoCardSystem.exportData():null;
     for(const item of mediaEntries)newMedia.set(item.id,await getMediaRecord(item.id));
     let circleWritten=false,fontsWritten=false,mailboxWritten=false,cardsWritten=false;
+    const coordinator=window.__duoRuntimeCoordinator;
+    if(!coordinator||typeof coordinator.saveRecoveryJournal!=='function')throw new Error('运行时恢复保护模块不可用，已在写入前停止恢复');
+    // V4 must not mark the restore COMMITTED until the separate media/font
+    // databases have acknowledged strict transaction durability as well.
+    // Probe every required database before writing PREPARED or touching data.
+    if(mediaEntries.length){
+      if(typeof window.__duoMediaTransactions?.assertStrictDurability!=='function')throw new Error('媒体严格持久化预检不可用，已在写入前停止恢复');
+      await window.__duoMediaTransactions.assertStrictDurability();
+    }
+    if(kind!=='chat'){
+      if(typeof window.ChuanXunFontManager?.assertImportDurability!=='function')throw new Error('字体严格持久化预检不可用，已在写入前停止恢复');
+      await window.ChuanXunFontManager.assertImportDurability();
+    }
+    const preparedAt=Date.now();
+    const preparedJournal={
+      id:coordinator.journalId,formatVersion:1,phase:'prepared',createdAt:preparedAt,kind,
+      oldState,oldStorage,oldStickerLibrary,oldCircle,oldFonts,oldMailbox,oldCards,
+      oldMedia:Array.from(newMedia.entries())
+    };
+    try{
+      await coordinator.saveRecoveryJournal(preparedJournal);
+    }catch(journalWriteError){
+      let journalAfterFailure=null,journalReadError=null;
+      try{journalAfterFailure=await coordinator.readRecoveryJournal();}catch(error){journalReadError=error;}
+      const journalMayExist=!!journalAfterFailure||!!journalReadError;
+      if(journalMayExist){
+        const reason='V4 恢复保护日志写入/回读结果不确定；为避免下次启动按旧快照覆盖新写入，当前页面已锁定。原始错误：'+(journalWriteError.message||journalWriteError)+(journalReadError?'；日志复查失败：'+(journalReadError.message||journalReadError):'');
+        coordinator.setRecoveryBlocked?.(reason);
+        throw new Error(reason+'。请重新加载，让启动恢复流程先检查保护日志');
+      }
+      throw journalWriteError;
+    }
     try{
       cancelPendingReplies?.();
       clearIncomingRingTimer?.();clearIncomingSchedule?.(true);
       if(typeof callTimerHandle!=='undefined'&&callTimerHandle){clearInterval(callTimerHandle);callTimerHandle=null;}
       window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
-      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();
+      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();window.__duoCircleMedia?.invalidate?.();
       mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();
       stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
       const mediaData=new Map();for(const item of mediaEntries){const recBlob=map.get(item.path).blob;if(recBlob.size!==item.size)throw new Error('媒体大小异常：'+item.path);mediaData.set(item.id,{blob:recBlob,meta:item});}
@@ -310,21 +424,23 @@
       const chatSource=kind==='chat'?data:(kind==='all'?incomingState:null);
       if(chatSource){const ids=new Set();(chatSource.chatHistory||[]).forEach(m=>{if(m.mediaId)ids.add(m.mediaId);});(chatSource.stickers||[]).forEach(x=>{if(x.mediaId)ids.add(x.mediaId);});for(const id of ids){if(!mediaData.has(id))throw new Error('备份包未包含聊天 / 表情引用的媒体：'+id);}}
       if(kind!=='chat'&&map.has('mailbox-data.json')){const mailbox=await readJsonMember(map,'mailbox-data.json'),source=mailbox.mailbox||mailbox,ids=new Set();for(const letter of source.items||[])for(const image of letter.images||[])if(image&&image.id)ids.add(image.id);for(const id of ids)if(!mediaData.has(id))throw new Error('备份包未包含信件引用的图片：'+id);}
-      for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id);const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
+      for(const [id,v] of mediaData){await putMediaBlob(v.blob,v.meta.kind||'image',v.meta.name||'',id,{durability:'strict'});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==v.blob.size)throw new Error('媒体写入后回读校验失败：'+id);}
       if(kind==='all'){
         if(!map.has('circle-state.json'))throw new Error('总备份缺少独立的 Circle 状态文件');
         if(!incomingState||typeof incomingState!=='object'||Array.isArray(incomingState))throw new Error('总备份状态格式无效');
         const circleData=map.has('circle-state.json')?await readJsonMember(map,'circle-state.json'):null;
-        if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);setCircleState(circleData);circleWritten=true;}
+        if(circleData){const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法校验朋友圈备份');api.validateState(circleData);circleWritten=true;setCircleState(circleData);}
         Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,incomingState);window.__duoStickerState?.applyImportedState?.(incomingState.stickers,incomingState.stickerFavorites,incomingState.stickerTombstones);state.incomingCallSettings=normalizeIncomingCallSettings(incomingState.incomingCallSettings||null);
       }else if(kind==='chat'){
         state.chatHistory=Array.isArray(data.chatHistory)?data.chatHistory:[];window.__duoStickerState?.applyImportedState?.(data.stickers,data.stickerFavorites,data.stickerTombstones);
         if(data.media)state.media=Object.assign(state.media||{},data.media);
         for(const k of ['bubbleShape','bubbleColors','appearanceColors','appearanceSettings','replyWindow','showReadReceipt','readReceiptStyle','typing','offline','callSettings','chatBeautifyPresetId'])if(data[k]!==undefined)state[k]=data[k];
+        if(data.enterKeySendEnabled!==undefined)state.enterKeySendEnabled=data.enterKeySendEnabled===true;
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
       }else if(kind==='param'){
         if(data.icons)state.icons=Object.assign(state.icons||{},data.icons);if(data.media)state.media=Object.assign(state.media||{},data.media);
         for(const k of ['avatarShape','bubbleShape','customCSS','appearanceSettings','showReadReceipt','readReceiptStyle','chatBeautifyPresetId'])if(data[k]!==undefined)state[k]=data[k];
+        if(data.enterKeySendEnabled!==undefined)state.enterKeySendEnabled=data.enterKeySendEnabled===true;
         for(const k of ['bubbleColors','appearanceColors','replyWindow','typing','offline','callSettings'])if(data[k])state[k]=Object.assign(state[k]||{},data[k]);
         if(data.incomingCallSettings)state.incomingCallSettings=normalizeIncomingCallSettings(data.incomingCallSettings);
         if(Array.isArray(data.cardPhrases))state.cardPhrases=data.cardPhrases;
@@ -334,59 +450,236 @@
       if(kind==='param'&&map.has('circle-settings.json')){
         const api=window.__duoCircleApi;if(!api||typeof api.validateState!=='function')throw new Error('Circle 不可用，无法恢复朋友圈参数');
         const current=getCircleState()||{},settings=await readJsonMember(map,'circle-settings.json');
-        const merged={...current,...settings};api.validateState(merged);setCircleState(merged);circleWritten=true;
+        const merged={...current,...settings};api.validateState(merged);circleWritten=true;setCircleState(merged);
       }
-      if(kind!=='chat'){mailboxWritten=true;window.__duoMailbox.importData(await readJsonMember(map,'mailbox-data.json'));}
-      if(kind!=='chat'){cardsWritten=true;window.__duoCardSystem.importData(await readJsonMember(map,'card-system.json'));}
+      if(kind!=='chat'){mailboxWritten=true;const result=window.__duoMailbox.importData(await readJsonMember(map,'mailbox-data.json'));if(result===false)throw new Error('信件模块拒绝导入备份');}
+      if(kind!=='chat'){cardsWritten=true;const result=window.__duoCardSystem.importData(await readJsonMember(map,'card-system.json'));if(result===false)throw new Error('字卡模块拒绝导入备份');}
       if(kind!=='chat'){
         const fm=await readJsonMember(map,'font-library.json');
         const restored=[];for(const f of fm.fonts||[]){const x=map.get(f.path);if(!x)throw new Error('字体资源缺失：'+f.id);restored.push({...f,blob:x.blob});}
-        fontsWritten=true;await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true});
+        fontsWritten=true;await window.ChuanXunFontManager.importData({currentFontId:fm.currentFontId,fonts:restored},{replace:true,durability:'strict'});
       }
       if(kind==='all'&&incomingState.call&&incomingState.call.phase==='ringing'){incomingState.call={...incomingState.call,active:false,direction:'',phase:'idle',type:'',startAt:0,incomingAt:0,mini:false};}
       if(state.offline){delete state.offline.spaceEnabled;delete state.offline.spaceMin;delete state.offline.spaceMax;delete state.offline.lastSpaceAt;}
       if(state.icons)delete state.icons['home-calendar'];if(state.media)delete state.media['bg-space'];
       ensureChatState();
+      coordinator.assertWritable('提交 V4 恢复后的主状态');
       const serialized=JSON.stringify(state);localStorage.setItem(STORAGE_KEY,serialized);
       const persisted=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(!persisted||JSON.stringify(persisted)!==serialized)throw new Error('主状态写入后回读校验失败');
-      init();renderStickerList();loadMessageMedia();
+      init();window.DuoAppearance?.apply(false);renderStickerList();loadMessageMedia();
+      if(kind!=='chat'){
+        const circleLoad=await window.__duoCircleMedia?.ensure?.(getCircleState());
+        if(circleLoad?.stale||circleLoad?.missing)throw new Error('朋友圈媒体恢复后仍有缺失引用');
+        for(const id of circleReferenceIds(getCircleState()))if(!window.__duoCircleMedia?.resolve?.(window.__duoCircleMedia.makeRef(id)))throw new Error('朋友圈媒体恢复后回读失败：'+id);
+      }
+      // Durable commit marker separates a completed restore from an interrupted one.
+      // Startup rolls back only records still marked prepared.
+      await coordinator.markRecoveryCommitted();
+      try{await coordinator.clearRecoveryJournal();}catch(journalCleanupError){console.warn('[V4 恢复] 提交已完成，但恢复日志暂未清理；下次启动会安全清理',journalCleanupError);}
+      const mediaCleanup=await cleanupReplacedMediaReferences(oldMediaReferences);
+      if(mediaCleanup.errors.length)console.warn('[V4 恢复] 部分旧媒体未能清理，已保留以避免误删',mediaCleanup.errors);
       showToast('V4 备份恢复完成（资源完整性已校验）');
       return true;
     }catch(e){
+      if(e&&e.journalCommitUncertain){
+        const reason='V4 新数据已完成导入与回读校验，但 COMMITTED 恢复标记的持久提交状态无法确认；为避免与可能已提交的日志发生相反回滚，当前页面已锁定，保护日志保留供下次启动判定。原始错误：'+(e.message||e);
+        coordinator.setRecoveryBlocked?.(reason);
+        throw new Error(reason+'。请重新加载，先由启动恢复流程读取 PREPARED/COMMITTED 日志，不要继续编辑');
+      }
+      const currentAccess=coordinator.getStatus?.();
+      if(currentAccess&&!currentAccess.writable){
+        coordinator.setRecoveryBlocked?.('V4 恢复期间编辑权已丢失；保护日志保留，由重新加载后的写入标签页恢复');
+        throw new Error((e.message||'V4 恢复中断')+'；当前标签页已失去编辑权，未继续执行可能冲突的回滚；恢复日志已保留，请重新加载后恢复');
+      }
       const rollbackErrors=[];
       try{
         Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,JSON.parse(oldState));
         if(oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,oldStorage);
         const stored=localStorage.getItem(STORAGE_KEY);if(stored!==oldStorage)throw new Error('主状态回滚回读不一致');
       }catch(err){rollbackErrors.push('主状态：'+(err.message||err));}
-      if(oldStickerLibrary){try{window.__duoStickerState?.restoreSnapshot?.(oldStickerLibrary);}catch(err){rollbackErrors.push('表情包库：'+(err.message||err));}}
+      if(oldStickerLibrary){try{
+        const restoredSticker=window.__duoStickerState?.restoreSnapshot?.(oldStickerLibrary);
+        if(restoredSticker===false)throw new Error('表情包库拒绝回滚旧快照');
+        const stickerReadback=window.__duoStickerState?.exportSnapshot?.();
+        const stripRevision=value=>value?{version:value.version,items:value.items,tombstones:value.tombstones,favorites:value.favorites}:value;
+        if(JSON.stringify(stripRevision(stickerReadback))!==JSON.stringify(stripRevision(oldStickerLibrary)))throw new Error('表情包库回滚回读不一致');
+      }catch(err){rollbackErrors.push('表情包库：'+(err.message||err));}}
       if(circleWritten){try{setCircleState(oldCircle);if(JSON.stringify(getCircleState())!==JSON.stringify(oldCircle))throw new Error('朋友圈回读不一致');}catch(err){rollbackErrors.push('朋友圈：'+(err.message||err));}}
       for(const [id,record] of newMedia){try{
-        if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=db.transaction(MEDIA_STORE_NAME,'readwrite');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size)throw new Error('媒体回滚回读不一致：'+id);}
-        else{await deleteMediaRecord(id);if(await getMediaRecord(id))throw new Error('媒体删除回滚校验失败：'+id);}
+        if(record){const db=await openMediaDB();await new Promise((resolve,reject)=>{const tx=window.__duoMediaTransactions.beginStrictWrite(db,'V4 媒体回滚');tx.objectStore(MEDIA_STORE_NAME).put(record);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size)throw new Error('媒体回滚回读不一致：'+id);}
+        else{await deleteMediaRecord(id,null,{durability:'strict'});if(await getMediaRecord(id))throw new Error('媒体删除回滚校验失败：'+id);}
       }catch(err){rollbackErrors.push('媒体 '+id+'：'+(err.message||err));}}
-      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true});const check=await window.ChuanXunFontManager.exportData();if(check.currentFontId!==(oldFonts.currentFontId||null)||check.fonts.length!==oldFonts.fonts.length||check.fonts.some(x=>!oldFonts.fonts.some(y=>y.id===x.id&&y.size===x.size)))throw new Error('字体库回滚回读不一致');}catch(err){rollbackErrors.push('字体库：'+(err.message||err));}}
+      if(fontsWritten&&oldFonts){try{await window.ChuanXunFontManager.importData(oldFonts,{replace:true,durability:'strict'});const check=await window.ChuanXunFontManager.exportData();if(check.currentFontId!==(oldFonts.currentFontId||null)||check.fonts.length!==oldFonts.fonts.length||check.fonts.some(x=>!oldFonts.fonts.some(y=>y.id===x.id&&y.size===x.size)))throw new Error('字体库回滚回读不一致');}catch(err){rollbackErrors.push('字体库：'+(err.message||err));}}
       if(mailboxWritten&&oldMailbox){try{window.__duoMailbox.importData(oldMailbox);if(JSON.stringify(window.__duoMailbox.exportData())!==JSON.stringify(oldMailbox))throw new Error('信件数据回滚回读不一致');}catch(err){rollbackErrors.push('信件：'+(err.message||err));}}
       if(cardsWritten&&oldCards){try{window.__duoCardSystem.importData(oldCards);if(JSON.stringify(window.__duoCardSystem.exportData())!==JSON.stringify(oldCards))throw new Error('字卡数据回滚回读不一致');}catch(err){rollbackErrors.push('字卡：'+(err.message||err));}}
-      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
-      try{init();renderStickerList();loadMessageMedia();}catch(err){rollbackErrors.push('界面重建：'+(err.message||err));}
-      if(rollbackErrors.length)throw new Error((e.message||'恢复失败')+'；回滚未完全通过：'+rollbackErrors.join('；'));
+      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();window.__duoCircleMedia?.invalidate?.();mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
+      try{init();window.DuoAppearance?.apply(false);renderStickerList();loadMessageMedia();await window.__duoCircleMedia?.ensure?.();}catch(err){rollbackErrors.push('界面重建：'+(err.message||err));}
+      if(rollbackErrors.length){
+        const reason='V4 恢复回滚未完全通过：'+rollbackErrors.join('；')+'。PREPARED 保护日志已保留，当前页面已锁定；请重新加载后由启动恢复流程继续处理';
+        coordinator.setRecoveryBlocked?.(reason);
+        throw new Error((e.message||'恢复失败')+'；'+reason);
+      }
+      try{await coordinator.clearRecoveryJournal();}
+      catch(journalCleanupError){
+        const reason='V4 恢复失败后的旧数据回滚已经执行，但 PREPARED 保护日志未能确认清理：'+(journalCleanupError.message||journalCleanupError)+'。日志仍可能在下次启动重放，当前页面已锁定以防新写入被旧快照覆盖';
+        coordinator.setRecoveryBlocked?.(reason);
+        throw new Error((e.message||'恢复失败')+'；'+reason+'。请重新加载并完成启动恢复');
+      }
       throw e;
     }
   }
+  async function recoverInterruptedRestore(){
+    const coordinator=window.__duoRuntimeCoordinator;
+    if(!coordinator||typeof coordinator.readRecoveryJournal!=='function')return {recovered:false,unavailable:true};
+    const journal=await coordinator.readRecoveryJournal();
+    if(!journal)return {recovered:false};
+    if(journal.id!==coordinator.journalId||journal.formatVersion!==1||!['prepared','committed'].includes(journal.phase))throw new Error('发现无法识别的恢复保护日志，已阻止自动覆盖数据');
+    if(journal.phase==='committed'){
+      const endCleanupMutation=coordinator.beginMutation?.('清理已提交的恢复日志');
+      try{await coordinator.clearRecoveryJournal();}
+      finally{endCleanupMutation?.();}
+      return {recovered:false,committedCleanup:true};
+    }
+    coordinator.assertWritable('恢复上次中断的数据');
+    // Validate the entire journal before the first restore write. A corrupted
+    // journal must never restore the main state and only then discover that a
+    // later media or auxiliary-storage entry is malformed.
+    if(typeof journal.oldState!=='string'||journal.oldState.length>256*1024*1024)throw new Error('恢复日志缺少原始主状态快照或快照超出安全上限');
+    let parsedOldState;try{parsedOldState=JSON.parse(journal.oldState);}catch(_){throw new Error('恢复日志中的原始主状态不是有效 JSON');}
+    if(!parsedOldState||typeof parsedOldState!=='object'||Array.isArray(parsedOldState))throw new Error('恢复日志中的原始主状态结构无效');
+    if(journal.oldStorage!==null&&typeof journal.oldStorage!=='string')throw new Error('恢复日志中的主存储快照类型无效');
+    if(!Array.isArray(journal.oldMedia)||journal.oldMedia.length>100000)throw new Error('恢复日志媒体快照数量无效');
+    const validatedOldMedia=[],oldMediaIds=new Set();let oldMediaTotalBytes=0;
+    for(const pair of journal.oldMedia){
+      if(!Array.isArray(pair)||pair.length!==2||typeof pair[0]!=='string'||!pair[0]||pair[0].length>256||/[\u0000-\u001f\u007f]/.test(pair[0])||oldMediaIds.has(pair[0]))throw new Error('恢复日志媒体快照包含无效或重复 ID');
+      const id=pair[0],record=pair[1];
+      if(record!==null&&(!record||record.id!==id||!record.blob||typeof record.blob.arrayBuffer!=='function'||!Number.isFinite(Number(record.blob.size))||Number(record.blob.size)<0))throw new Error('恢复日志媒体 Blob 无效：'+id);
+      if(record!==null){oldMediaTotalBytes+=Number(record.blob.size);if(oldMediaTotalBytes>1024*1024*1024)throw new Error('恢复日志媒体快照超过 1 GB 安全上限');}
+      oldMediaIds.add(id);validatedOldMedia.push([id,record]);
+    }
+    let validatedStorageEntries=[];
+    if(journal.oldStorageEntries!==undefined){
+      const allowedStorageKeys=new Set(['dual_space_sticker_library_v1','twodeers_mailbox_letters_v1','twodeers_mailbox_drafts_v1','twodeers_card_system_v1']),seenStorageKeys=new Set();
+      if(!Array.isArray(journal.oldStorageEntries)||journal.oldStorageEntries.length>4)throw new Error('恢复日志附加存储快照格式无效');
+      for(const pair of journal.oldStorageEntries){
+        if(!Array.isArray(pair)||pair.length!==2||!allowedStorageKeys.has(pair[0])||seenStorageKeys.has(pair[0])||!(pair[1]===null||typeof pair[1]==='string')||(typeof pair[1]==='string'&&pair[1].length>256*1024*1024))throw new Error('恢复日志包含非法的附加存储快照');
+        seenStorageKeys.add(pair[0]);validatedStorageEntries.push(pair);
+      }
+    }
+    if(journal.oldCircle!==null&&journal.oldCircle!==undefined){if(!window.__duoCircleApi?.validateState)throw new Error('朋友圈恢复校验器不可用');window.__duoCircleApi.validateState(journal.oldCircle);}
+    if(journal.oldStickerLibrary!==null&&journal.oldStickerLibrary!==undefined){
+      const sticker=journal.oldStickerLibrary;
+      if(!sticker||typeof sticker!=='object'||Array.isArray(sticker)||sticker.version!==1||!Array.isArray(sticker.items)||!Array.isArray(sticker.tombstones)||!Array.isArray(sticker.favorites)||sticker.items.length>100000||sticker.tombstones.length>100000||sticker.favorites.length>100000)throw new Error('恢复日志表情库快照结构无效');
+      const itemIds=new Set(),tombstoneIds=new Set();
+      for(const item of sticker.items){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||item.id.length>256||itemIds.has(item.id)||typeof item.mediaId!=='string')throw new Error('恢复日志表情库包含无效或重复项目');itemIds.add(item.id);}
+      for(const item of sticker.tombstones){if(!item||typeof item.id!=='string'||!item.id||item.id.length>256||tombstoneIds.has(item.id)||itemIds.has(item.id))throw new Error('恢复日志表情删除账本包含无效或重复 ID');tombstoneIds.add(item.id);}
+      const favoriteIds=new Set();for(const id of sticker.favorites){if(typeof id!=='string'||!itemIds.has(id)||favoriteIds.has(id))throw new Error('恢复日志表情收藏列表包含无效引用');favoriteIds.add(id);}
+    }
+    if(journal.oldMailbox!==null&&journal.oldMailbox!==undefined){
+      if(!window.__duoMailbox||typeof window.__duoMailbox.validateData!=='function')throw new Error('信箱恢复快照校验器不可用，已在写入前停止恢复');
+      window.__duoMailbox.validateData(journal.oldMailbox);
+    }
+    if(journal.oldCards!==null&&journal.oldCards!==undefined){
+      if(!window.__duoCardSystem||typeof window.__duoCardSystem.validateData!=='function')throw new Error('字卡恢复快照校验器不可用，已在写入前停止恢复');
+      window.__duoCardSystem.validateData(journal.oldCards);
+    }
+    if(journal.oldFonts!==null&&journal.oldFonts!==undefined){
+      if(!window.ChuanXunFontManager||typeof window.ChuanXunFontManager.validateData!=='function')throw new Error('字体恢复快照校验器不可用，已在写入前停止恢复');
+      await window.ChuanXunFontManager.validateData(journal.oldFonts);
+    }
+    // A retry of PREPARED recovery must also verify strict storage support
+    // before the first rollback write. If support is unavailable, keep the
+    // journal untouched so another compatible runtime can retry safely.
+    if(validatedOldMedia.length){
+      if(typeof window.__duoMediaTransactions?.assertStrictDurability!=='function')throw new Error('媒体严格持久化预检不可用，恢复日志保留且未开始回滚');
+      await window.__duoMediaTransactions.assertStrictDurability();
+    }
+    if(journal.oldFonts){
+      if(typeof window.ChuanXunFontManager?.assertImportDurability!=='function')throw new Error('字体严格持久化预检不可用，恢复日志保留且未开始回滚');
+      await window.ChuanXunFontManager.assertImportDurability();
+    }
+    const endMutation=coordinator.beginMutation?.('恢复上次中断的数据');
+    window.__duoRestoreInProgress=true;
+    window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+    const errors=[];
+    try{
+      Object.keys(state).forEach(key=>delete state[key]);Object.assign(state,parsedOldState);
+      if(journal.oldStorage===null)localStorage.removeItem(STORAGE_KEY);else localStorage.setItem(STORAGE_KEY,journal.oldStorage);
+      if(localStorage.getItem(STORAGE_KEY)!==journal.oldStorage)throw new Error('主状态恢复后回读不一致');
+      if(journal.oldStickerLibrary){
+        const restoredSticker=window.__duoStickerState?.restoreSnapshot?.(journal.oldStickerLibrary);
+        if(restoredSticker===false)throw new Error('表情包库拒绝恢复旧快照');
+        const stickerReadback=window.__duoStickerState?.exportSnapshot?.();
+        const stripRevision=value=>value?{version:value.version,items:value.items,tombstones:value.tombstones,favorites:value.favorites}:value;
+        if(JSON.stringify(stripRevision(stickerReadback))!==JSON.stringify(stripRevision(journal.oldStickerLibrary)))throw new Error('表情包库恢复后回读不一致');
+      }
+      if(journal.oldCircle!==null&&journal.oldCircle!==undefined){setCircleState(journal.oldCircle);if(JSON.stringify(getCircleState())!==JSON.stringify(journal.oldCircle))throw new Error('朋友圈状态恢复后回读不一致');}
+      for(const pair of validatedOldMedia){
+        const id=pair[0],record=pair[1];
+        if(record){await putMediaBlob(record.blob,record.kind||'image',record.name||'',id,{durability:'strict'});const check=await getMediaRecord(id);if(!check?.blob||check.blob.size!==record.blob.size||check.blob.type!==record.blob.type)throw new Error('媒体恢复后回读不一致：'+id);}
+        else{await deleteMediaRecord(id,null,{durability:'strict'});if(await getMediaRecord(id))throw new Error('媒体删除恢复后仍然存在：'+id);}
+      }
+      if(journal.oldMailbox){
+        const result=window.__duoMailbox.importData(journal.oldMailbox);
+        if(result===false)throw new Error('信件模块拒绝恢复旧快照');
+        if(JSON.stringify(window.__duoMailbox.exportData())!==JSON.stringify(journal.oldMailbox))throw new Error('信件数据恢复后回读不一致');
+      }
+      if(journal.oldCards){
+        const result=window.__duoCardSystem.importData(journal.oldCards);
+        if(result===false)throw new Error('字卡模块拒绝恢复旧快照');
+        if(JSON.stringify(window.__duoCardSystem.exportData())!==JSON.stringify(journal.oldCards))throw new Error('字卡数据恢复后回读不一致');
+      }
+      if(journal.oldFonts){
+        const result=await window.ChuanXunFontManager.importData(journal.oldFonts,{replace:true,durability:'strict'});
+        if(result===false)throw new Error('字体模块拒绝恢复旧快照');
+        const fontReadback=await window.ChuanXunFontManager.exportData();
+        const signature=window.ChuanXunFontManager._fontSnapshotSignature;
+        const fallbackMismatch=fontReadback.currentFontId!==(journal.oldFonts.currentFontId||null)||fontReadback.fonts.length!==journal.oldFonts.fonts.length||fontReadback.fonts.some(item=>!journal.oldFonts.fonts.some(old=>old.id===item.id&&old.size===item.size&&old.format===item.format&&old.fileName===item.fileName));
+        if(typeof signature==='function'?signature(fontReadback)!==signature(journal.oldFonts):fallbackMismatch)throw new Error('字体库恢复后回读不一致');
+      }
+      for(const pair of validatedStorageEntries){
+        if(pair[1]===null)localStorage.removeItem(pair[0]);else localStorage.setItem(pair[0],pair[1]);
+        if(localStorage.getItem(pair[0])!==pair[1])throw new Error('附加存储恢复后回读不一致：'+pair[0]);
+      }
+      mediaLoadGeneration++;window.__duoStickerLibrary?.invalidate?.();window.__duoCircleMedia?.invalidate?.();
+      mediaUrlCache.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});mediaUrlCache.clear();mediaLoadFailed.clear();
+      stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});stickerObjectUrls.clear();
+      init();window.DuoAppearance?.apply(false);renderStickerList();loadMessageMedia();
+      const circleCheck=await window.__duoCircleMedia?.ensure?.(getCircleState());
+      if(circleCheck?.missing)throw new Error('朋友圈媒体恢复后仍有缺失引用');
+      await coordinator.clearRecoveryJournal();
+      return {recovered:true,kind:journal.kind,createdAt:journal.createdAt};
+    }catch(error){
+      errors.push(error.message||String(error));
+      const reason='上次 V4 恢复被异常中断，自动回滚未能完成：'+errors.join('；')+'。PREPARED 保护日志仍保留，当前页面已锁定；请勿继续修改数据';
+      coordinator.setRecoveryBlocked?.(reason);
+      throw new Error(reason);
+    }finally{
+      window.__duoRestoreInProgress=false;
+      window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();
+      endMutation?.();
+    }
+  }
+
   let restoreInProgress=false;
   async function restoreV4(blob){
+    window.__duoVoiceCapture?.assertIdle?.('恢复 V4 备份');
+    const coordinator=window.__duoRuntimeCoordinator;
+    coordinator?.assertWritable?.('恢复备份');
     if(restoreInProgress||window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('已有备份导出或恢复任务正在执行，请等待完成');
-    restoreInProgress=true;window.__duoRestoreInProgress=true;let overlay=null;
+    // Lock before waiting so a competing export/restore cannot enter during the wait.
+    const endMutation=coordinator?.beginMutation?.('V4 备份恢复事务');
+    restoreInProgress=true;window.__duoRestoreInProgress=true;let overlay=null,tasksPaused=false;
     try{
+      await window.__duoCircleMedia?.waitForMigration?.();
       overlay=document.createElement('div');overlay.id='duoRestoreOverlay';overlay.textContent='正在校验并恢复备份，请勿关闭页面…';overlay.style.cssText='position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,20,20,.72);color:#fff;font:600 15px/1.6 sans-serif;text-align:center;';document.body.appendChild(overlay);
-      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();
+      window.__duoCircleApi?.pauseTasks?.();window.__duoMailbox?.pauseTasks?.();tasksPaused=true;
       return await restoreV4Internal(blob);
-    }finally{overlay?.remove();restoreInProgress=false;window.__duoRestoreInProgress=false;window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}
+    }finally{overlay?.remove();restoreInProgress=false;window.__duoRestoreInProgress=false;if(tasksPaused){window.__duoCircleApi?.resumeTasks?.();window.__duoMailbox?.resumeTasks?.();}endMutation?.();}
   }
   async function exportV4(kind){try{const blob=await buildV4(kind);triggerDownloadBlob('双人空间_'+kind+'_backup_v4.zip',blob);showToast(kind==='all'?'V4 总备份已导出':'V4 备份已导出');}catch(e){showToast('V4 备份失败：'+(e.message||e));throw e;}}
   document.addEventListener('click',function(e){const b=e.target&&e.target.closest?e.target.closest('#backupAllBtn,#backupChatBtn,#backupParamBtn'):null;if(!b)return;e.preventDefault();e.stopImmediatePropagation();exportV4(b.id==='backupAllBtn'?'all':b.id==='backupChatBtn'?'chat':'param').catch(()=>{});},true);
   document.addEventListener('change',function(e){if(!e.target||e.target.id!=='backupImporter')return;const file=e.target.files&&e.target.files[0];if(!file)return;e.stopImmediatePropagation();if(file.size>MAX_ARCHIVE){showToast('备份文件超过 1 GB 上限');e.target.value='';return;}if(/\.zip$/i.test(file.name)||file.type==='application/zip'){restoreV4(file).catch(err=>showToast('V4 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}else{if(file.size>MAX_JSON_MEMBER){showToast('旧版 JSON 备份超过 128 MB 单文件读取上限');e.target.value='';return;}file.text().then(t=>applyBackupPayload(JSON.parse(t))).catch(err=>showToast('旧版 JSON 备份导入失败：'+(err.message||err))).finally(()=>{e.target.value='';});}},true);
   const importer=document.getElementById('backupImporter');if(importer)importer.accept='.json,.zip,application/json,application/zip';
-  window.__duoBackupV4={build:buildV4,restore:restoreV4,unzip:unzipStored,inspect:inspectBlob,version:4};
+  window.__duoBackupV4={build:buildV4,restore:restoreV4,recoverInterruptedRestore,unzip:unzipStored,inspect:inspectBlob,validateManifestResourceIdentities,validateFontLibraryManifest,version:4};
 })();

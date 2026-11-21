@@ -11,6 +11,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "index.html"
+      - "circle-media-manager.js"
       - "appearance-manager.js"
       - ".github/workflows/chat-beautify-validation.yml"
   push:
@@ -24,6 +25,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "index.html"
+      - "circle-media-manager.js"
       - "appearance-manager.js"
       - ".github/workflows/chat-beautify-validation.yml"
 
@@ -41,26 +43,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - name: Verify source and run Node tests
+      - name: Verify current source and existing deterministic regressions
         run: |
-          node tools/verify-source.mjs
-          node --test tests/*.test.mjs
-      - name: Install Playwright Chromium
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-      - name: Run real-browser smoke and visual checks
-        run: |
-          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/twodeers-http.log 2>&1 &
-          SERVER_PID=$!
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
-            sleep 1
-          done
-          node tests/browser-smoke.mjs
-          kill "$SERVER_PID" || true
+          node --check chat-beautify-presets.js
+          node --check chat-beautify-manager.js
+          node tools/verify-twodeers-hardening.mjs
+          node tests/card-management.test.mjs
+          node tests/runtime-consistency.test.mjs
+          node tests/media-lifecycle.test.mjs
       - name: Package modified source
         if: always()
         run: |

@@ -23,8 +23,8 @@
     card.querySelector('#duoFontDefault').addEventListener('click',()=>api.restoreDefault().then(()=>{refresh();if(typeof showToast==='function')showToast('已恢复系统默认字体');}).catch(e=>{if(typeof showToast==='function')showToast(e.message||'字体设置失败');}));
     const style=document.createElement('style');style.textContent='.duo-font-list{display:grid;gap:7px;margin-top:12px}.duo-font-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;color:var(--text);font-size:12px}.duo-font-item span:first-child{min-width:0}.duo-font-item small{display:block;color:var(--sub);margin-top:3px}';document.head.appendChild(style);
     window.addEventListener('chuanxunfontchange',refresh);
+    window.addEventListener('duo-runtime-access-changed',event=>{if(event.detail?.writable)refresh();});
     refresh();
-    api.restoreCurrent().then(refresh).catch(e=>console.warn('[双人空间] 字体恢复失败，继续使用系统默认字体',e));
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

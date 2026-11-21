@@ -1,8 +1,12 @@
 package com.mercyy.twodeers;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.provider.OpenableColumns;
 import android.net.Uri;
 import android.os.Bundle;
@@ -15,13 +19,19 @@ import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsetsController;
 import android.widget.FrameLayout;
 
+import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewFeature;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -31,10 +41,12 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://" + HOST + "/assets/site/index.html";
     private static final int FILE_CHOOSER_REQUEST = 4107;
     private static final int BACKUP_SAVE_REQUEST = 4108;
+    private static final int AUDIO_PERMISSION_REQUEST = 4109;
     private static final long MAX_BACKUP_BYTES = 1024L * 1024L * 1024L;
 
     private WebView webView;
     private ValueCallback<Uri[]> fileChooserCallback;
+    private PermissionRequest pendingWebPermissionRequest;
     private WebViewAssetLoader assetLoader;
     private final Object saveLock = new Object();
     private OutputStream saveStream;
@@ -102,6 +114,9 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);
+        int nightMask = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        webView.setBackgroundColor(nightMask == Configuration.UI_MODE_NIGHT_YES
+                ? Color.rgb(21, 26, 21) : Color.rgb(247, 248, 244));
         root.addView(webView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
@@ -109,12 +124,14 @@ public class MainActivity extends Activity {
         registerSystemBackCallback();
 
         webView.addJavascriptInterface(new BackupBridge(), "DuoBackupBridge");
+        webView.addJavascriptInterface(new ThemeBridge(), "DuoThemeBridge");
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
         WebSettings settings = webView.getSettings();
+        configureWebViewTheme(settings);
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
@@ -168,11 +185,172 @@ public class MainActivity extends Activity {
                     return false;
                 }
             }
+
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                if (request == null) return;
+                runOnUiThread(() -> handleWebPermissionRequest(request));
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (pendingWebPermissionRequest == request) pendingWebPermissionRequest = null;
+                });
+            }
         });
 
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) webView.loadUrl(HOME);
     }
 
+
+    private boolean isTrustedAudioOrigin(PermissionRequest request) {
+        if (request == null || request.getOrigin() == null) return false;
+        Uri origin = request.getOrigin();
+        int port = origin.getPort();
+        return "https".equalsIgnoreCase(origin.getScheme())
+                && HOST.equalsIgnoreCase(origin.getHost())
+                && (port == -1 || port == 443);
+    }
+
+    private boolean requestsOnlyAudioCapture(PermissionRequest request) {
+        String[] resources = request == null ? null : request.getResources();
+        if (resources == null || resources.length != 1) return false;
+        return PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resources[0]);
+    }
+
+    private void handleWebPermissionRequest(PermissionRequest request) {
+        if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed()) || webView == null) {
+            request.deny();
+            return;
+        }
+        if (!isTrustedAudioOrigin(request) || !requestsOnlyAudioCapture(request)) {
+            request.deny();
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            return;
+        }
+        if (pendingWebPermissionRequest != null) {
+            try { request.deny(); } catch (RuntimeException ignored) {}
+            return;
+        }
+        pendingWebPermissionRequest = request;
+        try {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST);
+        } catch (RuntimeException error) {
+            pendingWebPermissionRequest = null;
+            try { request.deny(); } catch (RuntimeException ignored) {}
+        }
+    }
+
+    private void denyPendingWebPermissionRequest() {
+        PermissionRequest request = pendingWebPermissionRequest;
+        pendingWebPermissionRequest = null;
+        if (request != null) {
+            try { request.deny(); } catch (RuntimeException ignored) {}
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != AUDIO_PERMISSION_REQUEST) return;
+        PermissionRequest request = pendingWebPermissionRequest;
+        pendingWebPermissionRequest = null;
+        if (request == null) return;
+        boolean granted = permissions != null && grantResults != null
+                && permissions.length == 1 && grantResults.length == 1
+                && Manifest.permission.RECORD_AUDIO.equals(permissions[0])
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        boolean pageStillTrusted = webView != null && webView.getUrl() != null
+                && webView.getUrl().startsWith("https://" + HOST + "/");
+        try {
+            if (granted && pageStillTrusted && isTrustedAudioOrigin(request) && requestsOnlyAudioCapture(request)) {
+                request.grant(new String[]{PermissionRequest.RESOURCE_AUDIO_CAPTURE});
+            } else {
+                request.deny();
+            }
+        } catch (RuntimeException error) {
+            try { request.deny(); } catch (RuntimeException ignored) {}
+        }
+    }
+
+    /**
+     * This app renders its own light/dark palettes in the bundled web UI. Disable
+     * WebView's algorithmic inversion so images, stickers, custom CSS and selected
+     * palette colors are not independently recolored by the browser engine. The
+     * Activity's DayNight resources still drive prefers-color-scheme for system mode.
+     */
+    private void configureWebViewTheme(WebSettings settings) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            webView.setForceDarkAllowed(false);
+        }
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false);
+            }
+        } catch (RuntimeException ignored) {
+            // Older installed WebView providers may not implement this optional feature.
+        }
+    }
+
+    /** Receives only the resolved web theme and a validated six-digit palette background. */
+    private final class ThemeBridge {
+        @JavascriptInterface
+        public void applyResolvedTheme(String resolvedMode, String backgroundColor) {
+            final boolean light = "light".equalsIgnoreCase(resolvedMode);
+            final int pageColor = safeThemeColor(backgroundColor, light);
+            runOnUiThread(() -> applyNativeSystemBarTheme(light, pageColor));
+        }
+    }
+
+    private int safeThemeColor(String value, boolean light) {
+        if (value != null && value.length() == 7 && value.matches("#[0-9a-fA-F]{6}")) {
+            try { return Color.parseColor(value); } catch (IllegalArgumentException ignored) {}
+        }
+        return light ? Color.rgb(247, 248, 244) : Color.rgb(21, 26, 21);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applyNativeSystemBarTheme(boolean light, int pageColor) {
+        if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+        Window window = getWindow();
+        if (window == null) return;
+
+        window.setStatusBarColor(pageColor);
+        if (webView != null) webView.setBackgroundColor(pageColor);
+        // Android 6.0–7.1 cannot draw dark navigation-bar icons. Use a dark bar
+        // in light mode on those releases rather than putting white icons on cream.
+        int navigationColor = light && Build.VERSION.SDK_INT < 26
+                ? Color.rgb(16, 21, 16) : pageColor;
+        window.setNavigationBarColor(navigationColor);
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+
+        View decor = window.getDecorView();
+        int flags = decor.getSystemUiVisibility();
+        flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26) flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        if (light) {
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        }
+        decor.setSystemUiVisibility(flags);
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                int appearance = light ? mask : 0;
+                controller.setSystemBarsAppearance(appearance, mask);
+            }
+        }
+    }
 
     private void registerSystemBackCallback() {
         if (Build.VERSION.SDK_INT >= 33) {
@@ -389,6 +567,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        if (webView != null) webView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) webView.onResume();
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle outState) {
         if (webView != null) webView.saveState(outState);
         super.onSaveInstanceState(outState);
@@ -405,6 +595,7 @@ public class MainActivity extends Activity {
             backInvokedCallback = null;
         }
         cancelSaveInternal();
+        denyPendingWebPermissionRequest();
         if (fileChooserCallback != null) {
             fileChooserCallback.onReceiveValue(null);
             fileChooserCallback = null;

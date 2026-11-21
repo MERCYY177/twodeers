@@ -1,0 +1,65 @@
+name: Twodeers independent recovery validation and isolation
+
+on:
+  push:
+    paths:
+      - "index.html"
+      - "recovery-candidate-package.js"
+      - "recovery-candidate-validator.js"
+      - "recovery-isolation-engine.js"
+      - "recovery-workbench.js"
+      - "tests/recovery-candidate-package.test.mjs"
+      - "tests/recovery-candidate-validator.test.mjs"
+      - "tests/recovery-isolation-engine.test.mjs"
+      - "tests/recovery-isolation-ui.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-isolation-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "recovery-candidate-package.js"
+      - "recovery-candidate-validator.js"
+      - "recovery-isolation-engine.js"
+      - "recovery-workbench.js"
+      - "tests/recovery-candidate-package.test.mjs"
+      - "tests/recovery-candidate-validator.test.mjs"
+      - "tests/recovery-isolation-engine.test.mjs"
+      - "tests/recovery-isolation-ui.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-isolation-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax checks
+        run: |
+          node --check recovery-candidate-package.js
+          node --check recovery-candidate-validator.js
+          node --check recovery-isolation-engine.js
+          node --check recovery-workbench.js
+          node --check tests/recovery-candidate-package.test.mjs
+          node --check tests/recovery-candidate-validator.test.mjs
+          node --check tests/recovery-isolation-engine.test.mjs
+          node --check tests/recovery-isolation-ui.test.mjs
+          node --check tools/verify-twodeers-hardening.mjs
+      - name: Candidate ZIP independent verification
+        run: node tests/recovery-candidate-validator.test.mjs
+      - name: Copy-on-write isolated reconstruction
+        run: node tests/recovery-isolation-engine.test.mjs
+      - name: Isolated recovery UI wiring
+        run: node tests/recovery-isolation-ui.test.mjs
+      - name: Candidate ZIP generation compatibility
+        run: node tests/recovery-candidate-package.test.mjs
+      - name: Existing read-only workbench regression
+        run: node tests/recovery-workbench.test.mjs
+      - name: Full hardening regression
+        run: node tools/verify-twodeers-hardening.mjs

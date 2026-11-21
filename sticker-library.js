@@ -51,8 +51,17 @@
     stickerObjectUrls.forEach(url=>{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);});
     stickerObjectUrls.clear();
   }
+  let initializePromise=null;
+  function initialize(){
+    if(initializePromise)return initializePromise;
+    initializePromise=loadBuiltinStickerManifest().catch(error=>{
+      console.warn('[双人空间内置表情包]',error);
+      return render();
+    });
+    return initializePromise;
+  }
   window.renderStickerList=render;
-  window.__duoStickerLibrary={invalidate,render};
+  window.__duoStickerLibrary={invalidate,render,initialize};
   function stopPressTimer(){if(pressTimer){clearTimeout(pressTimer);pressTimer=0;}}
   function clearArmedSticker(){
     if(armedSticker?.classList)armedSticker.classList.remove('delete-armed');
@@ -151,12 +160,11 @@
     if(manifest?.version!==1||manifest.totalCount!==352||!Array.isArray(manifest.items)||manifest.items.length!==352)throw new Error('内置表情包清单数量或版本不匹配');
     const result=window.__duoStickerState?.registerBuiltins?.(manifest.items);
     if(!result)throw new Error('内置表情包索引接口不可用');
-    if(result.added||result.updated)save();
+    const access=window.__duoRuntimeCoordinator?.getStatus?.();if((result.added||result.updated)&&(!window.__duoRuntimeCoordinator||access?.ready&&access?.writable&&!access?.blocked)&&typeof save==='function')save();
     await render();
   }
-  loadBuiltinStickerManifest().catch(error=>{console.warn('[双人空间内置表情包]',error);void render();});
-  const initial=snapshot();
-  if(initial.items.length)void render();
+  // Initialization is invoked by the runtime coordinator after crash recovery.
+  // Read-only tabs call it too, but the store bridge prevents persistence there.
   window.addEventListener('storage',event=>{
     if(event.key!==STICKER_LIBRARY_STORAGE_KEY)return;
     invalidate();void render();

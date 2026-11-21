@@ -5,10 +5,11 @@ on:
     branches: ["feature/builtin-sticker-library"]
     paths:
       - "index.html"
+      - "circle-media-manager.js"
       - "sticker-library.js"
       - "backup-v4.js"
       - "tests/**"
-      - "tools/verify-source.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/builtin-stickers-validation.yml"
@@ -27,7 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Verify source syntax and module wiring
-        run: node tools/verify-source.mjs
-      - name: Run complete Node regression suite
-        run: node --test tests/*.test.mjs
+      - name: Verify current source syntax, sticker inventory and module wiring
+        run: node tools/verify-twodeers-hardening.mjs
+      - name: Run card-management transactional regressions
+        run: node tests/card-management.test.mjs

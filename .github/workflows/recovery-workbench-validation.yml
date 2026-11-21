@@ -1,0 +1,58 @@
+name: Twodeers read-only recovery workbench validation
+
+on:
+  push:
+    paths:
+      - "index.html"
+      - "runtime-coordinator.js"
+      - "storage-diagnostics.js"
+      - "recovery-workbench.js"
+      - "recovery-candidate-package.js"
+      - "tests/recovery-workbench.test.mjs"
+      - "tests/recovery-candidate-package.test.mjs"
+      - "tests/runtime-recovery.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-workbench-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "runtime-coordinator.js"
+      - "storage-diagnostics.js"
+      - "recovery-workbench.js"
+      - "recovery-candidate-package.js"
+      - "tests/recovery-workbench.test.mjs"
+      - "tests/recovery-candidate-package.test.mjs"
+      - "tests/runtime-recovery.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-workbench-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-recovery-workbench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax checks
+        run: |
+          node --check recovery-workbench.js
+          node --check recovery-candidate-package.js
+          node --check tests/recovery-workbench.test.mjs
+          node --check tests/recovery-candidate-package.test.mjs
+          node --check tests/runtime-recovery.test.mjs
+          node --check runtime-coordinator.js
+          node --check storage-diagnostics.js
+          node --check tools/verify-twodeers-hardening.mjs
+      - name: Recovery package analysis and preview tests
+        run: node tests/recovery-workbench.test.mjs
+      - name: Candidate ZIP byte-preservation and safety checks
+        run: node tests/recovery-candidate-package.test.mjs
+      - name: Permanent-lock diagnostics route regression
+        run: node tests/runtime-recovery.test.mjs
+      - name: Full project hardening regression suite
+        run: node tools/verify-twodeers-hardening.mjs

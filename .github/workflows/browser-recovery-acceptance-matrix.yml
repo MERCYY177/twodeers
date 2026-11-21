@@ -1,0 +1,121 @@
+name: Browser recovery acceptance matrix validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android-apps/app/src/main/AndroidManifest.xml"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "tests/phase37-audit-fixes.test.mjs"
+      - "PHASE37-CHANGELOG.md"
+      - "tests/isolated-application-rehearsal-e2e.mjs"
+      - "tests/mailbox-circle-write-paths.test.mjs"
+      - "tests/phase25-circle-mailbox-lifecycle.test.mjs"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/phase28-restore-combined-failures.test.mjs"
+      - "tests/backup-atomicity.test.mjs"
+      - "PHASE26-CHANGELOG.md"
+      - "PHASE27-CHANGELOG.md"
+      - "PHASE28-CHANGELOG.md"
+      - "tests/isolated-application-fixtures.mjs"
+      - "tests/isolated-application-fixtures.test.mjs"
+      - "tests/isolated-restore-lifecycle-e2e.mjs"
+      - "tests/isolated-restore-crash-worker.mjs"
+      - "docs/browser-recovery-acceptance-matrix.json"
+      - "docs/BROWSER-RECOVERY-ACCEPTANCE-MATRIX.md"
+      - "tests/browser-recovery-acceptance-matrix.test.mjs"
+      - "tests/run-browser-with-evidence.mjs"
+      - "tests/browser-evidence-runner.test.mjs"
+      - "tests/browser-ci-contract.test.mjs"
+      - ".github/workflows/isolated-application-rehearsal.yml"
+      - ".github/workflows/isolated-restore-lifecycle.yml"
+      - ".github/workflows/browser-recovery-acceptance-matrix.yml"
+      - "tools/verify-twodeers-hardening.mjs"
+      - "tests/chromium-v4-restore-crash-matrix.mjs"
+      - "tests/chromium-v4-restore-crash-matrix.test.mjs"
+      - "PHASE29-CHANGELOG.md"
+      - "PHASE30-CHANGELOG.md"
+      - "tests/phase31-restore-strict-durability.test.mjs"
+      - "PHASE31-CHANGELOG.md"
+      - "PHASE32-CHANGELOG.md"
+      - "tests/phase33-ci-evidence-persistence.test.mjs"
+      - "tests/phase34-chromium-process-group-cleanup.test.mjs"
+      - "PHASE33-CHANGELOG.md"
+      - "PHASE34-CHANGELOG.md"
+      - "tests/phase36-profile-media-call-beautify.test.mjs"
+      - "tests/phase36-call-transition-integrity.test.mjs"
+      - "PHASE36-CHANGELOG.md"
+
+  pull_request:
+    paths:
+      - "android-apps/app/src/main/AndroidManifest.xml"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "tests/phase37-audit-fixes.test.mjs"
+      - "PHASE37-CHANGELOG.md"
+      - "tests/isolated-application-rehearsal-e2e.mjs"
+      - "tests/mailbox-circle-write-paths.test.mjs"
+      - "tests/phase25-circle-mailbox-lifecycle.test.mjs"
+      - "tests/isolated-application-fixtures.mjs"
+      - "tests/isolated-application-fixtures.test.mjs"
+      - "tests/isolated-restore-lifecycle-e2e.mjs"
+      - "tests/isolated-restore-crash-worker.mjs"
+      - "docs/browser-recovery-acceptance-matrix.json"
+      - "docs/BROWSER-RECOVERY-ACCEPTANCE-MATRIX.md"
+      - "tests/browser-recovery-acceptance-matrix.test.mjs"
+      - "tests/run-browser-with-evidence.mjs"
+      - "tests/browser-evidence-runner.test.mjs"
+      - "tests/browser-ci-contract.test.mjs"
+      - ".github/workflows/isolated-application-rehearsal.yml"
+      - ".github/workflows/isolated-restore-lifecycle.yml"
+      - ".github/workflows/browser-recovery-acceptance-matrix.yml"
+      - "tools/verify-twodeers-hardening.mjs"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/phase28-restore-combined-failures.test.mjs"
+      - "tests/backup-atomicity.test.mjs"
+      - "PHASE26-CHANGELOG.md"
+      - "PHASE27-CHANGELOG.md"
+      - "PHASE28-CHANGELOG.md"
+      - "tests/chromium-v4-restore-crash-matrix.mjs"
+      - "tests/chromium-v4-restore-crash-matrix.test.mjs"
+      - "PHASE29-CHANGELOG.md"
+      - "PHASE30-CHANGELOG.md"
+      - "tests/phase31-restore-strict-durability.test.mjs"
+      - "PHASE31-CHANGELOG.md"
+      - "PHASE32-CHANGELOG.md"
+      - "tests/phase33-ci-evidence-persistence.test.mjs"
+      - "tests/phase34-chromium-process-group-cleanup.test.mjs"
+      - "PHASE33-CHANGELOG.md"
+      - "PHASE34-CHANGELOG.md"
+      - "tests/phase36-profile-media-call-beautify.test.mjs"
+      - "tests/phase36-call-transition-integrity.test.mjs"
+      - "PHASE36-CHANGELOG.md"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twodeers-browser-recovery-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-acceptance-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate browser recovery acceptance matrix
+        run: node tests/browser-recovery-acceptance-matrix.test.mjs
+
+      - name: Run complete source hardening regression
+        run: node tools/verify-twodeers-hardening.mjs

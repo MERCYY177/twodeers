@@ -1,0 +1,50 @@
+name: Twodeers application consistency audit
+
+on:
+  push:
+    paths:
+      - "index.html"
+      - "recovery-candidate-validator.js"
+      - "recovery-application-auditor.js"
+      - "recovery-isolation-engine.js"
+      - "tests/recovery-application-auditor.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-application-audit-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "recovery-candidate-validator.js"
+      - "recovery-application-auditor.js"
+      - "recovery-isolation-engine.js"
+      - "tests/recovery-application-auditor.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/recovery-application-audit-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-application-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax checks
+        run: |
+          node --check recovery-candidate-validator.js
+          node --check recovery-application-auditor.js
+          node --check recovery-isolation-engine.js
+          node --check tests/recovery-application-auditor.test.mjs
+          node --check tools/verify-twodeers-hardening.mjs
+      - name: Isolated application consistency audit
+        run: node tests/recovery-application-auditor.test.mjs
+      - name: Previous candidate and isolation regressions
+        run: |
+          node tests/recovery-candidate-validator.test.mjs
+          node tests/recovery-isolation-engine.test.mjs
+          node tests/recovery-isolation-ui.test.mjs
+      - name: Full hardening regression
+        run: node tools/verify-twodeers-hardening.mjs

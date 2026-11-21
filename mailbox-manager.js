@@ -5,8 +5,8 @@
   window.__duoMailboxInstalled=true;
   const KEY='twodeers_mailbox_letters_v1',LEGACY_DRAFT_KEY='twodeers_mailbox_drafts_v1';
   const defaults={version:1,items:[],pending:[],usageOutbox:[],recentCardKeys:[],nextIncomingAt:0,settings:{autoIncoming:true,autoReply:true,minIncomingMin:720,maxIncomingMin:2160,minReplyMin:2,maxReplyMin:15,cardCountMin:2,cardCountMax:4}};
-  let box=defaults,activeReplyToId=null,activeComposeImages=[],activeTab='in',tasksPaused=false,composeGeneration=0,readGeneration=0,addingComposeImages=false;
-  const imageUrls=new Map(),MAX_IMAGES=6,MAX_COMPOSE_IMAGES=4,MAX_IMAGE_BYTES=8*1024*1024,MAX_TOTAL_IMAGE_BYTES=24*1024*1024,MAX_PENDING_USAGE_EVENTS=1000;
+  let box=defaults,activeReplyToId=null,activeComposeImages=[],activeTab='in',tasksPaused=true,composeGeneration=0,readGeneration=0,addingComposeImages=false,sendingLetter=false;
+  const imageUrls=new Map(),pendingComposeMediaIds=new Set(),MAX_IMAGES=6,MAX_COMPOSE_IMAGES=4,MAX_IMAGE_BYTES=8*1024*1024,MAX_TOTAL_IMAGE_BYTES=24*1024*1024,MAX_PENDING_USAGE_EVENTS=1000;
   const clone=value=>JSON.parse(JSON.stringify(value));
   const $=s=>document.querySelector(s),uid=()=>('letter_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8));
   const clean=s=>String(s||'').trim().slice(0,12000);
@@ -19,11 +19,23 @@
     return false;
   }
   function normalize(raw){const x={...defaults,...(raw&&typeof raw==='object'?raw:{})};delete x.drafts;delete x.draft; x.items=Array.isArray(x.items)?x.items.filter(v=>v&&typeof v==='object'&&!isLegacyPresetLetter(v)).slice(-5000).map(v=>({...v,id:clean(v.id).slice(0,128)||uid(),type:v.type==='outgoing'?'outgoing':'incoming',title:clean(v.title).slice(0,120),content:clean(v.content),createdAt:Math.max(0,Number(v.createdAt)||Date.now()),read:!!v.read,cardFragments:Array.isArray(v.cardFragments)?v.cardFragments.filter(f=>f&&typeof f.textSnapshot==='string').slice(0,100):[],images:normalizeImages(v.images)})):[];x.usageOutbox=Array.isArray(x.usageOutbox)?x.usageOutbox.filter(v=>v&&typeof v.textSnapshot==='string'):[];x.recentCardKeys=Array.isArray(x.recentCardKeys)?x.recentCardKeys.filter(v=>typeof v==='string').slice(-24):[];x.pending=Array.isArray(x.pending)?x.pending.filter(v=>v&&v.type==='reply'&&typeof v.sourceId==='string').slice(0,1000).map(v=>({...v,id:clean(v.id).slice(0,128)||uid(),due:Math.max(0,Number(v.due)||0)})):[];x.settings={...defaults.settings,...(x.settings||{})};for(const k of ['minIncomingMin','maxIncomingMin','minReplyMin','maxReplyMin'])x.settings[k]=Math.max(1,Math.min(10080,Number(x.settings[k])||defaults.settings[k]));const cardMin=Number(x.settings.cardCountMin),cardMax=Number(x.settings.cardCountMax);x.settings.cardCountMin=Number.isInteger(cardMin)&&cardMin>=1&&cardMin<=10?cardMin:defaults.settings.cardCountMin;x.settings.cardCountMax=Number.isInteger(cardMax)&&cardMax>=1&&cardMax<=10?cardMax:defaults.settings.cardCountMax;if(x.settings.cardCountMin>x.settings.cardCountMax)x.settings.cardCountMax=x.settings.cardCountMin;if(x.settings.maxIncomingMin<x.settings.minIncomingMin)x.settings.maxIncomingMin=x.settings.minIncomingMin;if(x.settings.maxReplyMin<x.settings.minReplyMin)x.settings.maxReplyMin=x.settings.minReplyMin;x.nextIncomingAt=Math.max(0,Number(x.nextIncomingAt)||0);return x;}
-  try{const stored=JSON.parse(localStorage.getItem(KEY)||'null');box=normalize(stored);if(stored&&Array.isArray(stored.items)&&stored.items.length!==box.items.length)persist();}catch(_){box=normalize(null);}try{localStorage.removeItem(LEGACY_DRAFT_KEY);}catch(_){}
+  try{const stored=JSON.parse(localStorage.getItem(KEY)||'null');if(stored!==null)validateData(stored);box=normalize(stored);}catch(error){window.__duoRuntimeCoordinator?.reportStorageDamage?.(KEY,error);box=normalize(null);}
+  function initialize(){
+    let stored=null,valid=true;
+    try{stored=JSON.parse(localStorage.getItem(KEY)||'null');if(stored!==null)validateData(stored);}catch(error){valid=false;window.__duoRuntimeCoordinator?.reportStorageDamage?.(KEY,error);console.warn('[信箱] 持久化数据暂时无法解析，保留原始存储等待人工备份',error);}
+    if(valid){
+      const normalized=normalize(stored);
+      box=normalized;
+      const access=window.__duoRuntimeCoordinator?.getStatus?.();
+      if(access?.ready&&access?.writable&&stored&&JSON.stringify(stored)!==JSON.stringify(normalized))persist();
+    }
+    // Never remove the legacy draft key as a startup side effect; it is not part of the V4 journal.
+    return valid;
+  }
   function normalizeImages(images){return Array.isArray(images)?images.filter(x=>x&&typeof x.id==='string').slice(0,MAX_IMAGES).map((x,i)=>({id:x.id,name:clean(x.name).slice(0,180)||'图片 '+(i+1),mimeType:clean(x.mimeType).slice(0,100)||'image/jpeg',size:Math.max(0,Number(x.size)||0),order:Number.isFinite(Number(x.order))?Number(x.order):i})):[];}
-  function persist(){localStorage.setItem(KEY,JSON.stringify(box));}
+  function persist(){const coordinator=window.__duoRuntimeCoordinator,access=coordinator?.getStatus?.();if(!access?.ready||!access?.writable)return false;coordinator?.assertWritable?.('保存信箱');const previous=localStorage.getItem(KEY),serialized=JSON.stringify(box);localStorage.setItem(KEY,serialized);if(coordinator?.markDataChanged?.()===false){const error=new Error('信箱数据已写入，但跨标签页版本标记失败');error.name='RevisionMarkerError';try{if(previous===null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,previous);error.rollbackConfirmed=true;}catch(rollbackError){error.rollbackConfirmed=false;error.message+='；原数据回滚失败：'+(rollbackError.message||rollbackError);}throw error;}return true;}
   function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function scheduleIncoming(shouldPersist=true){if(!box.settings.autoIncoming){box.nextIncomingAt=0;if(shouldPersist)persist();return;}if(!box.nextIncomingAt||box.nextIncomingAt<Date.now())box.nextIncomingAt=Date.now()+random(box.settings.minIncomingMin,box.settings.maxIncomingMin)*60000;if(shouldPersist)persist();}
+  function scheduleIncoming(shouldPersist=true){if(!box.settings.autoIncoming){box.nextIncomingAt=0;if(shouldPersist&&persist()!==true)throw new Error('当前页面没有信箱写入权');return;}if(!box.nextIncomingAt||box.nextIncomingAt<Date.now())box.nextIncomingAt=Date.now()+random(box.settings.minIncomingMin,box.settings.maxIncomingMin)*60000;if(shouldPersist&&persist()!==true)throw new Error('当前页面没有信箱写入权');}
   function chooseChatCards(sourceText=''){
     const seen=new Set(),pool=(state.cardPhrases||[]).map((raw,index)=>({text:clean(raw),index})).filter(item=>item.text&&!seen.has(item.text)&&seen.add(item.text));
     if(!pool.length)return [];
@@ -85,10 +97,12 @@
   }
   async function addImages(files){
     const requested=[...(files||[])].filter(Boolean);if(!requested.length)return;
+    if(sendingLetter){showToast('信件正在核对附件，请稍后再添加');return;}
     if(addingComposeImages){showToast('图片正在处理，请稍后再添加');return;}
     const generation=composeGeneration,baseImages=activeComposeImages.slice(),remaining=Math.max(0,MAX_COMPOSE_IMAGES-baseImages.length);
     if(!remaining){showToast('一封信最多添加 '+MAX_COMPOSE_IMAGES+' 张图片');return;}
     const selected=requested.slice(0,remaining);if(requested.length>remaining)showToast('最多还能添加 '+remaining+' 张图片');
+    let endMutation=null;try{endMutation=window.__duoRuntimeCoordinator?.beginMutation?.('添加信件图片附件');}catch(error){showToast('无法开始添加图片：'+(error?.message||error));return;}
     addingComposeImages=true;const currentBytes=baseImages.reduce((n,x)=>n+(Number(x.size)||0),0);let added=[];
     try{
       for(const file of selected){
@@ -98,17 +112,26 @@
         if(typeof putMediaBlob!=='function')throw new Error('媒体存储尚未就绪');
         if(generation!==composeGeneration)throw new Error('写信窗口已关闭，已取消图片添加');
         const id=await putMediaBlob(file,'mail-image',file.name||'letter-image');
+        pendingComposeMediaIds.add(id);
         added.push({id,name:file.name||'图片 '+(baseImages.length+added.length+1),mimeType:file.type||'image/jpeg',size:file.size||0,order:baseImages.length+added.length});
         if(generation!==composeGeneration)throw new Error('写信窗口已关闭，已取消图片添加');
       }
       if(generation!==composeGeneration)throw new Error('写信窗口已关闭，已取消图片添加');
-      activeComposeImages=baseImages.concat(added);await renderComposeImages(generation);showToast('已添加 '+added.length+' 张图片');
-    }catch(error){for(const item of added){if(!getReferencedMediaIds().has(item.id))await deleteMediaRecord(item.id);}if(!String(error.message||'').includes('写信窗口已关闭'))showToast(error.message||'图片添加失败');}
-    finally{addingComposeImages=false;const input=$('#mailImageInput');if(input)input.value='';}
+      activeComposeImages=baseImages.concat(added);for(const item of added)pendingComposeMediaIds.delete(item.id);await renderComposeImages(generation);showToast('已添加 '+added.length+' 张图片');
+    }catch(error){for(const item of added){pendingComposeMediaIds.delete(item.id);revokeImageUrl(item.id);try{if(typeof deleteIfUnreferenced==='function')await deleteIfUnreferenced(item.id);else showToast('无法检查共享媒体引用，已保留未完成附件');}catch(cleanupError){console.error('[双人空间信箱] 附件回滚清理失败',cleanupError);showToast('附件回滚清理失败，媒体文件已保留以避免误删');}}if(!String(error.message||'').includes('写信窗口已关闭'))showToast(error.message||'图片添加失败');}
+    finally{addingComposeImages=false;const input=$('#mailImageInput');if(input)input.value='';endMutation?.();}
   }
-  function getReferencedMediaIds(){const ids=new Set();for(const item of box.items||[])for(const image of normalizeImages(item.images))ids.add(image.id);for(const image of activeComposeImages||[])ids.add(image.id);return ids;}
-  async function removeComposeImage(id){if(addingComposeImages){showToast('图片正在处理，请稍后再移除');return;}const generation=++composeGeneration,before=activeComposeImages.slice();activeComposeImages=activeComposeImages.filter(x=>x.id!==id);await renderComposeImages(generation);if(!getReferencedMediaIds().has(id)){await deleteMediaRecord(id);revokeImageUrl(id);}}
-  async function cleanupUnreferencedImages(images){const refs=getReferencedMediaIds();for(const item of normalizeImages(images)){if(!refs.has(item.id)){await deleteMediaRecord(item.id);revokeImageUrl(item.id);}}}
+  function getReferencedMediaIds(){const ids=new Set();for(const item of box.items||[])for(const image of normalizeImages(item.images))ids.add(image.id);for(const image of activeComposeImages||[])ids.add(image.id);for(const id of pendingComposeMediaIds)ids.add(id);return ids;}
+  async function removeComposeImage(id){if(sendingLetter){showToast('信件正在核对附件，请稍后再移除');return;}if(addingComposeImages){showToast('图片正在处理，请稍后再移除');return;}const generation=++composeGeneration;activeComposeImages=activeComposeImages.filter(x=>x.id!==id);await renderComposeImages(generation);await cleanupUnreferencedImages([{id}]);}
+  async function cleanupUnreferencedImages(images){for(const item of normalizeImages(images)){
+    // Mailbox metadata is only one owner of the shared media database. Chat
+    // history, sticker library and other mailbox letters must be checked too.
+    // Keep the mailbox-owned object URL when another letter still references
+    // the same media ID; revoke it only after the last mailbox view is gone.
+    if(!getReferencedMediaIds().has(item.id))revokeImageUrl(item.id);
+    if(typeof deleteIfUnreferenced!=='function'){showToast('无法检查共享媒体引用，已保留附件文件');continue;}
+    try{await deleteIfUnreferenced(item.id);}catch(error){console.error('[双人空间信箱] 共享媒体清理失败',error);showToast('附件清理失败，已保留媒体文件以避免误删');}
+  }}
   function closeCompose(){
     composeGeneration++;const modal=$('#mailComposeModal');if(modal)modal.classList.remove('show');
     const discarded=activeComposeImages.slice();activeComposeImages=[];activeReplyToId=null;
@@ -120,23 +143,66 @@
     const api=window.__duoCardSystem;if(!api||typeof api.recordUsageEvent!=='function'||!Array.isArray(box.usageOutbox)||!box.usageOutbox.length)return false;
     const before=box.usageOutbox.slice(),left=[];let processed=0;
     for(const event of before){if(api.recordUsageEvent(event))processed++;else left.push(event);}
-    if(processed){box.usageOutbox=left;try{persist();}catch(error){box.usageOutbox=before;showToast('最近使用记录待重试：'+(error.message||error));}}
+    if(processed){box.usageOutbox=left;try{if(persist()!==true)throw new Error('当前页面没有信箱写入权');}catch(error){box.usageOutbox=before;showToast('最近使用记录待重试：'+(error.message||error));}}
     return processed>0;
   }
-  function send(){
+  async function send(){
+    if(sendingLetter)return false;
+    if(addingComposeImages){showToast('图片仍在写入，请等附件添加完成后再寄出');return false;}
+    const modal=$('#mailComposeModal');
+    if(!modal?.classList?.contains?.('show'))return false;
+    const generation=composeGeneration;
     const title=clean($('#mailComposeTitle')?.value),content=clean($('#mailComposeContent')?.value);
-    if(!content&&!activeComposeImages.length){showToast('信件内容不能为空');return false;}
-    const oldBox=clone(box),images=normalizeImages(activeComposeImages),replyToId=activeReplyToId;
-    const letter=makeLetter('outgoing',title,content,{replyToId,images});box.items.push(letter);
-    const evicted=box.items.length>5000?box.items.splice(0,box.items.length-5000):[];
-    if(box.settings.autoReply)box.pending.push({id:uid(),type:'reply',sourceId:letter.id,due:Date.now()+random(box.settings.minReplyMin,box.settings.maxReplyMin)*60000});
-    try{persist();}catch(error){box=normalize(oldBox);showToast('信件寄出失败：'+(error.message||error));return false;}
-    activeTab='out';activeComposeImages=[];activeReplyToId=null;closeCompose();if(evicted.length)void cleanupUnreferencedImages(evicted.flatMap(item=>item.images||[]));render();showToast('信件已寄出');return true;
+    const images=normalizeImages(activeComposeImages),replyToId=activeReplyToId;
+    if(!content&&!images.length){showToast('信件内容不能为空');return false;}
+    if(images.length>MAX_COMPOSE_IMAGES){showToast('一封信最多添加 '+MAX_COMPOSE_IMAGES+' 张图片');return false;}
+    if(images.reduce((sum,item)=>sum+(Number(item.size)||0),0)>MAX_TOTAL_IMAGE_BYTES){showToast('一封信的图片附件总大小不能超过 24 MB');return false;}
+    const imageSignature=images.map(item=>item.id).join('|');
+    const sendButton=$('#mailComposeSend');
+    let endMutation=null;try{endMutation=window.__duoRuntimeCoordinator?.beginMutation?.('寄出信件及附件');}catch(error){showToast('当前页面无法开始寄信：'+(error?.message||error));return false;}
+    sendingLetter=true;
+    if(sendButton){sendButton.disabled=true;sendButton.setAttribute('aria-busy','true');}
+    try{
+      // Attachment records can be independently lost or corrupted after selection.
+      // Verify every Blob before creating a letter that would persist dangling IDs.
+      let verifiedBytes=0;
+      for(const image of images){
+        if(generation!==composeGeneration||!modal.classList.contains('show'))return false;
+        const record=await getMediaRecord(image.id);
+        if(generation!==composeGeneration||!modal.classList.contains('show'))return false;
+        const blob=record?.blob;
+        const blobSize=Number(blob?.size)||0;
+        const blobType=String(blob?.type||record?.mimeType||'').toLowerCase();
+        if(!blob||!Number.isSafeInteger(blobSize)||blobSize<=0)throw new Error('信件图片附件缺失或为空：'+(image.name||image.id));
+        if(!/^image\/(?:jpeg|png|webp|gif|avif)$/i.test(blobType))throw new Error('信件图片附件格式不受支持：'+(image.name||image.id));
+        if(image.size>0&&image.size!==blobSize)throw new Error('信件图片附件大小与记录不一致：'+(image.name||image.id));
+        verifiedBytes+=blobSize;
+        if(blobSize>MAX_IMAGE_BYTES||verifiedBytes>MAX_TOTAL_IMAGE_BYTES)throw new Error('信件图片附件超过大小限制');
+      }
+      if(generation!==composeGeneration||!modal.classList.contains('show'))return false;
+      if(replyToId&&!box.items.some(item=>item.id===replyToId&&item.type==='incoming'))throw new Error('原信件已删除或不可回复，未创建孤立回信');
+      if(images.map(item=>item.id).join('|')!==imageSignature||images.map(item=>item.id).join('|')!==normalizeImages(activeComposeImages).map(item=>item.id).join('|'))return false;
+      if(clean($('#mailComposeTitle')?.value)!==title||clean($('#mailComposeContent')?.value)!==content){showToast('信件内容在附件核对期间发生变化，请重新寄出');return false;}
+      // Snapshot only immediately before synchronous mutation: due-mail processing
+      // may legitimately update the mailbox while the attachment reads are pending.
+      const oldBox=clone(box);
+      const letter=makeLetter('outgoing',title,content,{replyToId,images});box.items.push(letter);
+      const evicted=box.items.length>5000?box.items.splice(0,box.items.length-5000):[];
+      if(evicted.length){const evictedIds=new Set(evicted.map(item=>item.id));box.pending=box.pending.filter(task=>!evictedIds.has(task.sourceId));}
+      if(box.settings.autoReply)box.pending.push({id:uid(),type:'reply',sourceId:letter.id,due:Date.now()+random(box.settings.minReplyMin,box.settings.maxReplyMin)*60000});
+      try{if(persist()!==true)throw new Error('当前页面没有信箱写入权');}
+      catch(error){box=normalize(oldBox);throw error;}
+      activeTab='out';activeComposeImages=[];activeReplyToId=null;
+      try{closeCompose();if(evicted.length)void cleanupUnreferencedImages(evicted.flatMap(item=>item.images||[]));render();showToast('信件已寄出');}
+      catch(postCommitError){showToast('信件已保存，但界面刷新失败：'+(postCommitError?.message||postCommitError));}
+      return true;
+    }catch(error){showToast('信件寄出失败：'+(error?.message||error));return false;}
+    finally{sendingLetter=false;if(sendButton){sendButton.disabled=false;sendButton.removeAttribute('aria-busy');}endMutation?.();}
   }
   async function openLetter(id){
     const item=box.items.find(x=>x.id===id);if(!item)return;
     const generation=++readGeneration;
-    const wasRead=item.read;item.read=true;try{persist();}catch(error){item.read=wasRead;showToast('信件已打开，但已读状态保存失败：'+(error.message||error));return;}
+    const wasRead=item.read;item.read=true;try{if(persist()!==true)throw new Error('当前页面没有信箱写入权');}catch(error){item.read=wasRead;showToast('信件已打开，但已读状态保存失败：'+(error.message||error));return;}
     render();const modal=$('#mailReadModal');if(!modal)return;
     modal.dataset.letterId=id;modal.classList.add('show');
     $('#mailReadTitle').textContent=item.title;$('#mailReadMeta').textContent=(item.type==='incoming'?'收到的信':'寄出的信')+' · '+new Date(item.createdAt).toLocaleString();$('#mailReadContent').textContent=item.content;
@@ -149,18 +215,23 @@
     if(generation!==readGeneration||modal.dataset.letterId!==id||!modal.classList.contains('show'))return;
     const replyBtn=$('#mailReplyBtn');if(replyBtn)replyBtn.hidden=item.type!=='incoming';const delBtn=$('#mailDeleteBtn');if(delBtn)delBtn.hidden=false;
   }
-  async function deleteLetter(id){const old=clone(box);const item=box.items.find(x=>x.id===id);if(!item)return false;box.items=box.items.filter(x=>x.id!==id);box.pending=box.pending.filter(x=>x.sourceId!==id);try{persist();}catch(error){box=normalize(old);showToast('删除信件失败：'+(error.message||error));return false;}closeRead();render();await cleanupUnreferencedImages(item.images);showToast('信件已删除');return true;}
+  async function deleteLetter(id){const old=clone(box);const item=box.items.find(x=>x.id===id);if(!item)return false;box.items=box.items.filter(x=>x.id!==id);box.pending=box.pending.filter(x=>x.sourceId!==id);try{if(persist()!==true)throw new Error('当前页面没有信箱写入权');}catch(error){box=normalize(old);showToast('删除信件失败：'+(error.message||error));return false;}closeRead();render();await cleanupUnreferencedImages(item.images);showToast('信件已删除');return true;}
   function closeRead(){readGeneration++;const modal=$('#mailReadModal');modal?.classList.remove('show');if(modal)modal.dataset.letterId='';const host=$('#mailReadImages');if(host)host.innerHTML='';revokeUrlsNotVisible();}
   function replyToCurrent(){const id=$('#mailReadModal')?.dataset.letterId,item=box.items.find(x=>x.id===id);if(!item)return;closeRead();openCompose(item.id,'回复：'+item.title);}
   function processDue(){
-    if(tasksPaused)return;
+    if(tasksPaused||document.hidden||!window.__duoRuntimeCoordinator?.isWritable?.())return;
     const now=Date.now(),oldBox=clone(box),used=[];let changed=false;const evicted=[];
     const due=box.pending.filter(item=>Number(item.due)<=now),actionable=due.map(task=>({task,source:box.items.find(item=>item.id===task.sourceId&&item.type==='outgoing')})).filter(item=>item.source);
     const incomingDue=!!(box.settings.autoIncoming&&box.nextIncomingAt&&box.nextIncomingAt<=now);
     const plans=actionable.map(item=>({kind:'reply',source:item.source,cards:chooseChatCards(item.source.content)}));
     if(incomingDue)plans.push({kind:'incoming',source:null,cards:chooseChatCards('')});
     const requiredUsageEvents=plans.reduce((sum,plan)=>sum+plan.cards.length,0);
-    if(box.usageOutbox.length+requiredUsageEvents>MAX_PENDING_USAGE_EVENTS){showToast('最近字卡使用记录队列已满；自动来信与回信暂缓处理，待队列清空后会自动重试');return;}
+    if(box.usageOutbox.length+requiredUsageEvents>MAX_PENDING_USAGE_EVENTS){
+      // chooseChatCards updates recentCardKeys while planning. If the work is
+      // deferred, restore that in-memory bookkeeping along with the untouched queue.
+      box.recentCardKeys=Array.isArray(oldBox.recentCardKeys)?oldBox.recentCardKeys.slice():[];
+      showToast('最近字卡使用记录队列已满；自动来信与回信暂缓处理，待队列清空后会自动重试');return;
+    }
     if(due.length){box.pending=box.pending.filter(item=>Number(item.due)>now);changed=true;}
     for(const plan of plans){
       const content=contentForCards(plan.cards);
@@ -174,7 +245,8 @@
     if(incomingDue){scheduleIncoming(false);changed=true;}
     if(changed){
       if(box.items.length>5000)evicted.push(...box.items.splice(0,box.items.length-5000));
-      try{used.forEach(item=>box.usageOutbox.push({...item,...{eventId:uid('use'),usedAt:Date.now()}}));persist();}
+      if(evicted.length){const evictedIds=new Set(evicted.map(item=>item.id));box.pending=box.pending.filter(task=>!evictedIds.has(task.sourceId));}
+      try{used.forEach(item=>box.usageOutbox.push({...item,...{eventId:uid('use'),usedAt:Date.now()}}));if(persist()!==true)throw new Error('当前页面没有信箱写入权');}
       catch(error){box=normalize(oldBox);showToast('自动信件未能保存，已保留原信箱数据：'+(error.message||error));return;}
       render();if(evicted.length)void cleanupUnreferencedImages(evicted.flatMap(item=>item.images||[]));flushUsageOutbox();
     }
@@ -234,7 +306,7 @@
       box.settings={...box.settings,...next};
       if(incomingChanged)box.nextIncomingAt=0;
       if(!box.settings.autoReply)box.pending=[];
-      try{scheduleIncoming(false);persist();}
+      try{scheduleIncoming(false);if(persist()!==true)throw new Error('当前页面没有信箱写入权');}
       catch(storageError){box=normalize(old);throw storageError;}
       render();if(error)error.textContent='';
       closeSettingsModal();showToast(successMessage);
@@ -262,18 +334,43 @@
     root.querySelectorAll('.data-note,.help-text,.hint,.code-help,p,small').forEach(node=>node.remove());
     syncSettings();return true;
   }
+  function getUsageOutbox(){return clone(Array.isArray(box.usageOutbox)?box.usageOutbox:[]);}
+  function setUsageOutbox(events,mode='replace'){
+    if(!Array.isArray(events))throw new Error('信箱字卡使用队列格式无效');
+    const incoming=events.filter(v=>v&&typeof v==='object'&&typeof v.textSnapshot==='string');
+    if(incoming.length>MAX_PENDING_USAGE_EVENTS)throw new Error('信箱字卡使用队列超过安全容量');
+    const before=box.usageOutbox.slice();
+    const next=mode==='append'?[...before,...incoming.filter(item=>!before.some(old=>old.eventId&&old.eventId===item.eventId))]:incoming;
+    if(next.length>MAX_PENDING_USAGE_EVENTS)throw new Error('信箱字卡使用队列超过安全容量');
+    box.usageOutbox=clone(next);
+    try{if(persist()!==true)throw new Error('当前页面没有信箱写入权');return true;}catch(error){box.usageOutbox=before;throw error;}
+  }
   function exportData(){return {mailbox:clone(box)};}
-  function importData(raw){if(!raw||typeof raw!=='object')throw new Error('信件备份格式无效');const oldBox=clone(box);const source={...(raw.mailbox||raw)};delete source.drafts;delete source.draft;const next=normalize(source);box=next;try{if(box.settings.autoIncoming&&!box.nextIncomingAt)scheduleIncoming(false);persist();try{localStorage.removeItem(LEGACY_DRAFT_KEY);}catch(_){}syncSettings();return true;}catch(error){box=normalize(oldBox);throw error;}}
+  function validateData(raw){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('信件备份格式无效');
+    const source=raw.mailbox===undefined?raw:raw.mailbox;
+    if(!source||typeof source!=='object'||Array.isArray(source))throw new Error('信箱恢复快照结构无效');
+    for(const [key,limit] of [['items',5000],['pending',1000],['usageOutbox',MAX_PENDING_USAGE_EVENTS],['recentCardKeys',24]]){
+      if(source[key]!==undefined&&(!Array.isArray(source[key])||source[key].length>limit))throw new Error('信箱恢复快照字段无效：'+key);
+    }
+    if(source.settings!==undefined&&(!source.settings||typeof source.settings!=='object'||Array.isArray(source.settings)))throw new Error('信箱恢复快照设置无效');
+    if(Array.isArray(source.items))for(const item of source.items){
+      if(!item||typeof item!=='object'||Array.isArray(item))throw new Error('信箱恢复快照包含无效信件');
+      if(item.images!==undefined&&(!Array.isArray(item.images)||item.images.length>MAX_IMAGES))throw new Error('信件图片清单无效');
+      if(item.cardFragments!==undefined&&(!Array.isArray(item.cardFragments)||item.cardFragments.length>100))throw new Error('信件字卡清单无效');
+    }
+    return true;
+  }
+  function importData(raw){validateData(raw);const oldBox=clone(box);const source={...(raw.mailbox||raw)};delete source.drafts;delete source.draft;const next=normalize(source);box=next;try{if(box.settings.autoIncoming&&!box.nextIncomingAt)scheduleIncoming(false);if(persist()!==true)throw new Error('当前页面没有信箱写入权');syncSettings();return true;}catch(error){box=normalize(oldBox);throw error;}}
   function showPage(){activeTab='in';render();syncSettings();processDue();}
-  window.__duoMailbox={exportData,importData,render,processDue,openCompose,openLetter,openSettings:openSettingsModal,closeSettings:closeSettingsModal,flushUsageOutbox,getReferencedMediaIds,mountSettings,pauseTasks(){tasksPaused=true;},resumeTasks(){tasksPaused=false;flushUsageOutbox();processDue();}};
+  window.__duoMailbox={initialize,exportData,validateData,importData,getUsageOutbox,setUsageOutbox,render,processDue,openCompose,openLetter,openSettings:openSettingsModal,closeSettings:closeSettingsModal,flushUsageOutbox,getReferencedMediaIds,mountSettings,pauseTasks(){tasksPaused=true;},resumeTasks(){if(!window.__duoRuntimeCoordinator?.isWritable?.())return false;tasksPaused=false;if(box.settings.autoIncoming&&!box.nextIncomingAt)scheduleIncoming();flushUsageOutbox();processDue();return true;}};
   const style=document.createElement('style');style.textContent='.duo-mail-settings .data-note{margin:0 0 14px}.duo-mail-setting-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;margin-top:9px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-size:13px;font-weight:700;color:var(--text)}.duo-mail-setting-row>span:last-child{display:flex;align-items:center;gap:6px;white-space:nowrap}.duo-mail-setting-row input{width:66px;min-width:0;min-height:36px;padding:7px 6px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--text);text-align:center}.duo-mail-setting-row input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}.duo-mail-settings .item-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;margin-top:9px;border:1px solid var(--line);border-radius:13px;background:var(--panel);font-size:13px;font-weight:700}.duo-mail-settings .item-row input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}.duo-mail-settings-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:15px}.duo-mail-settings-actions #mailSettingsSave{grid-column:1/-1;grid-row:1;min-height:44px}.duo-mail-settings-actions button{min-height:42px}.duo-mail-settings-error{min-height:18px;color:#b94b4b;font-size:12px;padding-top:8px}@media(max-width:380px){.duo-mail-setting-row{align-items:flex-start;flex-direction:column}.duo-mail-setting-row>span:last-child{max-width:100%}}.mail-actions{display:flex;gap:8px;flex-wrap:wrap}.mail-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 12px}.mail-tab{position:relative;min-height:42px;border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--sub);font-weight:750}.mail-tab.active{border-color:var(--accent);color:var(--accent);background:var(--soft)}.mail-letter-row{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;padding:13px;margin:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);text-align:left}.mail-letter-row strong{font-size:15px}.mail-letter-row small,.mail-letter-type{color:var(--sub);font-size:11px}.mail-letter-row>span:last-child{font-size:13px;line-height:1.5;color:var(--sub)}.mail-empty{padding:25px 12px;text-align:center;color:var(--sub);font-size:13px}.mail-footer{position:sticky;bottom:0;padding:10px 0 calc(10px + env(safe-area-inset-bottom));background:var(--bg)}.mail-write{width:100%;min-height:48px;border:0;border-radius:14px;background:var(--accent);color:white;font-weight:800}.mail-modal{position:absolute;inset:0;z-index:var(--z-mail-modal,80);display:none;align-items:flex-end;background:#0006}.mail-modal.show{display:flex}.mail-settings-modal{align-items:center;justify-content:center;padding:18px}.mail-settings-modal .mail-sheet{width:min(360px,100%);max-height:88dvh;border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 14px 38px #0003}.mail-sheet{width:100%;max-height:88%;overflow:auto;padding:18px;border-radius:20px 20px 0 0;background:var(--panel);color:var(--text)}.mail-settings-modal .mail-sheet{border-radius:18px;background:var(--bg)}.mail-sheet input,.mail-sheet textarea{width:100%;margin:8px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--text)}.mail-sheet textarea{min-height:220px;resize:vertical}.mail-read-content{white-space:pre-wrap;line-height:1.8;overflow-wrap:anywhere;padding:12px 0}.mail-image-grid{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.mail-image-thumb{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;background:var(--soft);border:1px solid var(--line)}.mail-image-thumb img{width:100%;height:100%;object-fit:cover;display:block}.mail-image-thumb button{position:absolute;right:3px;top:3px;width:22px;height:22px;border:0;border-radius:50%;background:#0009;color:white}.mail-read-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));align-items:start;gap:10px;margin:12px 0}.mail-read-image{width:100%;max-width:560px;min-width:0;min-height:0;height:auto;border-radius:12px;overflow:hidden;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12px}.mail-read-image img{display:block;width:auto;height:auto;max-width:100%;max-height:70vh;object-fit:contain}';document.head.appendChild(style);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#mailSettingsModal')?.classList.contains('show'))closeSettingsModal();});
-  document.addEventListener('click',e=>{if(e.target.closest('#mailSettingsBtn')){openSettingsModal();return;}const settingsModal=$('#mailSettingsModal');if(settingsModal&&e.target===settingsModal){closeSettingsModal();return;}if(e.target.closest('#mailComposeBtn')){openCompose();return;}const tab=e.target.closest('[data-mail-tab]');if(tab){activeTab=tab.dataset.mailTab==='out'?'out':'in';render();return;}if(e.target.closest('#mailComposeCancel')){closeCompose();return;}if(e.target.closest('#mailComposeSend'))send();if(e.target.closest('#mailImagePickBtn'))$('#mailImageInput')?.click();const imageDel=e.target.closest('[data-mail-image-remove]');if(imageDel)removeComposeImage(imageDel.dataset.mailImageRemove);if(e.target.closest('#mailReadClose'))closeRead();if(e.target.closest('#mailReplyBtn'))replyToCurrent();if(e.target.closest('#mailDeleteBtn')){const id=$('#mailReadModal')?.dataset.letterId;if(id)deleteLetter(id);}const row=e.target.closest('[data-mail-open]');if(row)openLetter(row.dataset.mailOpen);if(e.target.closest('#mailSettingsSave'))saveSettings();if(e.target.closest('#mailSettingsDefault'))restoreDefaultSettings();if(e.target.closest('#mailSettingsCancel')){closeSettingsModal();if(typeof showToast==='function')showToast('已恢复未保存的设置');}});
+  document.addEventListener('click',e=>{if(e.target.closest('#mailSettingsBtn')){openSettingsModal();return;}const settingsModal=$('#mailSettingsModal');if(settingsModal&&e.target===settingsModal){closeSettingsModal();return;}if(e.target.closest('#mailComposeBtn')){openCompose();return;}const tab=e.target.closest('[data-mail-tab]');if(tab){activeTab=tab.dataset.mailTab==='out'?'out':'in';render();return;}if(e.target.closest('#mailComposeCancel')){closeCompose();return;}if(e.target.closest('#mailComposeSend'))void send();if(e.target.closest('#mailImagePickBtn'))$('#mailImageInput')?.click();const imageDel=e.target.closest('[data-mail-image-remove]');if(imageDel)removeComposeImage(imageDel.dataset.mailImageRemove);if(e.target.closest('#mailReadClose'))closeRead();if(e.target.closest('#mailReplyBtn'))replyToCurrent();if(e.target.closest('#mailDeleteBtn')){const id=$('#mailReadModal')?.dataset.letterId;if(id)deleteLetter(id);}const row=e.target.closest('[data-mail-open]');if(row)openLetter(row.dataset.mailOpen);if(e.target.closest('#mailSettingsSave'))saveSettings();if(e.target.closest('#mailSettingsDefault'))restoreDefaultSettings();if(e.target.closest('#mailSettingsCancel')){closeSettingsModal();if(typeof showToast==='function')showToast('已恢复未保存的设置');}});
   document.addEventListener('change',e=>{if(e.target&&e.target.id==='mailImageInput')addImages(e.target.files);});
   document.addEventListener('click',e=>{if(e.target.closest('[data-go="mailPage"]'))setTimeout(showPage,0);});
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)processDue();});window.addEventListener('focus',processDue);setInterval(()=>{if(!document.hidden)processDue();},15000);
   const settingsHost=$('#mailSettingsMount');
   if(settingsHost)mountSettings(settingsHost);
-  if(box.settings.autoIncoming&&!box.nextIncomingAt){try{scheduleIncoming();}catch(error){showToast('自动来信计划保存失败：'+(error.message||error));}}
   syncSettings();
 })();

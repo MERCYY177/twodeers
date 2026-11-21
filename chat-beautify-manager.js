@@ -50,24 +50,70 @@
     let value = typeof state === 'object' && state ? state.chatBeautifyPresetId : '';
     const replacement = value === 'carbon-glass' ? 'ink-minimal' : '';
     if (replacement && validPresets.some(item => item.id === replacement)) {
-      state.chatBeautifyPresetId = replacement;
-      if (typeof save === 'function') save();
-      value = replacement;
+      const coordinator=window.__duoRuntimeCoordinator;
+      if(!coordinator||coordinator.isWritable?.()){
+        const previous=value;
+        state.chatBeautifyPresetId = replacement;
+        try{
+          if(typeof save==='function'&&save()===false)throw new Error('聊天美化设置保存失败');
+          value = replacement;
+        }catch(error){
+          state.chatBeautifyPresetId=previous;
+          value=previous;
+          console.warn('[聊天美化] 旧方案迁移未保存，保留原设置',error);
+        }
+      }else value=replacement;
     }
     return validPresets.some(item => item.id === value) ? value : '';
   }
-
-  function setSelected(id, notify) {
-    if (id && !validPresets.some(item => item.id === id)) return;
-    state.chatBeautifyPresetId = id || '';
-    applyToChat(state.chatBeautifyPresetId);
+  function reconcileLegacyPreset(){
+    if(!state||state.chatBeautifyPresetId!=='carbon-glass')return selectedId();
+    const coordinator=window.__duoRuntimeCoordinator;
+    const access=coordinator?.getStatus?.();
+    if(coordinator&&(!access?.ready||!access?.writable||access?.blocked))return 'ink-minimal';
+    const previous=state.chatBeautifyPresetId;
+    state.chatBeautifyPresetId='ink-minimal';
+    try{if(typeof save==='function'&&save()===false)throw new Error('聊天美化设置保存失败');}
+    catch(error){state.chatBeautifyPresetId=previous;throw error;}
+    applyToChat('ink-minimal');
     renderCardStates();
     updateStatus();
-    if (typeof save === 'function') save();
+    return 'ink-minimal';
+  }
+
+  function setSelected(id, notify) {
+    if (id && !validPresets.some(item => item.id === id)) return false;
+    if(!state||typeof state!=='object')return false;
+    const hadPrevious=Object.prototype.hasOwnProperty.call(state,'chatBeautifyPresetId');
+    const previous=state.chatBeautifyPresetId;
+    const next=id||'';
+    const restorePrevious=()=>{
+      if(hadPrevious)state.chatBeautifyPresetId=previous;
+      else delete state.chatBeautifyPresetId;
+      applyToChat(validPresets.some(item=>item.id===previous)?previous:'');
+      renderCardStates();
+      updateStatus();
+    };
+    if(!applyToChat(next)){
+      restorePrevious();
+      if(notify&&typeof showToast==='function')showToast('聊天界面尚未就绪，未更改美化设置');
+      return false;
+    }
+    state.chatBeautifyPresetId=next;
+    try{
+      if(typeof save==='function'&&save()===false)throw new Error('本地设置保存失败');
+    }catch(error){
+      restorePrevious();
+      if(notify&&typeof showToast==='function')showToast('聊天美化保存失败，已恢复原设置：'+(error?.message||error));
+      return false;
+    }
+    renderCardStates();
+    updateStatus();
     if (notify && typeof showToast === 'function') {
       const item = validPresets.find(entry => entry.id === id);
       showToast(item ? '已应用聊天美化：' + item.name : '已恢复聊天默认样式');
     }
+    return true;
   }
 
   function previewMarkup(item) {
@@ -162,7 +208,12 @@
     const storedPresetId = state.chatBeautifyPresetId;
     if (storedPresetId && !validPresets.some(item => item.id === storedPresetId)) {
       delete state.chatBeautifyPresetId;
-      save();
+      try{
+        if(typeof save==='function'&&save()===false)throw new Error('本地设置保存失败');
+      }catch(error){
+        state.chatBeautifyPresetId=storedPresetId;
+        console.warn('[聊天美化] 无效旧方案清理未保存，保留原状态',error);
+      }
     }
     const id = selectedId();
     const current = validPresets.find(item => item.id === id);
@@ -229,6 +280,7 @@
     presets: validPresets,
     apply: id => setSelected(id, true),
     reset: () => setSelected('', true),
-    getCurrent: selectedId
+    getCurrent: selectedId,
+    reconcile: reconcileLegacyPreset
   };
 })();

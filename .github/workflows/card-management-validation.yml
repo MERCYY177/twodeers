@@ -1,0 +1,75 @@
+name: Core UI and theme regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "circle-media-manager.js"
+      - "appearance-manager.js"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "android-apps/app/src/main/res/**"
+      - "tests/appearance-theme.test.mjs"
+      - "card-system.js"
+      - "settings-pages.js"
+      - "mailbox-manager.js"
+      - "backup-v4.js"
+      - "tests/card-management.test.mjs"
+      - "tests/media-lifecycle.test.mjs"
+      - "tests/circle-media-migration.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/card-management-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "circle-media-manager.js"
+      - "appearance-manager.js"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "android-apps/app/src/main/res/**"
+      - "tests/appearance-theme.test.mjs"
+      - "card-system.js"
+      - "settings-pages.js"
+      - "mailbox-manager.js"
+      - "backup-v4.js"
+      - "tests/card-management.test.mjs"
+      - "tests/media-lifecycle.test.mjs"
+      - "tests/circle-media-migration.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/card-management-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  card-management:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        run: |
+          node --check appearance-manager.js
+          node --check card-system.js
+          node --check settings-pages.js
+          node --check mailbox-manager.js
+          node --check backup-v4.js
+          node --check tests/card-management.test.mjs
+          node --check tests/media-lifecycle.test.mjs
+          node --check tests/circle-media-migration.test.mjs
+          node --check circle-media-manager.js
+          node --check tests/appearance-theme.test.mjs
+      - name: Run card management transactional regressions
+        run: node tests/card-management.test.mjs
+      - name: Run theme mode and Android WebView bridge regressions
+        run: node tests/appearance-theme.test.mjs
+      - name: Run media lifecycle and shared-reference regressions
+        run: node tests/media-lifecycle.test.mjs
+      - name: Run Circle DataURL migration and portable media backup regressions
+        run: node tests/circle-media-migration.test.mjs
+      - name: Run existing hardening regression suite
+        run: node tools/verify-twodeers-hardening.mjs

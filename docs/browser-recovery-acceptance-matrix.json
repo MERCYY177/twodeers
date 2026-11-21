@@ -1,0 +1,710 @@
+{
+  "format": "twodeers-browser-recovery-acceptance-matrix",
+  "version": 1,
+  "reviewedOn": "2026-11-18",
+  "policy": {
+    "sourceOfTruth": "This file is the machine-readable acceptance matrix for Phase 17–37 browser recovery, storage safety, cross-module media writes, V4 restore lifecycle, profile-media/call/appearance regressions, APNG/SVG preservation, read-only hydration and Android audio permission contracts.",
+    "productionDataAllowed": false,
+    "remoteOriginsAllowed": false,
+    "learningFeatureInScope": false,
+    "localNodeRegressionStatus": "passed",
+    "realChromiumE2EStatus": "not-run",
+    "githubActionsStatus": "not-run",
+    "androidApkAndWebViewStatus": "not-run",
+    "overallReleaseGate": "blocked-pending-real-browser-ci",
+    "statusMeaning": {
+      "passed": "The named test was actually executed in the current local Node environment and passed.",
+      "not-run": "No qualifying execution evidence exists; source code or a workflow being present does not count as execution.",
+      "blocked": "A required gate remains unsatisfied, so no release or production recovery claim is allowed."
+    },
+    "localNodeTestSuites": 34,
+    "knownLimitations": [
+      "Phase 36 profile-image migration, backup reachability, chat-beautify persistence, full call transition rollback and incoming-call scheduling checks execute production functions in Node VM regressions; the full page still requires qualifying Chromium UI execution to verify object-URL rendering and visible call/beautify behavior.",
+      "Phase 37 adds exact-source Node regressions for APNG/SVG container detection, read-only tab hydration, transactional appearance settings and the Android audio permission bridge contract. These tests do not substitute for a real multi-tab Chromium run, Android APK build or microphone device test."
+    ]
+  },
+  "browserSuites": [
+    {
+      "id": "phase17-full-application",
+      "phase": 17,
+      "title": "Isolated full-application rehearsal",
+      "runnerSuite": "phase17",
+      "workflow": ".github/workflows/isolated-application-rehearsal.yml",
+      "evidenceDirectory": "test-results/browser-e2e/phase17",
+      "artifactNamePattern": "twodeers-phase17-browser-evidence-{run_id}",
+      "expectedRunnerSteps": [
+        "syntax-fixtures",
+        "syntax-fixture-test",
+        "syntax-full-app-e2e",
+        "synthetic-fixture-invariants",
+        "syntax-media-send-path-test",
+        "batch-media-send-source-regression",
+        "syntax-video-media-test",
+        "video-media-source-regression",
+        "syntax-voice-media-test",
+        "voice-media-source-regression",
+        "syntax-mailbox-circle-write-test",
+        "mailbox-circle-write-source-regression",
+        "syntax-phase25-lifecycle-test",
+        "phase25-circle-mailbox-source-regression",
+        "full-app-chromium-rehearsal"
+      ],
+      "supportingTests": [
+        "tests/isolated-application-fixtures.test.mjs",
+        "tests/browser-evidence-runner.test.mjs",
+        "tests/browser-ci-contract.test.mjs",
+        "tests/browser-recovery-acceptance-matrix.test.mjs",
+        "tests/media-send-paths.test.mjs",
+        "tests/video-media-paths.test.mjs",
+        "tests/voice-media-paths.test.mjs",
+        "tests/fixtures/phase23-video.webm",
+        "tests/mailbox-circle-write-paths.test.mjs",
+        "tests/phase25-circle-mailbox-lifecycle.test.mjs",
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs",
+        "tests/phase37-audit-fixes.test.mjs"
+      ],
+      "browserScenarios": [
+        "Start the complete Twodeers page at a fresh loopback origin with a fresh Playwright BrowserContext.",
+        "Seed isolated localStorage, shared media IndexedDB, font IndexedDB and six synthetic media records.",
+        "Verify chat messages and image decoding; send a text message; send an uploaded sticker from the real sticker panel; reload and verify persistence.",
+        "Exercise a mixed text+image+sticker batch; delete the sticker after queue insertion; verify authoritative revalidation rejects the stale item and rolls back all earlier messages and the new media Blob; preserve the already-sent sticker history media.",
+        "Upload a new image through the chat file picker, inspect the preview, send it, reload the page, and verify the new media reference and rendered image survive.",
+        "Verify chat, Circle-dynamic and Circle-reply card pools and stable IDs.",
+        "Open a mailbox letter and verify its attachment is decoded from the shared media store.",
+        "Verify Circle post image, avatar and cover image decoding.",
+        "Verify the selected custom FontFace loads.",
+        "Run a missing-media negative scenario and verify history is retained and no replacement media is fabricated.",
+        "Fail if page errors or requests to external origins occur.",
+        "Upload a valid synthetic WebM through the real chat video picker; verify preview metadata, send it, load metadata in the chat row, advance playback, reload, and repeat the decode/playback checks.",
+        "Use Chromium fake microphone input and the real hold-to-talk pointer flow to record and send audio; verify MediaRecorder Blob MIME/duration, audio metadata and playback before and after reload.",
+        "Verify V4 backup is blocked while a voice capture is active; explicitly cancel a second capture and verify no partial audio message is committed.",
+        "Page-hide cancellation, pending permission cancellation, MediaRecorder errors and overlapping stop/start races are validated by exact-source Node regressions; do not count them as browser UI execution.",
+        "Create an outgoing mailbox letter through the compose UI with a selected image; wait for Blob persistence, reopen the sent letter, and decode its attachment.",
+        "Delete the outgoing letter while the same attachment media ID remains referenced by chat; verify global reference scanning preserves the shared Blob.",
+        "Select a new Circle post image through the actual post composer, preview it, publish the post, verify the durable idb-media reference, then open detail and delete the post; confirm an unshared media Blob is reclaimed.",
+        "Upload avatar and cover through Circle profile settings, save both as IndexedDB-backed references, and decode both images.",
+        "Clear a Circle cover while chat retains the same media ID; verify shared-media reference scanning keeps the Blob.",
+        "Open an owned Circle post, edit its text and media, preserve the stable post ID, author, timestamp, privacy, likes, comments and pending interactions, then reload and verify the edits.",
+        "Exercise mailbox auto-reply scheduling from an outgoing letter, process a due task, delete another source letter before its task is due, and verify the orphan task is removed.",
+        "Share one profile avatar media ID between both profiles; clear one profile through the settings UI and verify the other profile still displays the same media Blob.",
+        "Open a second read-only tab while a writer tab is active; verify profile avatar/background/home icon, Circle avatar/cover/post media and selected custom FontFace are reconstructed from IndexedDB in the second tab without any legacy migration or storage write."
+      ],
+      "requiredPathFilters": [
+        "index.html",
+        "*.js",
+        "assets/**",
+        "tests/isolated-application-rehearsal-e2e.mjs",
+        "tests/isolated-application-fixtures.mjs",
+        "tests/isolated-application-fixtures.test.mjs",
+        "tests/run-browser-with-evidence.mjs",
+        "tests/browser-evidence-runner.test.mjs",
+        "tests/browser-ci-contract.test.mjs",
+        "tests/browser-recovery-acceptance-matrix.test.mjs",
+        "docs/browser-recovery-acceptance-matrix.json",
+        ".github/workflows/isolated-application-rehearsal.yml",
+        ".github/workflows/browser-recovery-acceptance-matrix.yml",
+        "tools/verify-twodeers-hardening.mjs",
+        "tests/media-send-paths.test.mjs",
+        "tests/video-media-paths.test.mjs",
+        "tests/voice-media-paths.test.mjs",
+        "tests/fixtures/**",
+        "tests/mailbox-circle-write-paths.test.mjs",
+        "tests/phase25-circle-mailbox-lifecycle.test.mjs",
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs",
+        "PHASE36-CHANGELOG.md",
+        "tests/phase37-audit-fixes.test.mjs",
+        "PHASE37-CHANGELOG.md",
+        "android-apps/app/src/main/AndroidManifest.xml",
+        "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      ],
+      "requiredEvidenceFiles": [
+        "summary.json",
+        "00-runner-environment.log",
+        "01-font-apt-update.log",
+        "02-font-install.log",
+        "03-playwright-npm-install.log",
+        "04-chromium-install.log",
+        "05-evidence-runner-self-test.log",
+        "01-syntax-fixtures.stdout.log",
+        "01-syntax-fixtures.stderr.log",
+        "02-syntax-fixture-test.stdout.log",
+        "02-syntax-fixture-test.stderr.log",
+        "03-syntax-full-app-e2e.stdout.log",
+        "03-syntax-full-app-e2e.stderr.log",
+        "04-synthetic-fixture-invariants.stdout.log",
+        "04-synthetic-fixture-invariants.stderr.log",
+        "05-syntax-media-send-path-test.stdout.log",
+        "05-syntax-media-send-path-test.stderr.log",
+        "06-batch-media-send-source-regression.stdout.log",
+        "06-batch-media-send-source-regression.stderr.log",
+        "07-syntax-video-media-test.stdout.log",
+        "07-syntax-video-media-test.stderr.log",
+        "08-video-media-source-regression.stdout.log",
+        "08-video-media-source-regression.stderr.log",
+        "09-syntax-voice-media-test.stdout.log",
+        "09-syntax-voice-media-test.stderr.log",
+        "10-voice-media-source-regression.stdout.log",
+        "10-voice-media-source-regression.stderr.log",
+        "11-syntax-mailbox-circle-write-test.stdout.log",
+        "11-syntax-mailbox-circle-write-test.stderr.log",
+        "12-mailbox-circle-write-source-regression.stdout.log",
+        "12-mailbox-circle-write-source-regression.stderr.log",
+        "13-syntax-phase25-lifecycle-test.stdout.log",
+        "13-syntax-phase25-lifecycle-test.stderr.log",
+        "14-phase25-circle-mailbox-source-regression.stdout.log",
+        "14-phase25-circle-mailbox-source-regression.stderr.log",
+        "15-full-app-chromium-rehearsal.stdout.log",
+        "15-full-app-chromium-rehearsal.stderr.log"
+      ],
+      "passCriteria": [
+        "GitHub Actions job completes successfully on the checked-out commit.",
+        "summary.json has status=passed and all fifteen runner steps have status=passed, exitCode=0 and timedOut=false.",
+        "The full-app Chromium rehearsal asserts all chat, sticker, card, mailbox, Circle, font and reload checks.",
+        "The missing-media negative scenario retains the message reference and does not fabricate media.",
+        "The uploaded artifact contains summary.json, all runner-step stdout/stderr logs (01–15), and all bootstrap logs.",
+        "No external origin or production Pages URL is used.",
+        "The mixed batch stale-sticker scenario rejects the deleted library item, rolls back all earlier messages/media, retains the queue for review, and leaves previously sent sticker history readable.",
+        "Direct image picker → preview → send persists a new media Blob and the corresponding message after reload.",
+        "Video picker → preview → IndexedDB commit → chat video metadata → playback → reload playback succeeds with the synthetic WebM fixture.",
+        "The real hold-to-talk flow records audio through Chromium fake microphone input, commits a non-empty audio Blob with MIME and duration metadata, and playback survives reload. The browser script also verifies backup refusal during active recording and explicit user cancellation.",
+        "Exact-source Node regressions verify page-hide cancellation, MediaRecorder error handling, stop timeout, microphone release and no partial audio commit; these do not substitute for browser UI evidence.",
+        "A MediaRecorder error releases the microphone and fails closed without persisting partial audio.",
+        "The mailbox compose UI stores an outgoing letter with a valid attachment; reopening the letter decodes the attachment, and deleting the letter does not delete a Blob still referenced by chat.",
+        "The Circle post composer uploads and previews an image, publishes a durable idb-media reference, and deleting the post removes only an unshared media record.",
+        "Profile settings persist new avatar and cover media; clearing a cover leaves the Blob intact when chat still references the same media ID.",
+        "The Phase 17 evidence runner captures the mailbox/Circle write-path source regression before the full-app Chromium rehearsal.",
+        "The owned-post edit UI preserves the original stable ID and interaction history, commits replacement media and reloads without duplicating the post.",
+        "Mailbox auto-reply processing links a generated reply to the correct source; deleting a source letter removes its pending task without generating an orphan reply.",
+        "Clearing one profile avatar/cover reference does not delete media still referenced by the other profile."
+      ],
+      "localStatus": "fixture-and-node-regressions-passed",
+      "realBrowserStatus": "not-run",
+      "githubActionsStatus": "not-run",
+      "knownLimitations": [
+        "The local environment did not execute Chromium navigation because Playwright is unavailable locally and the managed browser policy blocks all URL navigation.",
+        "The full real-browser test is not considered passed until the GitHub Actions run and artifact are inspected."
+      ]
+    },
+    {
+      "id": "phase18-restore-lifecycle",
+      "phase": 18,
+      "title": "Isolated restore lifecycle rehearsal",
+      "runnerSuite": "phase18",
+      "workflow": ".github/workflows/isolated-restore-lifecycle.yml",
+      "evidenceDirectory": "test-results/browser-e2e/phase18",
+      "artifactNamePattern": "twodeers-phase18-restore-evidence-{run_id}",
+      "expectedRunnerSteps": [
+        "syntax-fixtures",
+        "syntax-lifecycle-e2e",
+        "syntax-crash-worker",
+        "synthetic-fixture-invariants",
+        "restore-lifecycle-chromium-rehearsal"
+      ],
+      "supportingTests": [
+        "tests/isolated-application-fixtures.test.mjs",
+        "tests/browser-evidence-runner.test.mjs",
+        "tests/browser-ci-contract.test.mjs",
+        "tests/browser-recovery-acceptance-matrix.test.mjs",
+        "tests/phase28-restore-combined-failures.test.mjs",
+        "tests/backup-atomicity.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs",
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/phase31-restore-strict-durability.test.mjs",
+        "tests/phase33-ci-evidence-persistence.test.mjs",
+        "tests/phase34-chromium-process-group-cleanup.test.mjs",
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs"
+      ],
+      "browserScenarios": [
+        "Build and restore a real V4 ZIP and verify the restored dark Ocean theme on the document root and color-scheme.",
+        "Inject a font import failure after the new font has been written and verify rollback restores exact main-storage bytes, previous font database contents, current font pointer and prior light Cream theme.",
+        "Open two isolated tabs, verify one writer, commit changes, hand off writer ownership, reject the stale tab before reload, and verify fresh state after reload.",
+        "Write a PREPARED restore journal in a persistent Chromium profile, mutate synthetic state, terminate the worker process group with SIGKILL, relaunch Chromium with the same profile and verify startup recovery restores the snapshot and clears the journal.",
+        "Fail on page errors or external-origin requests.",
+        "Build a real V4 ZIP in Chromium, call the production restore() function, then SIGKILL the entire Chromium process group after durable PREPARED, after the first production media Blob write, after the production font import, and after the durable COMMITTED marker; restart the same persistent profile and verify whether the source or target state, Circle, media Blob, font library and recovery journal are correct.",
+        "In the production V4 restore entrypoint, kill the whole Chromium process group while the exact phase17-chat-media put request has succeeded but a second request is still queued in the same strict readwrite transaction; inspect the persistent IndexedDB profile before app startup, then verify PREPARED recovery restores the old bytes.",
+        "Kill Chromium inside the atomic strict font snapshot transaction after the fonts-store clear request succeeds but before later puts and metadata write complete; inspect the same profile before startup and prove the old font row, exact Blob bytes and current-font pointer remain atomically intact before PREPARED recovery.",
+        "After every one of the six SIGKILL checkpoints (PREPARED, completed media, in-flight media, completed font, in-flight font, COMMITTED), relaunch the same persistent profile on a seed-only page before the app is loaded. Read raw localStorage main/Circle state, all six media Blobs, all font Blob bytes and current-font pointer, and the recovery journal; assert the exact intermediate state expected at that checkpoint, then load the app and verify startup recovery."
+      ],
+      "requiredPathFilters": [
+        "index.html",
+        "*.js",
+        "assets/**",
+        "tests/isolated-application-fixtures.mjs",
+        "tests/isolated-application-fixtures.test.mjs",
+        "tests/isolated-restore-lifecycle-e2e.mjs",
+        "tests/isolated-restore-crash-worker.mjs",
+        "tests/run-browser-with-evidence.mjs",
+        "tests/browser-evidence-runner.test.mjs",
+        "tests/browser-ci-contract.test.mjs",
+        "tests/browser-recovery-acceptance-matrix.test.mjs",
+        "docs/browser-recovery-acceptance-matrix.json",
+        ".github/workflows/isolated-restore-lifecycle.yml",
+        ".github/workflows/browser-recovery-acceptance-matrix.yml",
+        "tools/verify-twodeers-hardening.mjs",
+        "tests/phase28-restore-combined-failures.test.mjs",
+        "tests/backup-atomicity.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs",
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "PHASE29-CHANGELOG.md",
+        "PHASE30-CHANGELOG.md",
+        "tests/phase31-restore-strict-durability.test.mjs",
+        "PHASE31-CHANGELOG.md",
+        "PHASE32-CHANGELOG.md",
+        "tests/phase33-ci-evidence-persistence.test.mjs",
+        "PHASE33-CHANGELOG.md",
+        "tests/phase34-chromium-process-group-cleanup.test.mjs",
+        "PHASE34-CHANGELOG.md",
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs",
+        "PHASE36-CHANGELOG.md",
+        "tests/phase37-audit-fixes.test.mjs",
+        "PHASE37-CHANGELOG.md"
+      ],
+      "requiredEvidenceFiles": [
+        "summary.json",
+        "00-runner-environment.log",
+        "01-font-apt-update.log",
+        "02-font-install.log",
+        "03-playwright-npm-install.log",
+        "04-chromium-install.log",
+        "05-evidence-runner-self-test.log",
+        "05-restore-lifecycle-chromium-rehearsal.stdout.log",
+        "05-restore-lifecycle-chromium-rehearsal.stderr.log",
+        "phase30-chromium-v4-restore-crash-matrix.json",
+        "phase31-chromium-v4-inflight-transaction-crash-matrix.json",
+        "phase32-chromium-v4-prestartup-state-matrix.json",
+        "02-font-fixture-sha256.log",
+        "05-crash-matrix-contract.log",
+        "06-real-chromium-crash-matrix.log",
+        "07-source-hardening.log",
+        "phase33-chromium-v4-ci-independent-matrix.json",
+        "failed-profiles/**",
+        "05-process-group-cleanup-contract.log",
+        "profiles-in-progress/**"
+      ],
+      "passCriteria": [
+        "GitHub Actions job completes successfully on the checked-out commit.",
+        "summary.json has status=passed and every runner step has status=passed, exitCode=0 and timedOut=false.",
+        "V4 restore changes the actual document theme and then clears the successful restore journal.",
+        "The post-write font failure rejects restore and restores exact previous application, font and theme state.",
+        "The stale tab cannot persist changes and only reloads after obtaining current committed state.",
+        "The crash worker is confirmed terminated by SIGKILL; the verifier worker exits normally after reading the same persistent profile and validating recovered data.",
+        "The uploaded artifact contains summary.json and all bootstrap plus E2E stdout/stderr evidence files.",
+        "The Phase 29 persistent-profile Chromium matrix completes all four actual restore kill points (PREPARED, media write, font import and COMMITTED), confirms SIGKILL for every browser process group, reuses the exact profile for relaunch, restores source data for PREPARED crashes, retains target data for COMMITTED crashes, and verifies the journal is cleared only after startup recovery.",
+        "The Phase 30 media checkpoint proves the exact phase17-chat-media record contains target bytes after the production putMediaBlob call and before SIGKILL; it does not rely on incidental media ordering.",
+        "The Phase 30 target and source fonts are distinct real TTF files. The harness verifies exact font Blob bytes before the crash and after relaunch, and checks every media Blob ID and byte sequence after recovery.",
+        "The Phase 30 source-side chat-media mutation is a valid 1×1 RGBA PNG; contract validation checks PNG signature, IHDR/IDAT/IEND sequence, chunk CRCs and decoded pixel bytes, and proves the Chromium mutation uses the validated byte list.",
+        "The Phase 30 harness records and rejects external-origin requests and uncaught page exceptions both before SIGKILL and after restart.",
+        "The Phase 31 matrix captures a live IDB request-success event while the readwrite transaction remains open, confirms transaction durability=strict and a second queued request, kills the Chromium process group before transaction completion, inspects the persistent profile before application startup, and verifies IndexedDB atomicity plus PREPARED rollback after startup.",
+        "The Phase 32 pre-startup snapshot is collected for all six crash points before app code runs. PREPARED/media/in-flight-media checkpoints must retain source main/Circle/font state; font checkpoints must show the correct earlier committed media/Circle writes while the main localStorage state remains old; COMMITTED must contain target main/Circle/media/font data and a COMMITTED journal before startup cleanup.",
+        "The recovery journal snapshot itself remains readable and byte-correct at every checkpoint: old main state, Circle state, source media Blob and source font Blob are checked before startup in addition to the current live databases."
+      ],
+      "localStatus": "node-and-source-regressions-passed",
+      "realBrowserStatus": "not-run",
+      "githubActionsStatus": "not-run",
+      "knownLimitations": [
+        "The SIGKILL and persistent-profile Chromium path has not produced a qualifying real-browser CI execution record yet.",
+        "A Node VM or fake IndexedDB regression does not substitute for the Chromium browser rehearsal.",
+        "The Phase 29 harness is locally syntax/contract checked but its Chromium navigation attempt is blocked by the container managed URLBlocklist (ERR_BLOCKED_BY_ADMINISTRATOR); the real browser matrix remains not-run until a qualifying CI artifact is inspected.",
+        "Phase 30 strengthens checkpoint evidence, but the real process-kill matrix remains blocked locally by the managed Chromium URL policy and must be run in GitHub Actions before browser-pass status can be claimed.",
+        "The Phase 31 in-flight transaction checkpoints use a DevTools binding after a request-success event and before transaction completion; local Chromium remains blocked by the managed URL policy, so these two new process-kill stages remain not-run until a CI artifact is inspected.",
+        "Phase 32 improves the test harness and state-order assertions; actual six-stage Chromium SIGKILL execution remains blocked locally by the managed URL policy and GitHub Actions has not run. Local Node contract tests do not count as browser execution."
+      ],
+      "independentCrashMatrixJob": "v4-restore-crash-matrix",
+      "independentCrashMatrixArtifactNamePattern": "twodeers-v4-crash-matrix-evidence-{run_id}",
+      "independentCrashMatrixSteps": [
+        "checkout and Node 22 setup",
+        "install deterministic distinct DejaVu Sans/Serif TTF fixtures and record SHA-256",
+        "install pinned Playwright 1.65.0 and Chromium with system dependencies",
+        "run the Phase 30–33 crash-matrix contract",
+        "run all six actual Chromium SIGKILL/same-profile recovery checkpoints",
+        "run source Hardening even if the crash matrix fails",
+        "upload preflight/progress/failure JSON and failed persistent Chromium Profiles even on failure"
+      ],
+      "independentCrashMatrixContractSteps": [
+        "crash-matrix-contract",
+        "process-group-cleanup-contract"
+      ]
+    }
+  ],
+  "crossCuttingGates": [
+    {
+      "id": "phase19-evidence-runner",
+      "phase": 19,
+      "title": "Browser evidence runner behavior",
+      "tests": [
+        "tests/run-browser-with-evidence.mjs",
+        "tests/browser-evidence-runner.test.mjs"
+      ],
+      "requiredAssertions": [
+        "stdout and stderr are captured completely before close is reported.",
+        "Synchronous and asynchronous spawn failures are recorded as failed.",
+        "Non-zero exit codes are retained.",
+        "Timeout sends SIGTERM, escalates to SIGKILL after the grace period, and records timed_out.",
+        "An orphan descendant holding inherited stdio is cleaned up even after the process-group leader exits.",
+        "Runner-level failure writes a terminal failed summary with runnerError and finishedAt."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase20-ci-bootstrap-and-process-cleanup",
+      "phase": 20,
+      "title": "CI bootstrap evidence and process-group cleanup",
+      "tests": [
+        "tests/browser-evidence-runner.test.mjs",
+        "tests/browser-ci-contract.test.mjs",
+        "tests/isolated-restore-lifecycle-e2e.mjs"
+      ],
+      "requiredAssertions": [
+        "POSIX process-group signaling is not gated on the direct leader exitCode.",
+        "A real close event is awaited before temporary Chromium profile cleanup.",
+        "The descendant process is killed when the parent leader has exited but inherited pipes remain open.",
+        "Phase 17 and Phase 18 workflows capture runner, package, browser and self-test bootstrap logs.",
+        "Artifacts upload under if: always() and workflows retain contents: read permission only.",
+        "Workflow path filters include every test and fixture dependency for both push and pull_request."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase21-acceptance-matrix-integrity",
+      "phase": 21,
+      "title": "Acceptance matrix consistency",
+      "tests": [
+        "tests/browser-recovery-acceptance-matrix.test.mjs"
+      ],
+      "requiredAssertions": [
+        "All referenced source, test, workflow and evidence paths exist or are documented as generated CI artifacts.",
+        "Runner suite steps match the actual exported runner definitions in order.",
+        "Push and pull_request filters include every required suite dependency.",
+        "The matrix does not claim real Chromium, GitHub Actions or Android evidence before those runs exist.",
+        "Evidence artifact names, directories, bootstrap logs and pass criteria match the workflows."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase22-media-send-path-coverage",
+      "phase": 22,
+      "title": "Direct and batch media-send path coverage",
+      "tests": [
+        "tests/media-send-paths.test.mjs",
+        "tests/isolated-application-rehearsal-e2e.mjs"
+      ],
+      "requiredAssertions": [
+        "The actual sendBatchMessages source function rejects a sticker deleted after queue insertion by re-reading the authoritative sticker library.",
+        "A late stale-sticker failure removes earlier text and image messages from the same batch, restores timestamps/outbox rows, revokes the newly-created chat URL, and deletes the unreferenced new media record.",
+        "A mixed text+image batch commits normally and retains its media record.",
+        "A save failure after all batch messages are staged rolls back the whole batch and keeps the queue available for user review.",
+        "The full-app browser rehearsal uploads a fresh image through chatImageUploader, sends it through mediaPreviewSend, and verifies it after reload.",
+        "An already-sent sticker history message remains readable after the library sticker is deleted.",
+        "The Phase 17 browser evidence runner executes the media-send source regression as an individually captured step before Chromium UI rehearsal."
+      ],
+      "localStatus": "passed",
+      "realBrowserStatus": "not-run",
+      "githubActionsStatus": "not-run"
+    },
+    {
+      "id": "phase24-mailbox-circle-write-paths",
+      "phase": 24,
+      "title": "Mailbox and Circle write-path transaction coverage",
+      "tests": [
+        "tests/mailbox-circle-write-paths.test.mjs",
+        "tests/isolated-application-rehearsal-e2e.mjs"
+      ],
+      "requiredAssertions": [
+        "Mailbox attachments remain globally referenced while a multi-file attachment write is still in flight.",
+        "An outgoing letter is not committed when an attachment Blob is missing, has an unsupported MIME type, has a mismatched size, or the compose generation becomes stale.",
+        "A mailbox persistence failure rolls back the outgoing letter and releases the mutation lock.",
+        "Circle asynchronous post media selection cannot repopulate a composer after it has been cleared or closed.",
+        "A Circle post commit failure removes newly written unreferenced media; a post-commit preview refresh error is not misreported as a failed post.",
+        "Deleting a Circle post or replacing profile assets invokes global reference scanning before reclaiming shared media.",
+        "Circle avatar and cover writes occur inside one transaction and newly created media is cleaned if the transaction fails."
+      ],
+      "localStatus": "passed",
+      "realBrowserStatus": "not-run",
+      "githubActionsStatus": "not-run"
+    },
+    {
+      "id": "phase25-circle-mailbox-lifecycle",
+      "title": "Circle editing, mailbox auto-reply and shared profile media lifecycle",
+      "localStatus": "passed",
+      "tests": [
+        "tests/phase25-circle-mailbox-lifecycle.test.mjs",
+        "tests/isolated-application-rehearsal-e2e.mjs"
+      ],
+      "requiredAssertions": [
+        "Editing an owned post preserves stable identity and non-editable interaction history; failed save restores prior text and media.",
+        "Mailbox auto-reply planning is atomic when the usage outbox is full; stale source letters cannot receive replies.",
+        "Evicting a source letter prunes its pending auto-reply task within the same mailbox commit.",
+        "Shared profile media remains while any profile still references it; cached Circle URLs release only after the last reference is deleted.",
+        "Profile settings save is single-flight and rolls back partial multi-asset writes without destroying retryable previews."
+      ]
+    },
+    {
+      "id": "phase26-storage-quota-background-safety",
+      "phase": 26,
+      "title": "Revision marker quota failure and hidden/readonly background timer fencing",
+      "tests": [
+        "tests/storage-quota-background.test.mjs",
+        "runtime-coordinator.js",
+        "mailbox-manager.js",
+        "index.html"
+      ],
+      "requiredAssertions": [
+        "A revision-marker QuotaExceededError permanently fences the current page and broadcasts revision-unreliable to loaded tabs.",
+        "A hidden, restore-paused or readonly mailbox timer returns before planning cards, consuming recent-card history or persisting.",
+        "A hidden, restore-paused or readonly Circle pending-interaction timer does not execute its mutation callback.",
+        "The coordinator invalidates in-memory revision reliability after lease release or fallback lease loss, preventing stale pages from reacquiring without reload."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase27-media-revision-marker-combined-failure",
+      "phase": 27,
+      "title": "Media Blob commit followed by revision-marker or backup-start failure",
+      "tests": [
+        "tests/phase27-cross-module-faults.test.mjs",
+        "index.html"
+      ],
+      "requiredAssertions": [
+        "If the IndexedDB Blob write succeeds but markDataChanged returns false, the production writer deletes the just-written record while the mutation token is still held.",
+        "The production writer waits for deletion completion and reads the record back before reporting confirmed rollback.",
+        "If cleanup cannot be confirmed, the error identifies rollback uncertainty and does not claim the media record is gone.",
+        "If a backup/export gate activates between media write and chat commit, no dangling message or timestamp change is committed and the token is released."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase28-v4-restore-combined-failures",
+      "phase": 28,
+      "title": "V4 PREPARED/COMMITTED journal, multi-store rollback and cleanup fault injection",
+      "tests": [
+        "tests/phase28-restore-combined-failures.test.mjs",
+        "tests/backup-atomicity.test.mjs",
+        "backup-v4.js"
+      ],
+      "requiredAssertions": [
+        "PREPARED journal persistence is attempted before any destructive media or main-state write; an ambiguous journal write is read back and blocks the current page if the record may exist.",
+        "A restore that fails after partial writes attempts to roll back media, fonts, mailbox, cards, stickers, Circle and primary state, with read-back checks for authoritative stores.",
+        "If media/font/module rollback cannot be confirmed, the PREPARED journal is retained and the current page write gate is closed.",
+        "If old state rollback succeeds but PREPARED journal cleanup fails, the current page is still blocked so later user writes cannot be overwritten by startup replay.",
+        "COMMITTED is marked only after the new state and module/media validation complete; old-media garbage collection occurs only after COMMITTED.",
+        "Interrupted startup recovery clears PREPARED only after all old-snapshot stores and Circle media references have been restored and verified.",
+        "PREPARED, COMMITTED and recovery-journal deletion each use an actual IndexedDB durability=strict transaction and verify the stored journal state after transaction completion.",
+        "If a COMMITTED write transaction completes but its read-back is inconsistent or unavailable, the runtime marks the journal status uncertain; the restore page is fenced and does not attempt an opposite business rollback.",
+        "Old media garbage collection does not run while COMMITTED persistence/read-back is uncertain."
+      ],
+      "localStatus": "passed",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase29-real-v4-restore-crash-matrix",
+      "phase": 29,
+      "title": "Real-Chromium persistent-profile V4 restore crash matrix harness contract",
+      "tests": [
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "The browser harness builds a real V4 ZIP in Chromium and calls the production window.__duoBackupV4.restore() entrypoint; it does not construct a synthetic recovery journal.",
+        "Four interruption points are instrumented after durable PREPARED, after the first actual production media Blob write, after actual font-library import, and after durable COMMITTED.",
+        "Each checkpoint terminates the whole Chromium process group with SIGKILL and reuses the same persistent profile for a fresh browser process.",
+        "After PREPARED interruptions, startup must recover the pre-restore source main state, Circle snapshot, media Blob and font library; after COMMITTED interruption it must retain the imported target state and clean the journal without rollback.",
+        "The browser artifact records browser version, each crash checkpoint, journal phase, post-relaunch state and media/font verification; no external origin or production origin is allowed.",
+        "A local container URLBlocklist denial is recorded as a blocked attempt, never as a passed browser run; CI status remains not-run until its artifact is inspected."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase30-v4-crash-checkpoint-integrity",
+      "phase": 30,
+      "title": "Exact V4 restore crash checkpoint and byte-level evidence integrity",
+      "tests": [
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "Before mutating source data, the harness reopens the real ZIP through the production unzip/manifest parser and verifies the archive contains all six expected media resources plus the exact target font bytes.",
+        "The mutated source chat-media payload is a valid deterministic PNG: the local contract verifies PNG signature, IHDR/IDAT/IEND, CRCs and decoded RGBA pixel bytes, and checks the browser-side mutation uses the same byte list.",
+        "The media checkpoint pauses only after the real production putMediaBlob call for phase17-chat-media returns, reads the record back, and proves the target bytes are present before SIGKILL.",
+        "The source and target TTF fixtures are distinct real font files with different hashes; PREPARED journal and post-restart checks compare exact font Blob bytes, not only IDs or sizes.",
+        "The font checkpoint proves the target font Blob bytes and current-font pointer are committed before SIGKILL.",
+        "The COMMITTED checkpoint reads back the committed journal and verifies the imported main state, Circle state, chat media bytes and target font bytes before SIGKILL.",
+        "After restart, every one of the six media records is checked for exact bytes; PREPARED scenarios must restore source data and COMMITTED must retain target data.",
+        "No uncaught page exception or external-origin request is allowed either before SIGKILL or after same-profile restart.",
+        "The JSON evidence records both font fixture hashes and each checkpoint detail. Local managed-browser URL blocking and remote CI not-run status are reported separately.",
+        "After SIGKILL, the harness checks that the entire Chromium process group no longer exists before reopening the same persistent profile in a new browser process."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase31-v4-inflight-transaction-durability",
+      "phase": 31,
+      "title": "Strict durability for V4 media/font stores and in-flight transaction crash recovery",
+      "tests": [
+        "tests/phase31-restore-strict-durability.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "V4 media transaction preflight must request strict durability and abort before PREPARED if the engine rejects or downgrades the option; ordinary non-V4 media writes keep their default durability.",
+        "The font clear and all following font/meta writes occur inside the same atomic transaction with durability=strict; unsupported strict mode fails before PREPARED or destructive writes.",
+        "The media transaction is SIGKILLed after the exact chat-media put request success but before transaction completion, with a second request queued in that same live transaction.",
+        "The font clear is SIGKILLed after request success while later operations remain queued in the same atomic transaction; raw profile inspection before app startup proves the prior font Blob and pointer are intact.",
+        "The Phase 31 evidence records strict transaction durability, request success, queued probe, process-group termination, pre-startup persisted state and post-startup PREPARED recovery.",
+        "The test contract validates the generated DevTools scripts and requires the Phase 31 Chromium artifact; local source/Node passes do not upgrade real-browser or CI execution status."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase32-v4-prestartup-state-before-recovery",
+      "phase": 32,
+      "title": "Inspect all six V4 crash-time persisted states before startup recovery",
+      "tests": [
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "Every crash checkpoint must relaunch the same persistent profile on the seed-only page and inspect state before navigating to the application; the app startup code must not get a chance to repair or mutate evidence first.",
+        "The pre-startup inspector reads all six media Blob rows in one readonly transaction, reads font rows and current-font metadata together, and waits for each readonly transaction oncomplete.",
+        "PREPARED and media-in-flight must retain the source chat-media Blob, source font Blob/pointer, source main state and source Circle state; all other media fixture rows are checked byte-for-byte.",
+        "The completed media checkpoint must show the committed target chat-media Blob while the PREPARED journal, source main/Circle state and source font still exist.",
+        "Completed-font and in-flight-font checkpoints must show target media and target Circle state while localStorage main state remains source; completed font must show target font bytes/pointer, while in-flight font must atomically retain source font bytes/pointer.",
+        "COMMITTED checkpoint must show target main state, target Circle, all six target media Blobs, exact target font bytes/pointer and the COMMITTED journal before app startup clears the journal.",
+        "The Node contract executes the actual pre-startup assertion function against six valid synthetic stage snapshots and rejects corrupted media state before any browser execution claim is made.",
+        "The matrix artifact is phase32-chromium-v4-prestartup-state-matrix.json; local browser block and CI not-run remain explicit until real evidence exists.",
+        "Before app startup, verify the PREPARED/COMMITTED journal still contains the old main-state and Circle snapshots plus exact old chat-media and font Blob bytes; journal phase alone is insufficient evidence that rollback data remains usable."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase33-independent-v4-crash-matrix-evidence",
+      "phase": 33,
+      "title": "Independent CI execution and durable forensic evidence for the six V4 crash checkpoints",
+      "tests": [
+        "tests/phase33-ci-evidence-persistence.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "The six-scenario V4 crash matrix runs in a standalone v4-restore-crash-matrix CI job with no needs dependency on the Phase 18 lifecycle job; a Phase 18 test failure or timeout cannot suppress the V4 crash matrix.",
+        "The independent job installs Node 22, the exact two distinct DejaVu TTF fixtures, pinned Playwright 1.65.0, Chromium and OS dependencies before running the six-stage test.",
+        "A valid initial preflight JSON evidence file is atomically written before Chromium discovery/launch; each scenario status and each checkpoint/restart transition are atomically persisted before the next destructive action.",
+        "A process/job interruption during a stage leaves the last complete JSON snapshot describing currentStage, stage status and last durable progress rather than leaving no evidence file or a truncated JSON file.",
+        "If a scenario fails after Chromium is stopped, its same persistent profile is copied into failed-profiles/<stage> and included in the uploaded CI artifact; successful profiles are removed after verification.",
+        "The CI artifact is uploaded with if: always() and includes runner environment, font hashes, install logs, contract output, browser matrix logs, JSON evidence, source Hardening output and failed profiles when present.",
+        "The new Node contract injects an evidence-write failure and proves atomic rename does not replace the last complete JSON evidence snapshot.",
+        "Local Chromium URL-policy blocking remains a local blocked status; CI browser execution remains not-run until an actual GitHub Actions run and uploaded artifact are inspected."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase34-chromium-process-group-cleanup",
+      "phase": 34,
+      "title": "Terminate Chromium process groups after leader exit and preserve failed profiles after cleanup retry",
+      "tests": [
+        "tests/phase34-chromium-process-group-cleanup.test.mjs",
+        "tests/chromium-v4-restore-crash-matrix.mjs"
+      ],
+      "requiredAssertions": [
+        "SIGKILL must target the detached Chromium process group even if the Chromium leader child handle already reports exit.",
+        "Cleanup must wait until the entire process group disappears and must not mistake the leader close event for descendant termination.",
+        "A launch-time cleanup failure must pass the child process/session handles to the shared runCase finalizer rather than treating a missing returned session as a stopped browser.",
+        "A failed scenario retries process-group shutdown once; if the retry succeeds, copy the closed Profile to failed-profiles/<stage> before removing the original temp profile.",
+        "If copying the closed profile to the Artifact fails, retain the only original source profile and record its path rather than deleting it.",
+        "If Chromium remains alive after both attempts, do not copy or delete the profile while it may still be mutating; retain it under profiles-in-progress/ inside the Artifact workspace and report the unclosed path.",
+        "If failure occurs before fixture seeding, do not preserve an empty Profile."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "blocked-local-admin-policy",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase36-profile-media-call-beautify",
+      "phase": 36,
+      "title": "Profile image migration and persistence, complete call lifecycle/scheduler, and chat beautify rollback",
+      "tests": [
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs",
+        "tests/phase35-business-write-integrity.test.mjs",
+        "tests/circle-media-migration.test.mjs",
+        "tests/phase25-circle-mailbox-lifecycle.test.mjs"
+      ],
+      "requiredAssertions": [
+        "The Circle media manager exports ensureRefs() for profile upload, startup hydration and backup restoration; missing and invalid IDs are counted as missing rather than treated as successful reads.",
+        "The accepted APNG and SVG profile-image formats are accepted by both upload and the shared media manager; unsupported image formats remain rejected.",
+        "Legacy profile Data URLs are deduplicated across avatar, background, cover and custom icon slots, written to IndexedDB, read back before state replacement, and rolled back to the exact prior localStorage snapshot if save or readback fails.",
+        "Every state.media and state.icons idb-media reference participates in reachability and export manifests; chat, param and all backups include the profile media appropriate to their scope.",
+        "Startup hydration rebuilds runtime-only Blob URLs for already persisted profile refs after reload and reports missing records without inventing replacement media.",
+        "Applying a chat beautify preset or restoring the default checks save() success; failed persistence restores the prior selected ID and CSS class and does not show success feedback.",
+        "Legacy chat beautify preset migration preserves its old value when persistence fails.",
+        "A Wake Lock request that resolves after hangup/pagehide invalidation releases the late sentinel and cannot resurrect a lock after the call ends.",
+        "Actual production call transition functions preserve state/UI parity when outgoing start, incoming ring, answer, reject, missed-call, minimize, restore or hang-up persistence fails.",
+        "The incoming-call scheduler persists its due timestamp before arming a timer; failed schedule replacement restores the prior due time/timer, and a failed due-time commit retries without triggering a visible call.",
+        "The call UI explicitly identifies itself as simulated and does not expose an inert mute control as a real microphone action."
+      ],
+      "localStatus": "passed",
+      "browserExecutionStatus": "not-run",
+      "ciExecutionStatus": "not-run"
+    },
+    {
+      "id": "phase37-audit-fixes",
+      "title": "APNG/SVG original-byte handling, read-only tab hydration, transactional appearance settings and Android audio permission bridge",
+      "localStatus": "passed",
+      "browserExecutionStatus": "not-run",
+      "ciExecutionStatus": "not-run",
+      "tests": [
+        "tests/phase37-audit-fixes.test.mjs",
+        "tests/phase36-profile-media-call-beautify.test.mjs",
+        "tests/phase36-call-transition-integrity.test.mjs"
+      ],
+      "requiredAssertions": [
+        "APNG PNG-signature/animation-control chunks are detected even when MIME is image/png and filename ends with .png; original bytes are not Canvas-flattened",
+        "SVG is accepted as original vector bytes only when the file content has an SVG root element; malformed extension/MIME declarations are rejected",
+        "Circle avatar/cover and post media use the same original-byte preservation classifier as the main image upload path",
+        "read-only tabs hydrate per-tab profile media URLs, Circle media URLs and selected FontFace from IndexedDB before returning without invoking legacy migrations",
+        "theme, reply, read-receipt, typing, offline, avatar-shape, bubble-shape, bubble-color, accent/button-color and custom-CSS writes restore state and visible controls when save returns false",
+        "Android requests only RECORD_AUDIO for the exact trusted WebView asset origin, validates the OS grant, denies other resources/origins and denies pending permission on Activity destruction"
+      ]
+    }
+  ],
+  "releaseGates": [
+    {
+      "id": "browser-e2e-phase17",
+      "requires": "Phase 17 GitHub Actions run succeeds and the uploaded evidence artifact is inspected; all runner steps pass and all required evidence files exist.",
+      "status": "blocked"
+    },
+    {
+      "id": "browser-e2e-phase18",
+      "requires": "Phase 18 GitHub Actions run succeeds and the uploaded evidence artifact is inspected; V4 theme restore, font rollback, multi-tab handoff and SIGKILL/relaunch recovery assertions pass.",
+      "status": "blocked"
+    },
+    {
+      "id": "android-runtime",
+      "requires": "A successful Android APK build plus Android WebView device verification for file restore, theme synchronization, font loading and lifecycle recovery.",
+      "status": "blocked"
+    },
+    {
+      "id": "browser-e2e-phase33-v4-crash-matrix",
+      "requires": "The independent v4-restore-crash-matrix GitHub Actions job succeeds; its artifact shows all six stages passed, SIGKILL and process-group exit confirmed for each stage, exact pre-startup snapshots and post-startup recovery results, and no cleanup/profile-preservation errors.",
+      "status": "blocked"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+name: Twodeers storage diagnostics validation
+
+on:
+  push:
+    paths:
+      - "index.html"
+      - "runtime-coordinator.js"
+      - "storage-diagnostics.js"
+      - "custom-font-manager.js"
+      - "mailbox-manager.js"
+      - "card-system.js"
+      - "backup-v4.js"
+      - "circle-media-manager.js"
+      - "tests/runtime-recovery.test.mjs"
+      - "tests/storage-diagnostics.test.mjs"
+      - "tests/backup-atomicity.test.mjs"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/storage-diagnostics-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "runtime-coordinator.js"
+      - "storage-diagnostics.js"
+      - "custom-font-manager.js"
+      - "mailbox-manager.js"
+      - "card-system.js"
+      - "backup-v4.js"
+      - "circle-media-manager.js"
+      - "tests/runtime-recovery.test.mjs"
+      - "tests/storage-diagnostics.test.mjs"
+      - "tests/backup-atomicity.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/storage-diagnostics-validation.yml"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax checks
+        run: |
+          node --check runtime-coordinator.js
+          node --check storage-diagnostics.js
+          node --check custom-font-manager.js
+          node --check mailbox-manager.js
+          node --check card-system.js
+          node --check tests/runtime-recovery.test.mjs
+          node --check tests/storage-diagnostics.test.mjs
+          node --check tests/storage-quota-background.test.mjs
+          node --check tests/phase27-cross-module-faults.test.mjs
+          node --check tools/verify-twodeers-hardening.mjs
+      - name: Storage quota, revision marker and background timer regressions
+        run: node tests/storage-quota-background.test.mjs
+      - name: Media commit/revision-marker combined failure regression
+        run: node tests/phase27-cross-module-faults.test.mjs
+      - name: Read-only diagnostics and salvage export tests
+        run: node tests/storage-diagnostics.test.mjs
+      - name: Recovery lock and durable journal regressions
+        run: node tests/runtime-recovery.test.mjs
+      - name: Full project hardening suite
+        run: node tools/verify-twodeers-hardening.mjs

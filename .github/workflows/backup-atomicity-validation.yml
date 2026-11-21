@@ -1,0 +1,90 @@
+name: Cross-module backup and restore atomicity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "backup-v4.js"
+      - "runtime-coordinator.js"
+      - "circle-media-manager.js"
+      - "custom-font-manager.js"
+      - "mailbox-manager.js"
+      - "sticker-library.js"
+      - "font-panel.js"
+      - "card-system.js"
+      - "chat-beautify-manager.js"
+      - "tests/backup-atomicity.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase28-restore-combined-failures.test.mjs"
+      - "tests/runtime-recovery.test.mjs"
+      - "tests/circle-media-migration.test.mjs"
+      - "tests/media-lifecycle.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/backup-atomicity-validation.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "backup-v4.js"
+      - "runtime-coordinator.js"
+      - "circle-media-manager.js"
+      - "custom-font-manager.js"
+      - "mailbox-manager.js"
+      - "sticker-library.js"
+      - "font-panel.js"
+      - "card-system.js"
+      - "chat-beautify-manager.js"
+      - "tests/backup-atomicity.test.mjs"
+      - "tests/runtime-recovery.test.mjs"
+      - "tests/circle-media-migration.test.mjs"
+      - "tests/media-lifecycle.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/backup-atomicity-validation.yml"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/storage-quota-background.test.mjs"
+      - "tests/phase28-restore-combined-failures.test.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-atomicity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check changed JavaScript and tests
+        run: |
+          node --check backup-v4.js
+          node --check runtime-coordinator.js
+          node --check circle-media-manager.js
+          node --check custom-font-manager.js
+          node --check mailbox-manager.js
+          node --check sticker-library.js
+          node --check font-panel.js
+          node --check card-system.js
+          node --check chat-beautify-manager.js
+          node --check tests/backup-atomicity.test.mjs
+          node --check tests/phase27-cross-module-faults.test.mjs
+          node --check tests/phase28-restore-combined-failures.test.mjs
+          node --check tests/storage-quota-background.test.mjs
+          node --check tests/runtime-recovery.test.mjs
+          node --check tests/circle-media-migration.test.mjs
+          node --check tests/media-lifecycle.test.mjs
+          node --check tools/verify-twodeers-hardening.mjs
+      - name: Run multi-tab and crash recovery tests
+        run: node tests/runtime-recovery.test.mjs
+      - name: Run Phase 27 media/revision-marker combined fault injection
+        run: node tests/phase27-cross-module-faults.test.mjs
+      - name: Run Phase 28 combined V4 restore failure injection
+        run: node tests/phase28-restore-combined-failures.test.mjs
+      - name: Run Circle migration and media transaction regression
+        run: node tests/circle-media-migration.test.mjs
+      - name: Run existing full hardening suite
+        run: node tools/verify-twodeers-hardening.mjs

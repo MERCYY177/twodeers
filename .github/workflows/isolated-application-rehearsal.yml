@@ -1,0 +1,133 @@
+name: Isolated full-app recovery rehearsal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tests/phase37-audit-fixes.test.mjs"
+      - "PHASE37-CHANGELOG.md"
+      - "android-apps/app/src/main/AndroidManifest.xml"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "index.html"
+      - "*.js"
+      - "assets/**"
+      - "tests/isolated-application-rehearsal-e2e.mjs"
+      - "tests/media-send-paths.test.mjs"
+      - "tests/mailbox-circle-write-paths.test.mjs"
+      - "tests/phase25-circle-mailbox-lifecycle.test.mjs"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/fixtures/**"
+      - "tests/voice-media-paths.test.mjs"
+      - "tests/video-media-paths.test.mjs"
+      - "tests/isolated-application-fixtures.mjs"
+      - "tests/isolated-application-fixtures.test.mjs"
+      - "tests/run-browser-with-evidence.mjs"
+      - "tests/browser-evidence-runner.test.mjs"
+      - "tests/browser-ci-contract.test.mjs"
+      - ".github/workflows/isolated-application-rehearsal.yml"
+      - "tools/verify-twodeers-hardening.mjs"
+      - "tests/browser-recovery-acceptance-matrix.test.mjs"
+      - "docs/browser-recovery-acceptance-matrix.json"
+      - ".github/workflows/browser-recovery-acceptance-matrix.yml"
+      - "tests/phase36-profile-media-call-beautify.test.mjs"
+      - "tests/phase36-call-transition-integrity.test.mjs"
+      - "PHASE36-CHANGELOG.md"
+  pull_request:
+    paths:
+      - "tests/phase37-audit-fixes.test.mjs"
+      - "PHASE37-CHANGELOG.md"
+      - "android-apps/app/src/main/AndroidManifest.xml"
+      - "android-apps/app/src/main/java/com/mercyy/twodeers/MainActivity.java"
+      - "index.html"
+      - "*.js"
+      - "assets/**"
+      - "tests/isolated-application-rehearsal-e2e.mjs"
+      - "tests/media-send-paths.test.mjs"
+      - "tests/mailbox-circle-write-paths.test.mjs"
+      - "tests/phase25-circle-mailbox-lifecycle.test.mjs"
+      - "tests/fixtures/**"
+      - "tests/voice-media-paths.test.mjs"
+      - "tests/video-media-paths.test.mjs"
+      - "tests/isolated-application-fixtures.mjs"
+      - "tests/isolated-application-fixtures.test.mjs"
+      - "tests/run-browser-with-evidence.mjs"
+      - "tests/browser-evidence-runner.test.mjs"
+      - ".github/workflows/isolated-application-rehearsal.yml"
+      - "tools/verify-twodeers-hardening.mjs"
+      - "tests/browser-ci-contract.test.mjs"
+      - "tests/browser-recovery-acceptance-matrix.test.mjs"
+      - "docs/browser-recovery-acceptance-matrix.json"
+      - ".github/workflows/browser-recovery-acceptance-matrix.yml"
+      - "tests/phase27-cross-module-faults.test.mjs"
+      - "tests/phase36-profile-media-call-beautify.test.mjs"
+      - "tests/phase36-call-transition-integrity.test.mjs"
+      - "PHASE36-CHANGELOG.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twodeers-phase17-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-application-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      TWODEERS_E2E_ARTIFACT_DIR: test-results/browser-e2e/phase17
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Initialize browser evidence directory
+        run: |
+          mkdir -p "$TWODEERS_E2E_ARTIFACT_DIR"
+          {
+            node --version
+            npm --version
+            uname -a
+          } > "$TWODEERS_E2E_ARTIFACT_DIR/00-runner-environment.log" 2>&1
+
+      - name: Install deterministic font fixture
+        run: |
+          set -o pipefail
+          sudo apt-get update 2>&1 | tee "$TWODEERS_E2E_ARTIFACT_DIR/01-font-apt-update.log"
+          sudo apt-get install -y fonts-dejavu-core 2>&1 | tee "$TWODEERS_E2E_ARTIFACT_DIR/02-font-install.log"
+
+      - name: Install pinned Playwright driver
+        run: |
+          set -o pipefail
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.65.0 2>&1 | tee "$TWODEERS_E2E_ARTIFACT_DIR/03-playwright-npm-install.log"
+
+      - name: Install Chromium and system dependencies
+        run: |
+          set -o pipefail
+          node_modules/.bin/playwright install --with-deps chromium 2>&1 | tee "$TWODEERS_E2E_ARTIFACT_DIR/04-chromium-install.log"
+
+      - name: Test browser evidence runner
+        run: |
+          set -o pipefail
+          node tests/browser-evidence-runner.test.mjs 2>&1 | tee "$TWODEERS_E2E_ARTIFACT_DIR/05-evidence-runner-self-test.log"
+
+      - name: Run isolated full-application Chromium rehearsal with evidence capture
+        run: node tests/run-browser-with-evidence.mjs phase17
+
+      - name: Run complete source hardening regression
+        run: node tools/verify-twodeers-hardening.mjs
+
+      - name: Upload browser rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-phase17-browser-evidence-${{ github.run_id }}
+          path: test-results/browser-e2e/phase17/
+          if-no-files-found: warn
+          retention-days: 14

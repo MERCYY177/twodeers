@@ -32,6 +32,8 @@
     const root=document.documentElement;
     root.dataset.duoThemeMode=cfg.mode;
     root.dataset.duoThemeResolved=dark?'dark':'light';
+    const nativeSurface=cfg.background==='plain'?p.panel:p.bg;
+    try{const bridge=window.DuoThemeBridge;if(bridge&&typeof bridge.applyResolvedTheme==='function')bridge.applyResolvedTheme(dark?'dark':'light',nativeSurface);}catch(_){}
     root.dataset.duoPalette=cfg.palette;
     root.style.colorScheme=dark?'dark':'light';
     const vars={'--bg':p.bg,'--panel':p.panel,'--line':p.line,'--text':p.text,'--sub':p.sub,'--soft':p.soft,'--accent':p.accent,'--accent-deep':p.deep,'--shadow':p.shadow,'--chat-bg':p.chat,'--bubble-me':p.me,'--bubble-other':p.other,'--chat-pattern-dot':dark?'rgba(255,255,255,.035)':'rgba(80,100,80,.06)','--chat-image-overlay':dark?'rgba(10,16,22,.50)':'rgba(255,255,255,.28)','--chat-image-overlay-strong':dark?'rgba(10,16,22,.40)':'rgba(255,255,255,.18)'};
@@ -75,6 +77,7 @@
     const host=document.getElementById('circleMount');
     if(host){
       const circleVars={'--bg':p.bg,'--card':p.panel,'--line':p.line,'--text':p.text,'--sub':p.sub,'--main':p.deep,'--pill':p.soft,'--soft':p.soft,'--input':p.chat,'--shadow':p.shadow,'--social-bg':p.bg,'--social-border':p.line,'--pink':p.accent,'--glass':dark?'rgba(20,25,22,.65)':'rgba(255,255,255,.30)'};
+      host.dataset.duoThemeResolved=dark?'dark':'light';
       Object.entries(circleVars).forEach(([k,v])=>host.style.setProperty(k,v));
     }
     document.body.classList.toggle('duo-bubble-flat',cfg.bubbleStyle==='flat');
@@ -83,7 +86,23 @@
     const bg=document.getElementById('duoBackgroundMode');if(bg)bg.value=cfg.background;
     const bubble=document.getElementById('duoBubbleStyle');if(bubble)bubble.value=cfg.bubbleStyle;
     document.querySelectorAll('[data-duo-palette]').forEach(el=>{const active=el.dataset.duoPalette===cfg.palette;el.classList.toggle('active',active);el.setAttribute('aria-pressed',active?'true':'false');});
-    if(saveNow&&typeof save==='function')save();
+  }
+  function setSetting(key,value){
+    if(!Object.prototype.hasOwnProperty.call(defaults,key))return false;
+    const previous=JSON.parse(JSON.stringify(state.appearanceSettings||{}));
+    try{
+      state.appearanceSettings={...state.appearanceSettings,[key]:value};
+      normalize();
+      if(state.appearanceSettings[key]!==value)throw new Error('不支持的主题设置值');
+      apply(false);
+      if(typeof save!=='function'||save()===false)throw new Error('本地状态保存失败');
+      return true;
+    }catch(error){
+      state.appearanceSettings=previous;
+      try{normalize();apply(false);}catch(rollbackError){console.error('[主题设置] 界面回滚失败：',rollbackError);}
+      try{if(typeof showToast==='function')showToast('主题设置保存失败，已恢复原设置：'+(error?.message||error));}catch(_){}
+      return false;
+    }
   }
   function addPanel(){
     const target=document.getElementById('settingsParam');if(!target||document.getElementById('duoAppearancePanel'))return;
@@ -92,19 +111,19 @@
     target.insertBefore(card,target.firstElementChild);
     const grid=card.querySelector('#duoPaletteGrid');
     Object.entries(palettes).forEach(([id,p])=>{const btn=document.createElement('button');btn.type='button';btn.className='duo-palette-option';btn.dataset.duoPalette=id;btn.innerHTML='<span class="duo-palette-dots"><i></i><i></i><i></i></span><span>'+p.name+'</span>';btn.querySelectorAll('i').forEach((dot,index)=>dot.style.background=[p.light.theme,p.light.me,p.light.bg][index]);grid.appendChild(btn);});
-    grid.addEventListener('click',e=>{const b=e.target.closest('[data-duo-palette]');if(!b)return;state.appearanceSettings.palette=b.dataset.duoPalette;apply(true);});
-    card.querySelector('#duoThemeMode').addEventListener('change',e=>{state.appearanceSettings.mode=e.target.value;apply(true);});
-    card.querySelector('#duoBackgroundMode').addEventListener('change',e=>{state.appearanceSettings.background=e.target.value;apply(true);});
-    card.querySelector('#duoBubbleStyle').addEventListener('change',e=>{state.appearanceSettings.bubbleStyle=e.target.value;apply(true);});
+    grid.addEventListener('click',e=>{const b=e.target.closest('[data-duo-palette]');if(!b)return;setSetting('palette',b.dataset.duoPalette);});
+    card.querySelector('#duoThemeMode').addEventListener('change',e=>{setSetting('mode',e.target.value);});
+    card.querySelector('#duoBackgroundMode').addEventListener('change',e=>{setSetting('background',e.target.value);});
+    card.querySelector('#duoBubbleStyle').addEventListener('change',e=>{setSetting('bubbleStyle',e.target.value);});
     const style=document.createElement('style');style.id='duoAppearancePanelStyle';style.textContent='.duo-palette-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.duo-palette-option{display:flex;align-items:center;gap:7px;padding:10px 8px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);font-size:12px}.duo-palette-option.active{outline:2px solid var(--theme-color);border-color:var(--theme-color)}.duo-palette-dots{display:flex;gap:2px}.duo-palette-dots i{width:10px;height:20px;border-radius:5px;display:block}.duo-theme-preview{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--chat-bg)}.duo-preview-top{font-size:12px;color:var(--sub);margin-bottom:10px}.duo-preview-bubbles{display:flex;flex-direction:column;gap:8px}.duo-preview-bubbles span,.duo-preview-bubbles b{max-width:82%;padding:9px 12px;border-radius:13px;background:var(--bubble-other);font-size:13px;color:var(--text)}.duo-preview-bubbles b{align-self:flex-end;background:var(--bubble-me);font-weight:600}body.duo-bubble-flat .bubble{box-shadow:none!important;border-radius:8px!important}body.duo-bubble-classic .bubble{box-shadow:0 2px 8px rgba(0,0,0,.06)}';
     document.head.appendChild(style);
   }
   function boot(){
     normalize();
     addPanel();
-    try{mediaQuery=window.matchMedia('(prefers-color-scheme: dark)');mediaQuery.addEventListener?.('change',()=>{if(state.appearanceSettings.mode==='system')apply(false);});}catch(_){}
+    try{mediaQuery=window.matchMedia('(prefers-color-scheme: dark)');const onSystemChange=()=>{if(state.appearanceSettings.mode==='system')apply(false);};if(mediaQuery.addEventListener)mediaQuery.addEventListener('change',onSystemChange);else mediaQuery.addListener?.(onSystemChange);}catch(_){}
     apply(false);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-  window.DuoAppearance={apply,palettes};
+  window.DuoAppearance={apply,setSetting,palettes};
 })();

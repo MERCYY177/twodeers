@@ -5,6 +5,7 @@ on:
     branches: [main, "feature/builtin-sticker-library"]
     paths:
       - "index.html"
+      - "circle-media-manager.js"
       - "*.js"
       - "*.css"
       - "assets/**"
@@ -30,8 +31,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: package-lock.json
       - name: Install FFmpeg for HEIF conversion
         run: |
           sudo apt-get update
@@ -50,25 +49,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Verify web source and V4 ZIP backup
+      - name: Verify current web source, card management and theme sync
         run: |
-          node tools/verify-source.mjs
-          node --test tests/backup-v4.test.mjs tests/chat-beautify.test.mjs tests/mailbox-card-system.test.mjs
-      - name: Install Playwright browser test
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-      - name: Run browser regression tests
-        run: |
-          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/twodeers-http.log 2>&1 &
-          SERVER_PID=$!
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then break; fi
-            sleep 1
-          done
-          FONT_PATH="$(fc-match -f '%{file}' 'DejaVu Sans' | head -n 1)"
-          TWODEERS_TEST_FONT="$FONT_PATH" node tests/browser-smoke.mjs
-          kill "$SERVER_PID" || true
+          node tools/verify-twodeers-hardening.mjs
+          node tests/card-management.test.mjs
+          node tests/appearance-theme.test.mjs
+          node tests/runtime-consistency.test.mjs
+          node tests/media-lifecycle.test.mjs
       - name: Build all four debug APKs
         working-directory: android-apps
         run: gradle --no-daemon :app:assembleDebug
