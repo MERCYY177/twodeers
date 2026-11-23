@@ -149,8 +149,8 @@ async function launchCrashBrowser(profileDir) {
   const child = spawn(executable, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking',
     '--disable-extensions', '--disable-component-update', '--no-first-run', '--no-default-browser-check',
-    \`--remote-debugging-port=\${port}\`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*',
-    \`--user-data-dir=\${profileDir}\`, 'about:blank'
+    `--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*',
+    `--user-data-dir=${profileDir}`, 'about:blank'
   ], { detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   child.stderr?.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8_000); });
