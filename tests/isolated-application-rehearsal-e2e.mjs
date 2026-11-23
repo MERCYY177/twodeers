@@ -402,7 +402,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const publishedCircleMedia=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,newPostMediaId);
   assert.equal(publishedCircleMedia,true);
   await circle.locator('#coverAvatar').click();
-  await circle.locator(\`#timelineBody [data-open-viewer="\${newPostMeta.id}"]\`).click();
+  await circle.locator('#timelineBody [data-open-viewer="' + newPostMeta.id + '"]').click();
   await circle.locator('#viewerDetailBtn').click();
 
   // Edit the existing owned post, retain its ID/history, replace its media and
@@ -424,7 +424,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const editedMediaId=editedPostMeta.srcs[0].slice('idb-media:'.length);
   assert.equal(!!(await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,editedMediaId)),true);
   await circle.locator('#detailBackBtn').click();
-  await circle.locator(\`#timelineBody [data-open-viewer="\${newPostMeta.id}"]\`).click();
+  await circle.locator('#timelineBody [data-open-viewer="' + newPostMeta.id + '"]').click();
   await circle.locator('#viewerDetailBtn').click();
 
   await circle.locator('#detailInlineDelete').click();
