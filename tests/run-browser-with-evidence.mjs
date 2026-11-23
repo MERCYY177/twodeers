@@ -242,6 +242,12 @@ async function main() {
     await writeJsonAtomic(summaryPath, summary);
     console.log(`[${result.status.toUpperCase()}] ${step.name} (${result.durationMs} ms)`);
     if (result.status !== 'passed') {
+      const [failedStdout, failedStderr] = await Promise.all([
+        readFile(result.stdoutPath, 'utf8').catch(error => '[stdout unavailable] ' + error.message),
+        readFile(result.stderrPath, 'utf8').catch(error => '[stderr unavailable] ' + error.message)
+      ]);
+      console.error('--- failed step stdout ---\\n' + failedStdout.slice(-24000));
+      console.error('--- failed step stderr ---\\n' + failedStderr.slice(-24000));
       summary.status = 'failed';
       summary.failedStep = step.name;
       summary.finishedAt = new Date().toISOString();
