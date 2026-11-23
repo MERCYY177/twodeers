@@ -434,6 +434,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
 
   // Save a new avatar and cover through the profile settings UI. Then remove the cover
   // while a synthetic chat reference still owns its media ID; global GC must preserve it.
+  await circle.locator('#profileBackBtn').click();
   await circle.locator('#backBtn').click();
   await circle.locator('#myAvatarInput').setInputFiles({ name:'phase24-avatar.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
   await circle.locator('#myCoverInput').setInputFiles({ name:'phase24-cover.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
