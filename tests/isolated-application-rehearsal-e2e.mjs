@@ -473,14 +473,12 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   },sharedAvatarId);
   assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify(sharedProfileAvatarDiagnostic));
   const chatReferencePersisted=await page.evaluate(id=>{
-    state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
-    state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
-    const saveResult=save();
+    const message=appendChatMessage({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
     const persisted=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
     return {
-      saveResult,
-      liveStateHasReference:state.chatHistory.some(message=>message?.mediaId===id),
-      persistedStateHasReference:(persisted.chatHistory||[]).some(message=>message?.mediaId===id),
+      saveResult:!!message,
+      liveStateHasReference:state.chatHistory.some(item=>item?.id==='phase24-shared-cover-reference'&&item.mediaId===id),
+      persistedStateHasReference:(persisted.chatHistory||[]).some(item=>item?.id==='phase24-shared-cover-reference'&&item.mediaId===id),
       reachabilityHasReference:latestPersistedMediaReferences().has(id)
     };
   },sharedCoverId);
