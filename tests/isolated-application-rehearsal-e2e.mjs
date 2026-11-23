@@ -457,7 +457,11 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await page.waitForFunction(id=>{const s=window.__duoCircleApi.exportState();return s.myAvatar===''&&s.otherAvatar==='idb-media:'+id;},sharedAvatarId,{timeout:15_000});
   const sharedProfileAvatarStillPresent=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,sharedAvatarId);
   assert.equal(sharedProfileAvatarStillPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile');
-  await page.evaluate(id=>{const key='dual_space_app_clean_test_v1';const stored=JSON.parse(localStorage.getItem(key)||'{}');stored.chatHistory=Array.isArray(stored.chatHistory)?stored.chatHistory:[];stored.chatHistory.push({id:'phase24-shared-cover-reference',type:'image',mediaId:id,mediaName:'shared-cover',time:Date.now()});localStorage.setItem(key,JSON.stringify(stored));},sharedCoverId);
+  await page.evaluate(id=>{
+    state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
+    state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
+    save();
+  },sharedCoverId);
   await circle.locator('#backBtn').click();
   await circle.locator('#clearCoverBtn').click();
   await circle.locator('#saveSettingsBtn').click();
