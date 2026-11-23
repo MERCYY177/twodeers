@@ -637,8 +637,23 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
     fontId: window.ChuanXunFontManager?.getCurrentFontId?.() || null,
     fontLoaded: document.fonts.check('16px "ChuanXunLocalFont_phase17_font"'),
     missingCircleMedia: (await window.__duoCircleMedia?.ensure?.())?.missing ?? -1,
-    circleAvatarResolved: !!window.__duoCircleMedia?.resolve?.('idb-media:phase17-circle-avatar'),
-    circleCoverResolved: !!window.__duoCircleMedia?.resolve?.('idb-media:phase17-circle-cover')
+    circleProfileMedia: await (async()=>{
+      const circleState=window.__duoCircleApi?.exportState?.()||{};
+      const stored=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
+      const sharedCoverMessage=(stored.chatHistory||[]).find(item=>item.id==='phase24-shared-cover-reference');
+      const otherAvatarId=window.__duoCircleMedia?.parseRef?.(circleState.otherAvatar)||'';
+      const sharedCoverId=String(sharedCoverMessage?.mediaId||'');
+      return {
+        myAvatar:circleState.myAvatar||'',myCover:circleState.myCover||'',
+        otherAvatar:circleState.otherAvatar||'',
+        otherAvatarResolved:!!window.__duoCircleMedia?.resolve?.(circleState.otherAvatar||''),
+        otherAvatarRecordPresent:!!otherAvatarId&&!!(await window.getMediaRecord(otherAvatarId))?.blob,
+        sharedCoverMessagePresent:!!sharedCoverMessage,
+        sharedCoverRecordPresent:!!sharedCoverId&&!!(await window.getMediaRecord(sharedCoverId))?.blob,
+        seedAvatarRecordPresent:!!(await window.getMediaRecord('phase17-circle-avatar'))?.blob,
+        seedCoverRecordPresent:!!(await window.getMediaRecord('phase17-circle-cover'))?.blob
+      };
+    })()
   }));
   console.log('POST_RELOAD_CIRCLE_SNAPSHOT '+JSON.stringify(afterReload.circlePostState));
   assert.equal(afterReload.chatPersisted, true);
@@ -661,8 +676,15 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(afterReload.fontId, 'phase17_font');
   assert.equal(afterReload.fontLoaded, true);
   assert.equal(afterReload.missingCircleMedia, 0);
-  assert.equal(afterReload.circleAvatarResolved, true);
-  assert.equal(afterReload.circleCoverResolved, true);
+  assert.equal(afterReload.circleProfileMedia.myAvatar,'','the explicitly cleared personal avatar should remain cleared');
+  assert.equal(afterReload.circleProfileMedia.myCover,'','the explicitly cleared Circle cover should remain cleared');
+  assert.ok(afterReload.circleProfileMedia.otherAvatar.startsWith('idb-media:'));
+  assert.equal(afterReload.circleProfileMedia.otherAvatarResolved,true);
+  assert.equal(afterReload.circleProfileMedia.otherAvatarRecordPresent,true,'the same profile avatar ID still owned by the other profile must remain available after reload');
+  assert.equal(afterReload.circleProfileMedia.sharedCoverMessagePresent,true);
+  assert.equal(afterReload.circleProfileMedia.sharedCoverRecordPresent,true,'the former Circle cover must remain in IndexedDB while its chat message still references it');
+  assert.equal(afterReload.circleProfileMedia.seedAvatarRecordPresent,false,'replaced seed avatar media should be reclaimed after its final reference is removed');
+  assert.equal(afterReload.circleProfileMedia.seedCoverRecordPresent,false,'replaced seed cover media should be reclaimed after its final reference is removed');
 
   await context.close();
   return { origin: seeded.origin, boot, deletedStickerState, videoPlayback, audioPlayback, backupDuringRecording, cancelledAudioCount:afterCancelledAudio, afterReload };
