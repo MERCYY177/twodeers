@@ -19,7 +19,7 @@ export const BROWSER_E2E_SUITES = Object.freeze({
     { name: 'syntax-full-app-e2e', args: ['--check', 'tests/isolated-application-rehearsal-e2e.mjs'] },
     { name: 'synthetic-fixture-invariants', args: ['tests/isolated-application-fixtures.test.mjs'] },
     { name: 'syntax-media-send-path-test', args: ['--check', 'tests/media-send-paths.test.mjs'] },
-    { name: 'batch-media-send-source-regression', args: ['tests/media-send-paths.test.mjs'] },
+    { name: 'direct-chat-send-source-regression', args: ['tests/media-send-paths.test.mjs'] },
     { name: 'syntax-video-media-test', args: ['--check', 'tests/video-media-paths.test.mjs'] },
     { name: 'video-media-source-regression', args: ['tests/video-media-paths.test.mjs'] },
     { name: 'syntax-voice-media-test', args: ['--check', 'tests/voice-media-paths.test.mjs'] },
