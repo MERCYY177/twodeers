@@ -20,6 +20,8 @@ const appStart = index.indexOf(appMarker);
 assert.ok(appStart >= 0, 'main application script marker must exist');
 const app = index.slice(appStart);
 const safeMediaUrl = extractFunction(app, 'function safeMediaUrl(value){');
+const escapeHtml = extractFunction(app, 'function escapeHtml(str){');
+const escapeAttr = extractFunction(app, 'function escapeAttr(value){');
 const sendHandler = extractFunction(app, 'function handleChatSendButtonClick(){');
 const keyHandler = extractFunction(app, 'function handleChatInputKeydown(event){');
 const sendSticker = extractFunction(app, 'async function sendSticker(stickerId){');
@@ -71,6 +73,12 @@ assert.ok(index.includes('window.__duoCardSystem'), 'stable card-system integrat
   assert.equal(sandbox.checkMediaUrl('javascript:alert(1)'), '');
   assert.equal(sandbox.checkMediaUrl('idb-media:circle-asset-1'), 'blob:resolved-circle-media');
   assert.deepEqual(calls, ['idb-media:circle-asset-1']);
+}
+
+{
+  const sandbox = {};
+  vm.runInNewContext(escapeHtml + '\n' + escapeAttr + '\nglobalThis.checkEscapeAttr = escapeAttr;', sandbox);
+  assert.equal(sandbox.checkEscapeAttr('" onerror="x' + String.fromCharCode(96)), '&quot; onerror=&quot;x&#96;');
 }
 
 console.log('PASS: chat text and sticker sends use direct single-send paths; the shared media URL guard is available to the app; obsolete batch and auto-opening input helpers are removed without deleting card management.');
