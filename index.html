@@ -155,25 +155,7 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .input-shell{flex:1 1 auto;min-width:0;height:42px;background:var(--input,#fff);border:1px solid var(--line);border-radius:21px;display:flex;align-items:center;padding:0 10px;gap:8px}
 #sendBtn{height:38px;min-width:48px;flex:0 0 auto;padding:0 12px;border:0;border-radius:19px;background:var(--button-bg,var(--theme-color));color:var(--button-text,#fff);font-size:13px;font-weight:700;white-space:nowrap;box-shadow:var(--shadow)}
 #sendBtn:disabled{opacity:.55}
-#batchBtn.active{background:var(--theme-color);border-color:var(--theme-color);color:#fff}
-.batch-panel{position:absolute;left:10px;right:10px;bottom:calc(66px + env(safe-area-inset-bottom));z-index:42;display:none;flex-direction:column;max-height:min(38dvh,320px);min-height:116px;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);box-shadow:0 14px 36px rgba(0,0,0,.16)}
-.batch-panel.show{display:flex}
-.batch-panel-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:750}
-.batch-panel-head strong{flex:1;min-width:0}
-.batch-panel-head button{width:28px;height:28px;border-radius:14px;background:var(--soft);color:var(--text);font-size:18px}
-.batch-queue-list{min-height:0;overflow:auto;padding:7px 10px;display:flex;flex-direction:column;gap:6px}
-.batch-queue-empty{padding:18px 8px;text-align:center;color:var(--sub);font-size:12px}
-.batch-queue-item{display:flex;align-items:center;gap:8px;min-height:42px;padding:7px 8px;border:1px solid var(--line);border-radius:11px;background:var(--soft)}
-.batch-queue-item img{width:38px;height:38px;flex:0 0 38px;border-radius:7px;object-fit:cover;background:var(--input)}
-.batch-queue-text{flex:1;min-width:0;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.45;max-height:54px}
-.batch-queue-kind{flex:0 0 auto;color:var(--sub);font-size:10px}
-.batch-queue-ops{display:flex;gap:4px;flex:0 0 auto}
-.batch-queue-ops button{min-width:28px;height:28px;padding:0 7px;border-radius:8px;background:var(--panel);color:var(--text);border:1px solid var(--line);font-size:11px}
-.batch-queue-ops button[data-batch-remove]{color:#a33}
-.batch-panel-actions{display:flex;gap:7px;padding:8px 10px;border-top:1px solid var(--line)}
-.batch-panel-actions button{flex:1;min-width:0;height:34px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--soft);color:var(--text);font-size:12px}
-.batch-panel-actions button.primary{background:var(--button-bg,var(--theme-color));color:var(--button-text,#fff);border-color:transparent}
-.batch-panel-actions button:disabled{opacity:.45}
+
 .voice-toggle{width:24px;height:24px;border-radius:12px;background:#f7f7f7;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666666;flex-shrink:0}
 .chat-input{flex:1;min-width:0;border:none;background:transparent;font-size:15px;color:#2b2b2b}
 .hold-to-talk{display:none;flex:1;height:28px;border-radius:14px;background:#f8f8f8;align-items:center;justify-content:center;font-size:13px;color:#6c625b}
@@ -568,12 +550,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <button id="clipboardBtn">剪贴板</button>
 <button id="phraseBtn">字卡</button>
 </div>
-<div class="batch-panel" id="batchPanel" aria-label="批量发送队列" aria-hidden="true">
-  <div class="batch-panel-head"><strong id="batchPanelTitle">批量发送 · 0 条待发送</strong><button id="batchCloseBtn" type="button" aria-label="收起批量发送队列" title="收起（保留队列）">×</button></div>
-  <div class="batch-queue-list" id="batchQueueList"><div class="batch-queue-empty">输入文字或添加图片，组成发送队列</div></div>
-  <div class="batch-panel-actions"><button id="batchAddImageBtn" type="button">添加图片</button><button id="batchCancelBtn" type="button">取消队列</button><button class="primary" id="batchSendBtn" type="button" disabled>发送全部（0）</button></div>
-</div>
-<input id="batchImageInput" type="file" accept="image/*" multiple hidden>
 <div class="more-panel" id="morePanel">
 <div class="quick-grid media-quick-grid">
 <button class="quick-item" id="quickImageBtn" type="button"><span class="quick-icon">▧</span><span class="quick-lab">图片</span></button>
@@ -588,7 +564,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 <textarea aria-label="聊天输入框" class="chat-input" id="chatInput" placeholder="输入想说的话" rows="1"></textarea>
 <div aria-label="按住说话，松开发送" class="hold-to-talk" id="holdTalk" role="button" tabindex="0">按住说话</div><button class="voice-cancel hidden" id="voiceCancelBtn" type="button">取消</button>
 </div>
-<button class="side-btn" id="batchBtn" type="button" aria-label="批量发送模式" aria-pressed="false" title="批量发送模式">☷</button>
 <button class="side-btn" id="emojiBtn" type="button" aria-label="表情面板">☺</button>
 <button class="side-btn" id="plusBtn" type="button" aria-label="更多功能">＋</button>
 <button id="sendBtn" type="button" aria-label="发送消息">发送</button>
@@ -5907,148 +5882,16 @@ function sendCurrentText(forceText){
   return true;
 }
 
-let isBatchMode=false;
-let batchMessages=[];
-let batchSending=false;
-const MAX_BATCH_ITEMS=100;
 function syncChatSendInputs(){
   const enabled=state.enterKeySendEnabled===true;
   $$('#enterKeySendSeg button').forEach(button=>button.classList.toggle('active',(button.dataset.enterKeySend==='on')===enabled));
 }
-function updateBatchControls(){
-  const count=batchMessages.length;
-  const title=$('#batchPanelTitle');if(title)title.textContent='批量发送 · '+count+' 条待发送';
-  const send=$('#batchSendBtn');if(send){send.textContent='发送全部（'+count+'）';send.disabled=count===0||batchSending;}
-  const button=$('#sendBtn');if(button){button.textContent=isBatchMode?'加入':'发送';button.setAttribute('aria-label',isBatchMode?'加入批量发送队列':'发送消息');button.disabled=batchSending;}
-  const toggle=$('#batchBtn');if(toggle){toggle.classList.toggle('active',isBatchMode);toggle.setAttribute('aria-pressed',String(isBatchMode));toggle.title=batchMessages.length?'批量发送模式（'+count+' 条待发送）':'批量发送模式';toggle.disabled=batchSending;}
-  const addImage=$('#batchAddImageBtn');if(addImage)addImage.disabled=batchSending;
-  const close=$('#batchCloseBtn');if(close)close.disabled=batchSending;
-  const cancel=$('#batchCancelBtn');if(cancel)cancel.disabled=batchSending;
-  const panel=$('#batchPanel');if(panel){panel.classList.toggle('show',isBatchMode);panel.setAttribute('aria-hidden',String(!isBatchMode));}
-}
-function renderBatchPreview(){
-  const list=$('#batchQueueList');if(!list)return;
-  if(!batchMessages.length){list.innerHTML='<div class="batch-queue-empty">输入文字或添加图片，组成发送队列</div>';updateBatchControls();return;}
-  list.innerHTML=batchMessages.map((item,index)=>{
-    const hasMedia=!!(item.file||item.stickerId);
-    const media=hasMedia?'<img src="'+escapeAttr(safeMediaUrl(item.previewUrl||''))+'" alt="待发送媒体">':'';
-    const content=item.file?'图片 · '+escapeHtml(item.file.name||'待发送图片'):item.stickerId?'表情包 · '+escapeHtml(item.name||'已选表情包'):(escapeHtml(item.text||''));
-    const kind=item.file?'图片':item.stickerId?'表情包':'文字';
-    const edit=hasMedia?'':'<button type="button" data-batch-edit="'+index+'">编辑</button>';
-    return '<div class="batch-queue-item" data-batch-index="'+index+'">'+media+'<div class="batch-queue-text">'+(content||'（空消息）')+'</div><span class="batch-queue-kind">'+kind+'</span><div class="batch-queue-ops">'+edit+'<button type="button" data-batch-remove="'+index+'" aria-label="移除第 '+(index+1)+' 条">移除</button></div></div>';
-  }).join('');
-  updateBatchControls();
-}
-function releaseBatchPreview(item){if(item?.previewUrl){try{URL.revokeObjectURL(item.previewUrl);}catch(_){}item.previewUrl='';}}
-function clearBatchQueue(){batchMessages.forEach(releaseBatchPreview);batchMessages=[];renderBatchPreview();}
-function toggleBatchMode(){
-  if(batchSending)return;
-  isBatchMode=!isBatchMode;
-  if(isBatchMode){$('#inputHelper')?.classList.remove('show');$('#morePanel')?.classList.remove('show');closeEmojiPanel();closeStickerPanel();}
-  updateBatchControls();if(isBatchMode)renderBatchPreview();
-}
-function addToBatch(){
-  if(batchSending)return false;
-  const input=$('#chatInput'),text=String(input?.value||'').trim();
-  if(!text){showToast('请先输入要加入队列的文字');return false;}
-  if(batchMessages.length>=MAX_BATCH_ITEMS){showToast('批量队列最多保留 '+MAX_BATCH_ITEMS+' 条');return false;}
-  const usageEvents=getPendingCardUsageEvents(input,text,false);
-  batchMessages.push({id:uid('batch'),text,usageEvents});
-  input.value='';delete input.dataset.pendingCardText;delete input.dataset.pendingCardId;delete input.dataset.pendingCardSource;delete input.dataset.pendingCardFragments;input.dataset.pendingCardSnapshot='';resizeChatInput();
-  $('#inputHelper')?.classList.remove('show');renderBatchPreview();return true;
-}
-function addBatchImages(files){
-  if(batchSending)return 0;
-  const selected=[...(files||[])];if(!selected.length)return 0;
-  let added=0,failed=0;
-  for(const file of selected){
-    if(!file.type||!file.type.startsWith('image/')){failed++;continue;}
-    if(file.size>80*1024*1024){failed++;continue;}
-    if(batchMessages.length>=MAX_BATCH_ITEMS){failed+=selected.length-selected.indexOf(file);break;}
-    try{batchMessages.push({id:uid('batch'),file,previewUrl:URL.createObjectURL(file)});added++;}
-    catch(_){failed++;}
-  }
-  renderBatchPreview();
-  if(added&&failed)showToast('已加入 '+added+' 张图片，另有 '+failed+' 张不符合条件');
-  else if(added)showToast('已加入 '+added+' 张图片');
-  else if(failed)showToast('图片未能加入：请确认格式和单张 80 MB 限制');
-  return added;
-}
-async function sendBatchMessages(){
-  if(batchSending||!batchMessages.length)return false;
-  if(window.__duoRestoreInProgress||window.__duoExportInProgress){showToast('备份导出或恢复期间暂不能批量发送');return false;}
-  batchSending=true;updateBatchControls();
-  const pending=batchMessages.slice();
-  const insertedIds=[];const mediaIds=[];const createdMessageUrls=[];const batchUsageIds=new Set();const oldLastChatAt=state.offline.lastChatAt;let batchLastChatAt=null;
-  try{
-    for(const item of pending){
-      let message=null;
-      if(item.file){
-        const mediaId=await putMediaBlob(item.file,'image',item.file.name||'batch-image');
-        if(!mediaId)throw new Error('图片文件保存失败');
-        mediaIds.push(mediaId);
-        if(window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('备份任务已启动，批量发送已取消');
-        const messageUrl=URL.createObjectURL(item.file);mediaUrlCache.set(mediaId,messageUrl);createdMessageUrls.push({mediaId,url:messageUrl});
-        if(window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('备份任务已启动，批量发送已取消');
-        message=appendChatMessage({sender:'me',type:'image',mediaId,mediaMime:item.file.type,mediaName:item.file.name,mediaSize:item.file.size,time:formatHM(),read:false},false);
-      }else if(item.stickerId){
-        // A sticker can be removed after entering the queue. Re-read the authoritative
-        // library and media binding immediately before message creation; stale IDs fail closed.
-        const latest=readStickerLibraryStore();
-        const current=latest?.items.find(sticker=>sticker.id===item.stickerId);
-        if(!current||current.mediaId!==item.mediaId||latest.tombstones.some(sticker=>sticker.id===item.stickerId)||!isStickerSendable(item.stickerId))throw new Error('队列中的表情包已删除或不可用，请移除后重试');
-        const record=await getMediaRecord(item.mediaId);
-        if(!record?.blob)throw new Error('队列中的表情包文件已丢失，请移除后重新选择');
-        if(window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('备份任务已启动，批量发送已取消');
-        let messageUrl=mediaUrlCache.get(item.mediaId);
-        if(!messageUrl){messageUrl=URL.createObjectURL(record.blob);mediaUrlCache.set(item.mediaId,messageUrl);createdMessageUrls.push({mediaId:item.mediaId,url:messageUrl});}
-        message=appendChatMessage({sender:'me',type:'sticker',mediaId:item.mediaId,mediaMime:current.mimeType,mediaName:current.name,time:formatHM(),read:false},false);
-      }else{
-        const text=String(item.text||'').trim();if(!text)continue;
-        const usageEvents=(item.usageEvents||[]).map(event=>({...event,eventId:event.eventId||uid('use')}));
-        usageEvents.forEach(event=>batchUsageIds.add(String(event.eventId)));
-        message=appendChatMessage({sender:'me',type:'text',text,time:formatHM(),read:false},false,usageEvents);
-      }
-      if(window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('备份任务已启动，批量发送已取消');
-      if(!message)throw new Error('队列消息未能加入聊天记录或字卡使用记录队列已满');
-      insertedIds.push(String(message.id));
-    }
-    if(window.__duoRestoreInProgress||window.__duoExportInProgress)throw new Error('备份任务已启动，批量发送已取消');
-    if(!insertedIds.length)throw new Error('批量队列没有可发送的内容');
-    batchLastChatAt=Date.now();
-    state.offline.lastChatAt=batchLastChatAt;
-    if(save()===false)throw new Error('聊天记录写入失败，批量发送已回滚');
-    const sentRows=Array.from($('#chatList')?.querySelectorAll('.msg-row[data-mid]')||[]);
-    const lastRow=sentRows.find(row=>String(row.dataset.mid)===insertedIds[insertedIds.length-1]);
-    batchMessages.forEach(releaseBatchPreview);batchMessages=[];isBatchMode=false;
-    $('#morePanel')?.classList.remove('show');$('#inputHelper')?.classList.remove('show');
-    renderBatchPreview();scrollChatToBottom();flushChatCardUsageOutbox();
-    triggerReply(lastRow?.querySelector('.meta')||null,insertedIds);
-    showToast('已发送 '+insertedIds.length+' 条消息');
-    return true;
-  }catch(error){
-    for(const id of insertedIds){const at=state.chatHistory.findIndex(message=>String(message.id)===id);if(at>=0)state.chatHistory.splice(at,1);}
-    state.cardUsageOutbox=(state.cardUsageOutbox||[]).filter(event=>!batchUsageIds.has(String(event.eventId||'')));
-    if(batchLastChatAt!==null&&state.offline.lastChatAt===batchLastChatAt)state.offline.lastChatAt=oldLastChatAt;
-    renderChatHistory(false);
-    for(const item of createdMessageUrls){if(mediaUrlCache.get(item.mediaId)===item.url)mediaUrlCache.delete(item.mediaId);if(item.url?.startsWith('blob:'))URL.revokeObjectURL(item.url);}
-    for(const id of mediaIds){try{await deleteIfUnreferenced(id);}catch(cleanupError){console.error('[批量发送] 媒体回滚清理失败',id,cleanupError);}}
-    showToast('批量发送失败，已撤回本批次未提交的消息：'+(error.message||'未知错误'));
-    return false;
-  }finally{batchSending=false;updateBatchControls();renderBatchPreview();}
-}
-function cancelBatchMode(){
-  if(batchSending)return;
-  if(batchMessages.length&&!confirm('确定取消并清空 '+batchMessages.length+' 条待发送内容吗？'))return;
-  clearBatchQueue();isBatchMode=false;updateBatchControls();
-}
 function handleChatInputKeydown(event){
   if(event.key!=='Enter'||event.shiftKey||event.ctrlKey||event.altKey||event.metaKey||event.isComposing||event.keyCode===229)return;
-  if(state.enterKeySendEnabled===true){event.preventDefault();if(isBatchMode)addToBatch();else sendCurrentText();resizeChatInput();}
+  if(state.enterKeySendEnabled===true){event.preventDefault();sendCurrentText();resizeChatInput();}
 }
 function handleChatSendButtonClick(){
-  if(batchSending)return;
-  if(isBatchMode)addToBatch();else sendCurrentText();
+  sendCurrentText();
   resizeChatInput();
 }
 
@@ -6769,7 +6612,6 @@ async function ensureStickerMedia(sticker){
 }
 async function sendSticker(stickerId){
   if(window.__duoRestoreInProgress||window.__duoExportInProgress){showToast('备份导出或恢复期间暂不能发送表情');return false;}
-  const queueForBatch=isBatchMode;
   if(typeof stickerId!=='string'||!stickerId||!isStickerSendable(stickerId)){showToast('这张表情包已删除或不可用，无法发送');renderStickerList();return false;}
   const library=readStickerLibraryStore();
   const sticker=library?.items.find(item=>item.id===stickerId);
@@ -6782,12 +6624,6 @@ async function sendSticker(stickerId){
   const latest=readStickerLibraryStore();
   const current=latest?.items.find(item=>item.id===stickerId);
   if(!current||current.mediaId!==resolved.mediaId||latest.tombstones.some(item=>item.id===stickerId)){showToast('这张表情包已删除，无法发送');renderStickerList();return false;}
-  if(queueForBatch){
-    if(batchMessages.length>=MAX_BATCH_ITEMS){showToast('批量队列最多保留 '+MAX_BATCH_ITEMS+' 条');return false;}
-    const previewUrl=URL.createObjectURL(resolved.record.blob);
-    batchMessages.push({id:uid('batch'),stickerId,mediaId:resolved.mediaId,mimeType:current.mimeType,name:current.name,previewUrl});
-    closeStickerPanel();renderBatchPreview();showToast('表情包已加入批量发送队列');return true;
-  }
   // The sticker panel owns stickerObjectUrls; chat history owns mediaUrlCache.
   // Never alias these URLs: deleting/reloading a library preview must not revoke
   // the object URL currently used by an already-sent historical message.
@@ -6860,18 +6696,6 @@ $('#chatInput').addEventListener('keydown',e=>{
   handleChatInputKeydown(e);
 });
 $('#sendBtn').addEventListener('click',handleChatSendButtonClick);
-$('#batchBtn').addEventListener('click',toggleBatchMode);
-$('#batchCloseBtn').addEventListener('click',()=>{isBatchMode=false;updateBatchControls();});
-$('#batchAddImageBtn').addEventListener('click',()=>$('#batchImageInput').click());
-$('#batchImageInput').addEventListener('change',event=>{addBatchImages(event.target.files);event.target.value='';});
-$('#batchSendBtn').addEventListener('click',()=>{void sendBatchMessages();});
-$('#batchCancelBtn').addEventListener('click',cancelBatchMode);
-$('#batchQueueList').addEventListener('click',event=>{
-  const remove=event.target.closest('[data-batch-remove]');
-  if(remove){const index=Number(remove.dataset.batchRemove);if(Number.isInteger(index)&&index>=0&&index<batchMessages.length){releaseBatchPreview(batchMessages[index]);batchMessages.splice(index,1);renderBatchPreview();}return;}
-  const edit=event.target.closest('[data-batch-edit]');
-  if(edit){const index=Number(edit.dataset.batchEdit),item=batchMessages[index];if(!item||item.file)return;const next=prompt('编辑待发送内容：',item.text);if(next===null)return;item.text=String(next).trim();item.usageEvents=(item.usageEvents||[]).filter(use=>item.text.includes(String(use.textSnapshot||'')));if(!item.text){batchMessages.splice(index,1);}renderBatchPreview();}
-});
 $('#voiceToggleBtn').addEventListener('click',()=>{
   $('#inputShell').classList.toggle('voice');$('#inputHelper').classList.remove('show');closeEmojiPanel();closeStickerPanel();
 });
