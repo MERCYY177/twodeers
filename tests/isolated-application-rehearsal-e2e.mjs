@@ -61,7 +61,7 @@ function startStaticServer() {
 async function seedIsolatedOrigin(page, url, seed, fontBase64 = null) {
   const seedUrl = new URL('/__phase17_seed__', url).toString();
   await page.goto(seedUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.evaluate(async ({ seed, fontBase64 }) => {
+  return await page.evaluate(async ({ seed, fontBase64 }) => {
     const openDb = (name, version, stores) => new Promise((resolve, reject) => {
       const request = indexedDB.open(name, version);
       request.onupgradeneeded = () => {
