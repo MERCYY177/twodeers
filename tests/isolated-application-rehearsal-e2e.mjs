@@ -111,7 +111,7 @@ async function waitForWritableRuntime(page) {
 }
 
 function attachGuards(page, label) {
-  page.on('pageerror', error => errors.push({ label, type: 'pageerror', message: error.message }));
+  page.on('pageerror', error => errors.push({ label, type: 'pageerror', message: error.message, stack: error.stack || '' }));
   page.on('console', message => {
     if (message.type() === 'error' && !/favicon\.ico|ERR_BLOCKED_BY_CLIENT/i.test(message.text())) errors.push({ label, type: 'console', message: message.text() });
   });
