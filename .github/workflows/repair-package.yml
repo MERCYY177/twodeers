@@ -8,6 +8,7 @@ on:
       - "index.html"
       - "tests/media-send-paths.test.mjs"
       - "tests/mailbox-circle-write-paths.test.mjs"
+      - "tests/browser-runtime-e2e.mjs"
       - "tests/isolated-application-rehearsal-e2e.mjs"
       - "tests/run-browser-with-evidence.mjs"
       - "docs/browser-recovery-acceptance-matrix.json"
