@@ -5617,6 +5617,7 @@ function showToast(text){
   showToast.t=setTimeout(()=>toastEl.classList.remove('show'),1800);
 }
 function escapeHtml(str){ return String(str??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(value){ return escapeHtml(value).replace(/`/g,'&#96;'); }
 function formatHM(date=new Date()){ return `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`; }
 function metaHtml(time, read=false){ const flag=state.readReceiptStyle==='checks'?'<span class="read-flag read-checks '+(read?'':'hidden')+'" aria-label="已读"><span>✓</span><span>✓</span></span>':'<span class="read-flag read-text '+(read?'':'hidden')+'">已读</span>'; return `<span class="meta-line"><span class="time">${escapeHtml(time)}</span>${flag}</span>`; }
 function uid(prefix='m'){ return prefix+Math.random().toString(36).slice(2,10); }
