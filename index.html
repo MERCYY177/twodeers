@@ -3784,6 +3784,7 @@ setInterval(processPendingWhenWritable,4000);
     const url=item?.previewUrl||(typeof item?.src==='string'&&item.src.startsWith('blob:')?item.src:'');
     if(url){try{URL.revokeObjectURL(url);}catch(_){}}
   }
+  window.__duoCircleReleasePostMediaPreview=releasePostMediaPreview;
   async function handlePostMediaFilesWithGeneration(fileList){
     let files = [...(fileList||[])].filter(Boolean);
     if(!files.length)return false;
@@ -4429,7 +4430,7 @@ async function commitPostMineWithMedia(...args){
     // Once circleTransaction succeeds the post and its media references are committed.
     // A later URL refresh failure must not be reported as a failed publish and cause duplicates.
     stateCommitted=true;
-    for(const item of mediaBefore)releasePostMediaPreview(item);
+    for(const item of mediaBefore)window.__duoCircleReleasePostMediaPreview?.(item);
     try{
       const refreshed=await window.__duoCircleMedia?.ensure?.();
       if(refreshed?.missing>0&&typeof showToast==='function')showToast('动态已发布，但有 '+refreshed.missing+' 个媒体暂时无法刷新；原始引用已保留');
