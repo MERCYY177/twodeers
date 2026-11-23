@@ -450,7 +450,35 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(profileMedia.avatarDecoded,true);assert.equal(profileMedia.coverDecoded,true);
   const sharedCoverId=profileMedia.cover.slice('idb-media:'.length);
   const sharedAvatarId=profileMedia.avatar.slice('idb-media:'.length);
-  await page.evaluate(id=>{const current=window.__duoCircleApi.exportState();current.otherAvatar='idb-media:'+id;window.__duoCircleApi.importState(current);},sharedAvatarId);
+  const sharedAvatarBeforeClear=await page.evaluate(async id=>{
+    const live=window.__duoCircleApi.exportState();
+    const persisted=JSON.parse(localStorage.getItem(window.__duoCircleApi.getStoreKey())||'{}');
+    return {
+      id,recordPresent:!!(await window.getMediaRecord(id))?.blob,
+      liveMyAvatar:live.myAvatar,liveOtherAvatar:live.otherAvatar,
+      persistedMyAvatar:persisted.myAvatar,persistedOtherAvatar:persisted.otherAvatar,
+      circleReachability:window.__duoCircleMedia.collectIdsFromState(live).has(id),
+      persistedReachability:window.__duoCircleMedia.collectIdsFromState(persisted).has(id)
+    };
+  },sharedAvatarId);
+  console.log('PROFILE_SHARED_AVATAR_BEFORE '+JSON.stringify(sharedAvatarBeforeClear));
+  await page.evaluate(id=>{
+    const current=window.__duoCircleApi.exportState();
+    current.otherAvatar='idb-media:'+id;
+    window.__duoCircleApi.importState(current);
+  },sharedAvatarId);
+  const afterSharedAvatarImport=await page.evaluate(async id=>{
+    const live=window.__duoCircleApi.exportState();
+    const persisted=JSON.parse(localStorage.getItem(window.__duoCircleApi.getStoreKey())||'{}');
+    return {
+      recordPresent:!!(await window.getMediaRecord(id))?.blob,
+      liveMyAvatar:live.myAvatar,liveOtherAvatar:live.otherAvatar,
+      persistedMyAvatar:persisted.myAvatar,persistedOtherAvatar:persisted.otherAvatar,
+      circleReachability:window.__duoCircleMedia.collectIdsFromState(live).has(id),
+      persistedReachability:window.__duoCircleMedia.collectIdsFromState(persisted).has(id)
+    };
+  },sharedAvatarId);
+  console.log('PROFILE_SHARED_AVATAR_IMPORTED '+JSON.stringify(afterSharedAvatarImport));
   await circle.locator('#backBtn').click();
   await circle.locator('#clearMyAvatarBtn').click();
   await circle.locator('#saveSettingsBtn').click();
@@ -471,6 +499,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
       appChatHistoryCount:(persistedApp.chatHistory||[]).length
     };
   },sharedAvatarId);
+  console.log('PROFILE_SHARED_AVATAR_AFTER_CLEAR '+JSON.stringify(sharedProfileAvatarDiagnostic));
   assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify(sharedProfileAvatarDiagnostic));
   const chatReferencePersisted=await page.evaluate(id=>{
     const message=appendChatMessage({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
