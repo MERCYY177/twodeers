@@ -115,23 +115,51 @@ async function waitForCdp(port, child) {
   throw new Error(`Chromium CDP did not become ready: ${lastError?.message || 'timeout'}`);
 }
 
+function signalCrashProcessGroup(child) {
+  if (!child?.pid) return false;
+  try {
+    // Chromium descendants can outlive the leader. On POSIX always signal the
+    // detached process group, even when Node has already observed leader exit.
+    if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL');
+    else if (!childExited(child)) child.kill('SIGKILL');
+    return true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+async function waitForCrashProcessGroupExit(pid, timeoutMs = 15_000) {
+  if (process.platform === 'win32') return true;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try { process.kill(-pid, 0); }
+    catch (error) {
+      if (error?.code === 'ESRCH') return true;
+      throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, 75));
+  }
+  throw new Error('SIGKILL 后 Chromium 进程组仍然存在：' + pid);
+}
+
 async function launchCrashBrowser(profileDir) {
   const port = await freePort();
   const executable = chromium.executablePath();
   const child = spawn(executable, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-background-networking',
     '--disable-extensions', '--disable-component-update', '--no-first-run', '--no-default-browser-check',
-    `--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*',
-    `--user-data-dir=${profileDir}`, 'about:blank'
-  ], { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+    \`--remote-debugging-port=\${port}\`, '--remote-debugging-address=127.0.0.1', '--remote-allow-origins=*',
+    \`--user-data-dir=\${profileDir}\`, 'about:blank'
+  ], { detached: process.platform !== 'win32', stdio: ['ignore', 'ignore', 'pipe'] });
   let stderr = '';
   child.stderr?.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-8_000); });
-  const endpoint = await waitForCdp(port, child).catch(error => {
-    try { process.kill(-child.pid, 'SIGKILL'); } catch {}
-    throw new Error(`${error.message}\n${stderr}`);
+  const endpoint = await waitForCdp(port, child).catch(async error => {
+    try { await killProcessGroup(child); } catch (cleanupError) { error.cleanupError = cleanupError?.message || String(cleanupError); }
+    throw new Error(error.message + '\\n' + stderr);
   });
   try {
-    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    const browser = await chromium.connectOverCDP('http://127.0.0.1:' + port);
     return { browser, child, port, endpoint, stderr: () => stderr };
   } catch (error) {
     await killProcessGroup(child);
@@ -140,22 +168,27 @@ async function launchCrashBrowser(profileDir) {
 }
 
 async function killProcessGroup(child) {
-  if (!child || childExited(child)) return;
-  const exited = new Promise(resolve => child.once('exit', resolve));
-  try { process.kill(-child.pid, 'SIGKILL'); }
-  catch { try { child.kill('SIGKILL'); } catch {} }
-  await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 8_000))]);
-  if (!childExited(child)) { try { child.kill('SIGKILL'); } catch {} }
+  if (!child?.pid) return;
+  signalCrashProcessGroup(child);
+  if (process.platform !== 'win32') {
+    // The leader's exit event is not proof that renderer/utility children are gone.
+    await waitForCrashProcessGroupExit(child.pid);
+    return;
+  }
+  if (!childExited(child)) {
+    await Promise.race([
+      new Promise(resolve => child.once('close', resolve)),
+      new Promise(resolve => setTimeout(resolve, 8_000))
+    ]);
+  }
+  if (!childExited(child)) throw new Error('Chromium Windows 进程未能退出');
 }
 
 async function closeCrashBrowser(session) {
   if (!session) return;
   try { await session.browser.close(); } catch {}
-  if (!childExited(session.child)) {
-    const exited = new Promise(resolve => session.child.once('exit', resolve));
-    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 5_000))]);
-  }
-  if (!childExited(session.child)) await killProcessGroup(session.child);
+  // Always verify the whole process group, even if the browser leader exited.
+  await killProcessGroup(session.child);
 }
 
 async function testMultiTab(baseUrl) {
