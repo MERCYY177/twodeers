@@ -436,11 +436,22 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   // while a synthetic chat reference still owns its media ID; global GC must preserve it.
   await circle.locator('#profileBackBtn').click();
   await circle.locator('#backBtn').click();
+  const priorProfileRefs=await page.evaluate(()=>{
+    const state=window.__duoCircleApi.exportState();
+    return {myAvatar:state.myAvatar||'',myCover:state.myCover||''};
+  });
   await circle.locator('#myAvatarInput').setInputFiles({ name:'phase24-avatar.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
   await circle.locator('#myCoverInput').setInputFiles({ name:'phase24-cover.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
   await page.waitForFunction(() => !!window.__duoCircleRoot?.querySelector('#saveHint')?.textContent?.trim(),null,{timeout:15_000});
   await circle.locator('#saveSettingsBtn').click();
-  await page.waitForFunction(() => {const s=window.__duoCircleApi?.exportState?.();return !!s?.myAvatar?.startsWith('idb-media:')&&!!s?.myCover?.startsWith('idb-media:');},null,{timeout:20_000});
+  await page.waitForFunction(({oldAvatar,oldCover})=>{
+    const state=window.__duoCircleApi?.exportState?.();
+    const root=window.__duoCircleRoot;
+    const settings=root?.querySelector('#settingsMask');
+    return !!state&&!!settings&&!settings.classList.contains('show')
+      &&typeof state.myAvatar==='string'&&state.myAvatar.startsWith('idb-media:')&&state.myAvatar!==oldAvatar
+      &&typeof state.myCover==='string'&&state.myCover.startsWith('idb-media:')&&state.myCover!==oldCover;
+  },{oldAvatar:priorProfileRefs.myAvatar,oldCover:priorProfileRefs.myCover},{timeout:25_000});
   const profileMedia=await page.evaluate(async()=>{
     const state=window.__duoCircleApi.exportState();
     const decode=async ref=>{const src=window.__duoCircleMedia.resolve(ref);if(!src)return false;const img=new Image();img.src=src;try{await img.decode();return img.naturalWidth===1;}catch(_){return false;}};
