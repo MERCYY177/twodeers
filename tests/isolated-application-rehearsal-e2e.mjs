@@ -209,25 +209,30 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await uploadedStickerImage.click();
   await page.waitForFunction(() => { const stored=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1') || '{}'); return stored.chatHistory?.some(item => item.type==='sticker' && item.mediaId==='phase17-sticker-media') === true; }, null, { timeout: 15_000 });
 
-  // Exercise the mixed batch path that is easy to miss in unit-only coverage:
-  // queue text + image + sticker, delete the sticker after queueing, then prove
-  // the entire batch rolls back without deleting the already-sent history sticker.
-  const beforeStaleBatch = await page.evaluate(async () => {
-    const stored = JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1') || '{}');
-    const db = await new Promise((resolve,reject)=>{const req=indexedDB.open('dual_space_chat_media_v1',1);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
-    const ids = await new Promise((resolve,reject)=>{const tx=db.transaction('media','readonly');const req=tx.objectStore('media').getAllKeys();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);}); db.close();
-    return { historyCount:stored.chatHistory?.length||0, lastChatAt:stored.offline?.lastChatAt||0, mediaIds:ids.map(String).sort() };
-  });
-  await page.locator('#batchBtn').click();
-  await page.locator('#chatInput').fill('第十七阶段批量回滚文本');
-  await page.locator('#sendBtn').click();
-  await page.locator('#batchImageInput').setInputFiles({ name:'phase17-batch.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
-  await page.waitForFunction(() => document.querySelectorAll('#batchQueueList .batch-queue-item').length===2, null, { timeout:10_000 });
-  await page.evaluate(() => window.openStickerPanel());
-  await page.locator('#stickerGrid [data-sticker-id="phase17-uploaded-sticker"]').click();
-  await page.waitForFunction(() => document.querySelectorAll('#batchQueueList .batch-queue-item').length===3, null, { timeout:10_000 });
+  // The chat composer is intentionally single-send only. Focusing the input must
+  // not expose the removed batch queue or the old long-text/clipboard/card bar.
+  const composerUi = await page.evaluate(() => ({
+    sendButton: !!document.querySelector('#sendBtn'),
+    batchButtonCount: document.querySelectorAll('#batchBtn').length,
+    batchPanelCount: document.querySelectorAll('#batchPanel').length,
+    inputHelperCount: document.querySelectorAll('#inputHelper').length,
+    longTextShortcutCount: document.querySelectorAll('#longTextBtn').length,
+    clipboardShortcutCount: document.querySelectorAll('#clipboardBtn').length,
+    phraseShortcutCount: document.querySelectorAll('#phraseBtn').length
+  }));
+  assert.equal(composerUi.sendButton, true);
+  assert.equal(composerUi.batchButtonCount, 0);
+  assert.equal(composerUi.batchPanelCount, 0);
+  assert.equal(composerUi.inputHelperCount, 0);
+  assert.equal(composerUi.longTextShortcutCount, 0);
+  assert.equal(composerUi.clipboardShortcutCount, 0);
+  assert.equal(composerUi.phraseShortcutCount, 0);
+  await page.locator('#chatInput').click();
+  assert.equal(await page.locator('#inputHelper').count(), 0, 'focusing chat input must not open a helper overlay');
 
-  // Use the actual picker long-press/delete interaction, not a direct state edit.
+  // Delete the uploaded picker sticker after it has already been sent. Its
+  // picker ID must be tombstoned, while the historical message retains its
+  // independent media reference and remains displayable after reload.
   await page.evaluate(() => window.openStickerPanel());
   const stickerItem = page.locator('#stickerGrid [data-sticker-id="phase17-uploaded-sticker"]');
   await stickerItem.scrollIntoViewIfNeeded();
@@ -241,42 +246,17 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#stickerGrid [data-sticker-delete="phase17-uploaded-sticker"]').click();
   await page.waitForFunction(() => window.__duoStickerState?.isSendable?.('phase17-uploaded-sticker')===false, null, { timeout:10_000 });
-  const queuedStickerState = await page.evaluate(() => ({
+  const deletedStickerState = await page.evaluate(() => ({
     libraryItemPresent:window.__duoStickerState?.exportSnapshot?.()?.items?.some(item=>item.id==='phase17-uploaded-sticker')===true,
     tombstoned:window.__duoStickerState?.exportSnapshot?.()?.tombstones?.some(item=>item.id==='phase17-uploaded-sticker')===true,
     oldHistoryMessage:JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.some(item=>item.type==='sticker'&&item.mediaId==='phase17-sticker-media')===true
   }));
-  assert.equal(queuedStickerState.libraryItemPresent, false, 'deleted sticker must leave the authoritative library');
-  assert.equal(queuedStickerState.tombstoned, true, 'deletion must persist a tombstone');
-  assert.equal(queuedStickerState.oldHistoryMessage, true, 'already-sent sticker history must remain intact');
-
-  await page.locator('#batchSendBtn').click();
-  await page.waitForFunction(() => document.querySelector('#toast')?.textContent.includes('批量发送失败')===true, null, { timeout:15_000 });
-  const staleBatchRollback = await page.evaluate(async () => {
-    const stored = JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1') || '{}');
-    const db = await new Promise((resolve,reject)=>{const req=indexedDB.open('dual_space_chat_media_v1',1);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
-    const rows = await new Promise((resolve,reject)=>{const tx=db.transaction('media','readonly');const req=tx.objectStore('media').getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);}); db.close();
-    return { historyCount:stored.chatHistory?.length||0, lastChatAt:stored.offline?.lastChatAt||0, mediaIds:rows.map(row=>String(row.id)).sort(), queueCount:document.querySelectorAll('#batchQueueList .batch-queue-item').length };
-  });
-  assert.equal(staleBatchRollback.historyCount, beforeStaleBatch.historyCount, 'a deleted queued sticker must roll back preceding text and image messages');
-  assert.equal(staleBatchRollback.lastChatAt, beforeStaleBatch.lastChatAt, 'failed batch must not advance the chat timestamp');
-  assert.deepEqual(staleBatchRollback.mediaIds, beforeStaleBatch.mediaIds, 'failed batch image Blob must be removed while old history media is retained');
-  assert.equal(staleBatchRollback.queueCount, 3, 'failed batch stays available for user review');
-
-  // Remove only the now-invalid queue row, then prove the remaining text+image
-  // batch can commit and survive reload.
-  await page.locator('#batchQueueList [data-batch-remove="2"]').click();
-  await page.locator('#batchSendBtn').click();
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.some(item=>item.text==='第十七阶段批量回滚文本')===true, null, { timeout:15_000 });
-  const committedBatch = await page.evaluate(() => {
-    const stored=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
-    return { textPresent:stored.chatHistory?.some(item=>item.type==='text'&&item.text==='第十七阶段批量回滚文本')===true, image:stored.chatHistory?.find(item=>item.type==='image'&&item.mediaName==='phase17-batch.png')||null };
-  });
-  assert.equal(committedBatch.textPresent, true);
-  assert.ok(committedBatch.image?.mediaId, 'mixed batch should commit its image media reference');
+  assert.equal(deletedStickerState.libraryItemPresent, false, 'deleted sticker must leave the authoritative library');
+  assert.equal(deletedStickerState.tombstoned, true, 'deletion must persist a tombstone');
+  assert.equal(deletedStickerState.oldHistoryMessage, true, 'already-sent sticker history must remain intact');
 
   // Exercise direct image selection, preview, send and persistence separately
-  // from the seeded-image render path and the batch-image path.
+  // from the seeded-image render path.
   await page.locator('#chatImageUploader').setInputFiles({ name:'phase17-direct-upload.png', mimeType:'image/png', buffer:Buffer.from(seed.pngBase64,'base64') });
   await page.waitForFunction(() => document.querySelector('#mediaPreviewModal')?.classList.contains('show')===true, null, { timeout:10_000 });
   await page.locator('#mediaPreviewSend').click();
@@ -493,7 +473,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await page.waitForFunction(() => {
     const stored = JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1') || '{}');
     const rows = [...document.querySelectorAll('#chatList [data-mid]')];
-    const decodes = ['phase17-batch.png','phase17-direct-upload.png'].map(name => {
+    const decodes = ['phase17-direct-upload.png'].map(name => {
       const message = stored.chatHistory?.find(item => item.type==='image' && item.mediaName===name);
       const row = rows.find(item => item.dataset.mid===String(message?.id || ''));
       const image = row?.querySelector('img');
@@ -506,10 +486,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
     stickerMessagePersisted: JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1') || '{}').chatHistory?.some(item => item.type==='sticker' && item.mediaId==='phase17-sticker-media') === true,
     stickerSendable: window.__duoStickerState?.isSendable?.('phase17-uploaded-sticker') === true,
     oldStickerHistoryImageDecoded: await (async()=>{const row=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='sticker'&&item.mediaId==='phase17-sticker-media');const node=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(row?.id||''))?.querySelector('img');if(!node)return false;try{await node.decode();return node.naturalWidth===1;}catch(_){return false;}})(),
-    batchTextPersisted: JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.some(item=>item.type==='text'&&item.text==='第十七阶段批量回滚文本')===true,
-    batchImagePersisted: JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.some(item=>item.type==='image'&&item.mediaName==='phase17-batch.png')===true,
     directImagePersisted: JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.some(item=>item.type==='image'&&item.mediaName==='phase17-direct-upload.png')===true,
-    batchImageDecoded: await (async()=>{const rowData=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='image'&&item.mediaName==='phase17-batch.png');const row=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(rowData?.id||''));const img=row?.querySelector('img');if(!img)return false;try{await img.decode();return img.naturalWidth===1;}catch(_){return false;}})(),
     directImageDecoded: await (async()=>{const rowData=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='image'&&item.mediaName==='phase17-direct-upload.png');const row=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(rowData?.id||''));const img=row?.querySelector('img');if(!img)return false;try{await img.decode();return img.naturalWidth===1;}catch(_){return false;}})(),
     video: await (async()=>{const msg=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='video'&&item.mediaName==='phase23-video.webm');const row=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(msg?.id||''));const node=row?.querySelector('video.message-video');if(!node)return {present:false,ready:false,played:false};node.muted=true;try{await node.play();await new Promise(resolve=>{if(node.currentTime>0.05)return resolve();node.addEventListener('timeupdate',resolve,{once:true});setTimeout(resolve,1000);});}catch(_){}const result={present:true,ready:node.readyState>=1,width:node.videoWidth,duration:node.duration,played:node.currentTime>0.02};node.pause();return result;})(),
     audio: await (async()=>{const msg=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='audio');const row=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(msg?.id||''));const node=row?.querySelector('audio');if(!node)return {present:false,ready:false,played:false};node.muted=true;try{await node.play();await new Promise(resolve=>{if(node.currentTime>0.02)return resolve();node.addEventListener('timeupdate',resolve,{once:true});setTimeout(resolve,1000);});}catch(_){}const result={present:true,ready:node.readyState>=1,duration:node.duration,played:node.currentTime>0.01};node.pause();return result;})(),
@@ -526,10 +503,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(afterReload.stickerMessagePersisted, true);
   assert.equal(afterReload.stickerSendable, false, 'deleted picker item must remain unavailable after reload');
   assert.equal(afterReload.oldStickerHistoryImageDecoded, true, 'deleting an uploaded sticker must not break its already-sent chat history');
-  assert.equal(afterReload.batchTextPersisted, true);
-  assert.equal(afterReload.batchImagePersisted, true);
   assert.equal(afterReload.directImagePersisted, true);
-  assert.equal(afterReload.batchImageDecoded, true);
   assert.equal(afterReload.directImageDecoded, true);
   assert.equal(afterReload.video.present, true);assert.equal(afterReload.video.ready, true);assert.equal(afterReload.video.width, 32);assert.equal(afterReload.video.played, true);
   assert.equal(afterReload.audio.present, true);assert.equal(afterReload.audio.ready, true);assert.equal(afterReload.audio.played, true);
@@ -543,7 +517,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(afterReload.circleCoverResolved, true);
 
   await context.close();
-  return { origin: seeded.origin, boot, staleBatchRollback, committedBatch, videoPlayback, audioPlayback, backupDuringRecording, cancelledAudioCount:afterCancelledAudio, afterReload };
+  return { origin: seeded.origin, boot, deletedStickerState, videoPlayback, audioPlayback, backupDuringRecording, cancelledAudioCount:afterCancelledAudio, afterReload };
 }
 
 async function testMissingMediaFailsNonDestructively(browser, baseUrl) {
