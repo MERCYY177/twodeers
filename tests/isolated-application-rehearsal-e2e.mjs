@@ -452,17 +452,6 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const sharedAvatarId=profileMedia.avatar.slice('idb-media:'.length);
   await page.evaluate(id=>{const current=window.__duoCircleApi.exportState();current.otherAvatar='idb-media:'+id;window.__duoCircleApi.importState(current);},sharedAvatarId);
   await circle.locator('#backBtn').click();
-  await page.evaluate(()=>{
-    window.__duoAvatarDeleteTrace=[];
-    const proto=IDBObjectStore.prototype;
-    const original=proto.delete;
-    proto.delete=function(key){
-      let refs=null,chatRefs=null,circleRefs=null;
-      try{refs=latestPersistedMediaReferences().has(String(key));chatRefs=(state.chatHistory||[]).filter(m=>m.mediaId===String(key)).length;circleRefs=[...window.__duoCircleMedia.getIds()];}catch(error){refs='reference-check-error:'+String(error);}
-      window.__duoAvatarDeleteTrace.push({key:String(key),refs,chatRefs,circleRefs,stack:new Error('IndexedDB delete called').stack});
-      return original.apply(this,arguments);
-    };
-  });
   await circle.locator('#clearMyAvatarBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(id=>{const s=window.__duoCircleApi.exportState();return s.myAvatar===''&&s.otherAvatar==='idb-media:'+id;},sharedAvatarId,{timeout:15_000});
@@ -482,8 +471,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
       appChatHistoryCount:(persistedApp.chatHistory||[]).length
     };
   },sharedAvatarId);
-  const avatarDeleteTrace=await page.evaluate(()=>window.__duoAvatarDeleteTrace||[]);
-  assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify({sharedProfileAvatarDiagnostic,avatarDeleteTrace}));
+  assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify(sharedProfileAvatarDiagnostic));
   const chatReferencePersisted=await page.evaluate(id=>{
     state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
     state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
@@ -500,25 +488,6 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(chatReferencePersisted.liveStateHasReference,true);
   assert.equal(chatReferencePersisted.persistedStateHasReference,true);
   assert.equal(chatReferencePersisted.reachabilityHasReference,true,'the global media reachability collector must see the live chat reference');
-  await page.evaluate(()=>{
-    window.__duoMediaGcTrace=[];
-    const originalDelete=window.deleteIfUnreferenced;
-    const originalDeleteRecord=window.deleteMediaRecord;
-    if(typeof originalDelete==='function'){
-      window.deleteIfUnreferenced=async function(id){
-        const before={id,referencedBefore:latestPersistedMediaReferences().has(id),circleRefs:[...window.__duoCircleMedia.getIds()],chatRefs:(state.chatHistory||[]).filter(m=>m.mediaId===id).length,stack:new Error().stack};
-        window.__duoMediaGcTrace.push({phase:'deleteIfUnreferenced:start',...before});
-        try{const result=await originalDelete.call(this,id);window.__duoMediaGcTrace.push({phase:'deleteIfUnreferenced:finish',id,result,referencedAfter:latestPersistedMediaReferences().has(id)});return result;}
-        catch(error){window.__duoMediaGcTrace.push({phase:'deleteIfUnreferenced:error',id,error:String(error)});throw error;}
-      };
-    }else window.__duoMediaGcTrace.push({phase:'missing-deleteIfUnreferenced',windowProperty:typeof originalDelete});
-    if(typeof originalDeleteRecord==='function'){
-      window.deleteMediaRecord=async function(id,...args){
-        window.__duoMediaGcTrace.push({phase:'deleteMediaRecord:called',id,referencedNow:latestPersistedMediaReferences().has(id),stack:new Error().stack});
-        return originalDeleteRecord.call(this,id,...args);
-      };
-    }else window.__duoMediaGcTrace.push({phase:'missing-deleteMediaRecord',windowProperty:typeof originalDeleteRecord});
-  });
   await circle.locator('#backBtn').click();
   await circle.locator('#clearCoverBtn').click();
   await circle.locator('#saveSettingsBtn').click();
@@ -533,8 +502,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
       circleCover:window.__duoCircleApi.exportState().myCover
     };
   },sharedCoverId);
-  const gcTrace=await page.evaluate(()=>window.__duoMediaGcTrace||[]);
-  assert.equal(sharedCoverDiagnostic.recordPresent,true,'clearing a Circle cover must preserve its media while chat references it: '+JSON.stringify({sharedCoverDiagnostic,gcTrace}));
+  assert.equal(sharedCoverDiagnostic.recordPresent,true,'clearing a Circle cover must preserve its media while chat references it: '+JSON.stringify(sharedCoverDiagnostic));
 
   await page.evaluate(() => window.goto('chatPage'));
   await page.locator('#chatInput').fill('第十七阶段隔离环境发送回归');
