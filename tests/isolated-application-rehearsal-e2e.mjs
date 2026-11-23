@@ -530,6 +530,10 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await circle.locator('#clearCoverBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(() => window.__duoCircleApi?.exportState?.()?.myCover==='',null,{timeout:15_000});
+  await page.waitForFunction(() => {
+    const settings=window.__duoCircleRoot?.querySelector('#settingsMask');
+    return !!settings&&!settings.classList.contains('show');
+  },null,{timeout:15_000});
   const sharedCoverDiagnostic=await page.evaluate(async id=>{
     const persisted=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
     return {
@@ -543,6 +547,14 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(sharedCoverDiagnostic.recordPresent,true,'clearing a Circle cover must preserve its media while chat references it: '+JSON.stringify(sharedCoverDiagnostic));
 
   await page.evaluate(() => window.goto('chatPage'));
+  await page.waitForFunction(() => {
+    const page=document.querySelector('#chatPage');
+    const input=document.querySelector('#chatInput');
+    if(!page?.classList.contains('active')||!input)return false;
+    const rect=input.getBoundingClientRect();
+    const style=getComputedStyle(input);
+    return rect.width>0&&rect.height>0&&style.display!=='none'&&style.visibility!=='hidden';
+  },null,{timeout:15_000});
   await page.locator('#chatInput').fill('第十七阶段隔离环境发送回归');
   await page.locator('#sendBtn').click();
   await page.waitForFunction(() => document.querySelector('#chatList')?.textContent.includes('第十七阶段隔离环境发送回归') === true, null, { timeout: 15_000 });
