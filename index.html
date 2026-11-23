@@ -4963,6 +4963,26 @@ try{
 </div>
 <script>
 const STORAGE_KEY='dual_space_app_clean_test_v1';
+function safeMediaUrl(value){
+  if(typeof value!=='string') return '';
+  const raw=value.trim();
+  if(!raw || raw.length>128*1024*1024 || /[\u0000-\u0020\\<>\"']/.test(raw)) return '';
+  if(raw.startsWith('idb-media:')) return window.__duoCircleMedia?.resolve(raw) || '';
+  if(/^data:/i.test(raw)){
+    return /^data:(?:image\/(?:png|jpe?g|webp|gif|apng|avif|svg\+xml)|video\/[a-z0-9.+-]+|audio\/(?:mpeg|mp3|ogg|wav|webm));base64,[a-z0-9+/=]+$/i.test(raw) ? raw : '';
+  }
+  try{
+    const explicit=/^[a-z][a-z0-9+.-]*:/i.test(raw);
+    const parsed=new URL(raw,document.baseURI);
+    if(parsed.protocol==='blob:') return parsed.origin===location.origin ? raw : '';
+    if(parsed.protocol!=='http:'&&parsed.protocol!=='https:') return '';
+    if(parsed.username||parsed.password) return '';
+    if(explicit && !/^https?:/i.test(raw)) return '';
+    if(!explicit && parsed.origin!==location.origin) return '';
+    if(!explicit && raw.split(/[?#]/,1)[0].split('/').some(part=>part==='.'||part==='..')) return '';
+    return raw;
+  }catch(_){return '';}
+}
 const STICKER_LIBRARY_STORAGE_KEY='dual_space_sticker_library_v1';
 const INCOMING_CALL_FREQUENCIES={
   low:{minIntervalSec:3600,maxIntervalSec:10800},
