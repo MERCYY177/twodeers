@@ -452,6 +452,17 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const sharedAvatarId=profileMedia.avatar.slice('idb-media:'.length);
   await page.evaluate(id=>{const current=window.__duoCircleApi.exportState();current.otherAvatar='idb-media:'+id;window.__duoCircleApi.importState(current);},sharedAvatarId);
   await circle.locator('#backBtn').click();
+  await page.evaluate(()=>{
+    window.__duoAvatarDeleteTrace=[];
+    const proto=IDBObjectStore.prototype;
+    const original=proto.delete;
+    proto.delete=function(key){
+      let refs=null,chatRefs=null,circleRefs=null;
+      try{refs=latestPersistedMediaReferences().has(String(key));chatRefs=(state.chatHistory||[]).filter(m=>m.mediaId===String(key)).length;circleRefs=[...window.__duoCircleMedia.getIds()];}catch(error){refs='reference-check-error:'+String(error);}
+      window.__duoAvatarDeleteTrace.push({key:String(key),refs,chatRefs,circleRefs,stack:new Error('IndexedDB delete called').stack});
+      return original.apply(this,arguments);
+    };
+  });
   await circle.locator('#clearMyAvatarBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(id=>{const s=window.__duoCircleApi.exportState();return s.myAvatar===''&&s.otherAvatar==='idb-media:'+id;},sharedAvatarId,{timeout:15_000});
@@ -471,7 +482,8 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
       appChatHistoryCount:(persistedApp.chatHistory||[]).length
     };
   },sharedAvatarId);
-  assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify(sharedProfileAvatarDiagnostic));
+  const avatarDeleteTrace=await page.evaluate(()=>window.__duoAvatarDeleteTrace||[]);
+  assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify({sharedProfileAvatarDiagnostic,avatarDeleteTrace}));
   const chatReferencePersisted=await page.evaluate(id=>{
     state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
     state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
