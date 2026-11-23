@@ -318,6 +318,11 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const afterCancelledAudio=await page.evaluate(()=>JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.filter(item=>item.type==='audio').length||0);
   assert.equal(afterCancelledAudio,beforeCancelledAudio,'cancelled recording must not be persisted as a partial audio message');
 
+  // Voice mode is a persistent composer mode toggled by the microphone button.
+  // The rehearsal must explicitly return to text mode before later text-send checks.
+  await page.locator('#voiceToggleBtn').click();
+  await page.waitForFunction(() => document.querySelector('#inputShell')?.classList.contains('voice')!==true,null,{timeout:10_000});
+
   await page.evaluate(() => window.goto('circlePage'));
   await page.waitForFunction(() => !!window.__duoCircleRoot?.querySelector('#feed .post-media img'), null, { timeout: 20_000 });
   const circleDomImage = await page.evaluate(async () => {
