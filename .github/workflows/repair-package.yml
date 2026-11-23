@@ -1,0 +1,63 @@
+name: Chat composer repair validation and package
+
+on:
+  push:
+    branches:
+      - repair/chat-send-composer-cleanup-20261123
+    paths:
+      - "index.html"
+      - "tests/media-send-paths.test.mjs"
+      - "tools/verify-twodeers-hardening.mjs"
+      - ".github/workflows/repair-package.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check syntax and direct send regression
+        run: |
+          node --check tests/media-send-paths.test.mjs
+          node --check tools/verify-twodeers-hardening.mjs
+          node tests/media-send-paths.test.mjs
+
+      - name: Run full source hardening validation
+        run: node tools/verify-twodeers-hardening.mjs
+
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1.65.0
+          npx playwright install --with-deps chromium
+
+      - name: Run real browser runtime and multi-tab recovery E2E
+        run: node tests/browser-runtime-e2e.mjs
+
+      - name: Run full isolated application Chromium rehearsal
+        run: node tests/run-browser-with-evidence.mjs phase17
+
+      - name: Build complete project ZIP
+        if: always()
+        run: |
+          zip -qr /tmp/twodeers-chat-composer-repair.zip . \
+            -x '.git/*' 'node_modules/*' 'test-results/*' \
+               '.github/workflows/repair-package.yml'
+
+      - name: Upload complete project ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: twodeers-chat-composer-repair
+          path: /tmp/twodeers-chat-composer-repair.zip
+          if-no-files-found: error
+          retention-days: 14
