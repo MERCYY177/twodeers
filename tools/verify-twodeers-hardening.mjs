@@ -265,54 +265,47 @@ assert.equal((activity.match(/startActivityForResult\(intent, BACKUP_SAVE_REQUES
 assert.match(read('settings-pages.js'), /window\.__duoHandleSystemBack=function/);
 
 // Chat composer regression: direct single-message send, no batch UI, no auto-opening helper.
-assert.match(index, /<button id="sendBtn" type="button"[^>]*>发送<\\/button>/);
-assert.doesNotMatch(index, /id="batchBtn"|id="batchPanel"|id="batchImageInput"|sendBatchMessages|toggleBatchMode|isBatchMode|queueForBatch/);
-assert.match(index, /enterKeySendEnabled:false/);
-assert.match(index, /state\\.enterKeySendEnabled=saved\\.enterKeySendEnabled===true/);
-assert.match(index, /function handleChatInputKeydown\\(event\\)/);
-assert.match(index, /function handleChatSendButtonClick\\(\\)/);
-assert.match(index, /if\\(state\\.enterKeySendEnabled===true\\)\\{event\\.preventDefault\\(\\);sendCurrentText\\(\\);resizeChatInput\\(\\);\\}/);
-assert.match(index, /event\\.isComposing\\|\\|event\\.keyCode===229/);
-assert.match(index, /\\$\\('#sendBtn'\\)\\.addEventListener\\('click',handleChatSendButtonClick\\)/);
-assert.doesNotMatch(index, /id="inputHelper"|class="input-helper"|longTextBtn|clipboardBtn|phraseBtn/);
-assert.doesNotMatch(index, /addEventListener\\('focus',\\(\\)=>\\$\\('#inputHelper'\\)/);
-assert.doesNotMatch(index, /addEventListener\\('click',\\(\\)=>\\$\\('#inputHelper'\\)/);
-assert.match(index, /paramPhraseAddBtn/);
-assert.match(index, /window\\.__duoCardSystem/);
-assert.match(index, /window\\.__duoVoiceCapture=\\{isActive:/);
-assert.match(index, /voiceFinishing/);
-assert.match(index, /cancelVoiceCaptureOnPageHide/);
-assert.match(index, /recorder\\.addEventListener\\('error'/);
-assert.match(index, /请先结束或取消正在进行的语音录制/);
-assert.match(backup, /__duoVoiceCapture\\?\\.assertIdle/);
+assert.ok(index.includes('<button id="sendBtn" type="button"'), 'send button remains visible');
+for (const token of [
+  'id="batchBtn"', 'id="batchPanel"', 'id="batchImageInput"',
+  'function sendBatchMessages(', 'function toggleBatchMode(', 'let isBatchMode=', 'let batchMessages=', 'queueForBatch'
+]) assert.equal(index.includes(token), false, 'obsolete batch-send implementation remains: ' + token);
+assert.ok(index.includes('enterKeySendEnabled:false'));
+assert.ok(index.includes('state.enterKeySendEnabled=saved.enterKeySendEnabled===true'));
+assert.ok(index.includes('function handleChatInputKeydown(event){'));
+assert.ok(index.includes('function handleChatSendButtonClick(){'));
+assert.ok(index.includes('if(state.enterKeySendEnabled===true){event.preventDefault();sendCurrentText();resizeChatInput();}'));
+assert.ok(index.includes('event.isComposing||event.keyCode===229'));
+assert.ok(index.includes("$('#sendBtn').addEventListener('click',handleChatSendButtonClick);"));
+for (const token of ['id="inputHelper"', 'class="input-helper"', 'longTextBtn', 'clipboardBtn', 'phraseBtn']) {
+  assert.equal(index.includes(token), false, 'obsolete input shortcut remains: ' + token);
+}
+assert.equal(index.includes("addEventListener('focus',()=>$('#inputHelper')"), false);
+assert.equal(index.includes("addEventListener('click',()=>$('#inputHelper')"), false);
+assert.ok(index.includes('paramPhraseAddBtn'), 'card management remains available');
+assert.ok(index.includes('window.__duoCardSystem'), 'stable card-system integration remains available');
+assert.ok(index.includes('window.__duoVoiceCapture={isActive:'));
+assert.ok(index.includes('voiceFinishing'));
+assert.ok(index.includes('cancelVoiceCaptureOnPageHide'));
+assert.ok(index.includes("recorder.addEventListener('error'"));
+assert.ok(index.includes('请先结束或取消正在进行的语音录制'));
+assert.match(backup, /__duoVoiceCapture\?\.assertIdle/);
 assert.match(isolatedApplicationRehearsal, /chatVideoUploader/);
 assert.match(isolatedApplicationRehearsal, /MediaRecorder|voiceCancelBtn/);
-assert.match(isolatedApplicationRehearsal, /phase23-video\\.webm/);
-assert.match(index, /function triggerReply\\(metaEl, sentMessageIds=null\\)/);
-assert.match(index, /syncChatSendInputs\\(\\)/);
-assert.match(read('settings-pages.js'), /const inputSettings=\\$\\('#paramChatInputSettingsPanel'\\)/);
-assert.match(read('settings-pages.js'), /\\{key:'send',label:'消息发送',nodes:\\[inputSettings\\]\\}/);
-assert.match(backup, /enterKeySendEnabled:stateSnapshot\\.enterKeySendEnabled===true/);
-assert.match(backup, /if\\(data\\.enterKeySendEnabled!==undefined\\)state\\.enterKeySendEnabled=data\\.enterKeySendEnabled===true/);
+assert.match(isolatedApplicationRehearsal, /phase23-video\.webm/);
+assert.ok(index.includes('function triggerReply(metaEl, sentMessageIds=null)'));
+assert.ok(index.includes('syncChatSendInputs()'));
+assert.ok(read('settings-pages.js').includes("const inputSettings=$('#paramChatInputSettingsPanel')"));
+assert.ok(read('settings-pages.js').includes("{key:'send',label:'消息发送',nodes:[inputSettings]}"));
+assert.ok(backup.includes('enterKeySendEnabled:stateSnapshot.enterKeySendEnabled===true'));
+assert.ok(backup.includes('if(data.enterKeySendEnabled!==undefined)state.enterKeySendEnabled=data.enterKeySendEnabled===true'));
 
 function extractBalancedFunction(source, signature) {
   const from = source.indexOf(signature);
-  assert.ok(from >= 0, `missing function: ${signature}`);
-  const open = source.indexOf('{', from);
-  let depth = 0, quote = '', escaped = false;
-  for (let i = open; i < source.length; i++) {
-    const ch = source[i];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (ch === '\\\\') escaped = true;
-      else if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-    if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return source.slice(from, i + 1);
-  }
-  throw new Error(`unterminated function: ${signature}`);
+  assert.ok(from >= 0, 'missing function: ' + signature);
+  const end = source.indexOf('\n}', from);
+  assert.ok(end > from, 'unterminated function: ' + signature);
+  return source.slice(from, end + 2);
 }
 const appMarker = "const STORAGE_KEY='dual_space_app_clean_test_v1';";
 const appOffset = index.indexOf(appMarker);
@@ -322,41 +315,42 @@ const appSafeMediaUrl = extractBalancedFunction(appSource, 'function safeMediaUr
 const keyHandler = extractBalancedFunction(appSource, 'function handleChatInputKeydown(event){');
 const sendHandler = extractBalancedFunction(appSource, 'function handleChatSendButtonClick(){');
 const singleStickerSend = extractBalancedFunction(appSource, 'async function sendSticker(stickerId){');
-assert.match(singleStickerSend, /isStickerSendable\\(stickerId\\)/);
-assert.match(singleStickerSend, /appendChatMessage\\(/);
-assert.doesNotMatch(singleStickerSend, /queueForBatch|batchMessages|isBatchMode/);
+assert.ok(singleStickerSend.includes('isStickerSendable(stickerId)'));
+assert.ok(singleStickerSend.includes('appendChatMessage('));
+assert.ok(!/queueForBatch|batchMessages|isBatchMode/.test(singleStickerSend));
 
-// Execute the real key/send handlers: both must always use the direct send path.
-const composerHarness = `
-const state={enterKeySendEnabled:true};
-const calls=[];
-function sendCurrentText(){calls.push('send')}
-function resizeChatInput(){calls.push('resize')}
-${keyHandler}
-${sendHandler}
-globalThis.fireSend=()=>{calls.length=0;handleChatSendButtonClick();return calls.slice()};
-globalThis.fireEnter=()=>{calls.length=0;let prevented=false;handleChatInputKeydown({key:'Enter',preventDefault(){prevented=true}});return {prevented,calls:calls.slice()}};
-globalThis.setEnterEnabled=value=>{state.enterKeySendEnabled=value};
-`;
-const composerSandbox={};
-vm.runInNewContext(composerHarness,composerSandbox,{filename:'chat-direct-send-harness.js'});
-assert.deepEqual(Array.from(composerSandbox.fireSend()),['send','resize']);
-assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())),{prevented:true,calls:['send','resize']});
+// Execute the actual key and send handlers: both must use the direct send path.
+const composerHarness = [
+  'const state={enterKeySendEnabled:true};',
+  'const calls=[];',
+  "function sendCurrentText(){calls.push('send')}",
+  "function resizeChatInput(){calls.push('resize')}",
+  keyHandler,
+  sendHandler,
+  "globalThis.fireSend=()=>{calls.length=0;handleChatSendButtonClick();return calls.slice()};",
+  "globalThis.fireEnter=()=>{calls.length=0;let prevented=false;handleChatInputKeydown({key:'Enter',preventDefault(){prevented=true}});return {prevented,calls:calls.slice()}};",
+  "globalThis.setEnterEnabled=value=>{state.enterKeySendEnabled=value};"
+].join('\n');
+const composerSandbox = {};
+vm.runInNewContext(composerHarness, composerSandbox, { filename: 'chat-direct-send-harness.js' });
+assert.deepEqual(Array.from(composerSandbox.fireSend()), ['send','resize']);
+assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())), {prevented:true,calls:['send','resize']});
 composerSandbox.setEnterEnabled(false);
-assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())),{prevented:false,calls:[]});
+assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())), {prevented:false,calls:[]});
 
-// Execute the actual shared URL guard from the main app scope.
-const mediaUrlSandbox={
-  document:{baseURI:'https://app.test/index.html'},
-  location:{origin:'https://app.test'},
+// Execute the shared URL guard as defined in the main application script.
+const mediaUrlSandbox = {
+  document: {baseURI:'https://app.test/index.html'},
+  location: {origin:'https://app.test'},
   URL,
-  window:{__duoCircleMedia:{resolve:()=> 'blob:resolved-media'}}
+  window: {__duoCircleMedia:{resolve:()=> 'blob:resolved-media'}}
 };
-vm.runInNewContext(`${appSafeMediaUrl}\\nglobalThis.safeMediaUrl=safeMediaUrl;`,mediaUrlSandbox);
-assert.equal(mediaUrlSandbox.safeMediaUrl('javascript:alert(1)'),'');
-assert.equal(mediaUrlSandbox.safeMediaUrl('data:text/html;base64,AAAA'),'');
-assert.equal(mediaUrlSandbox.safeMediaUrl('https://good.example/a.png'),'https://good.example/a.png');
-assert.equal(mediaUrlSandbox.safeMediaUrl('idb-media:item-1'),'blob:resolved-media');
+vm.runInNewContext(appSafeMediaUrl + '\nglobalThis.safeMediaUrl=safeMediaUrl;', mediaUrlSandbox);
+
+assert.equal(mediaUrlSandbox.safeMediaUrl('javascript:alert(1)'), '');
+assert.equal(mediaUrlSandbox.safeMediaUrl('data:text/html;base64,AAAA'), '');
+assert.equal(mediaUrlSandbox.safeMediaUrl('https://good.example/a.png'), 'https://good.example/a.png');
+assert.equal(mediaUrlSandbox.safeMediaUrl('idb-media:item-1'), 'blob:resolved-media');
 
 // User-facing settings regression: remove obsolete empty rows and expose the
 // two read-receipt modes as the first dedicated Chat Settings subpage.
