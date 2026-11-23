@@ -264,224 +264,99 @@ assert.match(backup, /生成后的备份 ZIP 超过 1 GB/);
 assert.equal((activity.match(/startActivityForResult\(intent, BACKUP_SAVE_REQUEST\)/g) || []).length, 1, 'SAF save picker should launch exactly once');
 assert.match(read('settings-pages.js'), /window\.__duoHandleSystemBack=function/);
 
-// Phase 2 chat composer regression: the independent send control, persisted Enter
-// setting and true in-memory batch queue must be connected to the real message
-// append/save path, rather than merely leaving visual controls in the markup.
-assert.match(index, /<button id="sendBtn" type="button"[^>]*>发送<\/button>/);
-assert.match(index, /<button class="side-btn" id="batchBtn"/);
-assert.match(index, /<div class="batch-panel" id="batchPanel"/);
-assert.match(index, /<input id="batchImageInput" type="file" accept="image\/\*" multiple hidden>/);
+// Chat composer regression: direct single-message send, no batch UI, no auto-opening helper.
+assert.match(index, /<button id="sendBtn" type="button"[^>]*>发送<\\/button>/);
+assert.doesNotMatch(index, /id="batchBtn"|id="batchPanel"|id="batchImageInput"|sendBatchMessages|toggleBatchMode|isBatchMode|queueForBatch/);
 assert.match(index, /enterKeySendEnabled:false/);
-assert.match(index, /state\.enterKeySendEnabled=saved\.enterKeySendEnabled===true/);
-assert.match(index, /function handleChatInputKeydown\(event\)/);
-assert.match(index, /if\(state\.enterKeySendEnabled===true\)\{event\.preventDefault\(\);if\(isBatchMode\)addToBatch\(\);else sendCurrentText\(\);/);
-assert.match(index, /event\.isComposing\|\|event\.keyCode===229/);
-assert.match(index, /window\.__duoVoiceCapture=\{isActive:/);
+assert.match(index, /state\\.enterKeySendEnabled=saved\\.enterKeySendEnabled===true/);
+assert.match(index, /function handleChatInputKeydown\\(event\\)/);
+assert.match(index, /function handleChatSendButtonClick\\(\\)/);
+assert.match(index, /if\\(state\\.enterKeySendEnabled===true\\)\\{event\\.preventDefault\\(\\);sendCurrentText\\(\\);resizeChatInput\\(\\);\\}/);
+assert.match(index, /event\\.isComposing\\|\\|event\\.keyCode===229/);
+assert.match(index, /\\$\\('#sendBtn'\\)\\.addEventListener\\('click',handleChatSendButtonClick\\)/);
+assert.doesNotMatch(index, /id="inputHelper"|class="input-helper"|longTextBtn|clipboardBtn|phraseBtn/);
+assert.doesNotMatch(index, /addEventListener\\('focus',\\(\\)=>\\$\\('#inputHelper'\\)/);
+assert.doesNotMatch(index, /addEventListener\\('click',\\(\\)=>\\$\\('#inputHelper'\\)/);
+assert.match(index, /paramPhraseAddBtn/);
+assert.match(index, /window\\.__duoCardSystem/);
+assert.match(index, /window\\.__duoVoiceCapture=\\{isActive:/);
 assert.match(index, /voiceFinishing/);
 assert.match(index, /cancelVoiceCaptureOnPageHide/);
-assert.match(index, /recorder\.addEventListener\('error'/);
+assert.match(index, /recorder\\.addEventListener\\('error'/);
 assert.match(index, /请先结束或取消正在进行的语音录制/);
-assert.match(backup, /__duoVoiceCapture\?\.assertIdle/);
+assert.match(backup, /__duoVoiceCapture\\?\\.assertIdle/);
 assert.match(isolatedApplicationRehearsal, /chatVideoUploader/);
 assert.match(isolatedApplicationRehearsal, /MediaRecorder|voiceCancelBtn/);
-assert.match(isolatedApplicationRehearsal, /phase23-video\.webm/);
-assert.match(index, /function handleChatSendButtonClick\(\)/);
-assert.match(index, /function sendBatchMessages\(\)\{[\s\S]*?await putMediaBlob\(item\.file,'image'/);
-assert.match(index, /if\(item\.stickerId\)\{[\s\S]*?isStickerSendable\(item\.stickerId\)/);
-assert.match(index, /if\(queueForBatch\)\{/);
-assert.match(index, /appendChatMessage\(\{sender:'me',type:'text',[\s\S]*?\},false,usageEvents\)/);
-assert.match(index, /if\(save\(\)===false\)throw new Error\('聊天记录写入失败，批量发送已回滚'\)/);
-assert.match(index, /function triggerReply\(metaEl, sentMessageIds=null\)/);
-assert.match(index, /syncChatSendInputs\(\)/);
-assert.match(read('settings-pages.js'), /const inputSettings=\$\('#paramChatInputSettingsPanel'\)/);
-assert.match(read('settings-pages.js'), /\{key:'send',label:'消息发送',nodes:\[inputSettings\]\}/);
-assert.match(backup, /enterKeySendEnabled:stateSnapshot\.enterKeySendEnabled===true/);
-assert.match(backup, /if\(data\.enterKeySendEnabled!==undefined\)state\.enterKeySendEnabled=data\.enterKeySendEnabled===true/);
+assert.match(isolatedApplicationRehearsal, /phase23-video\\.webm/);
+assert.match(index, /function triggerReply\\(metaEl, sentMessageIds=null\\)/);
+assert.match(index, /syncChatSendInputs\\(\\)/);
+assert.match(read('settings-pages.js'), /const inputSettings=\\$\\('#paramChatInputSettingsPanel'\\)/);
+assert.match(read('settings-pages.js'), /\\{key:'send',label:'消息发送',nodes:\\[inputSettings\\]\\}/);
+assert.match(backup, /enterKeySendEnabled:stateSnapshot\\.enterKeySendEnabled===true/);
+assert.match(backup, /if\\(data\\.enterKeySendEnabled!==undefined\\)state\\.enterKeySendEnabled=data\\.enterKeySendEnabled===true/);
 
-// Execute the real appendChatMessage + sendBatchMessages source in a focused
-// VM harness. This checks queue commit/rollback semantics and usage-event ties,
-// not merely the presence of UI labels.
-const appendStart = index.indexOf('function appendChatMessage(msg, shouldSave=true, usageEvents=[])');
-const appendEnd = index.indexOf('\nfunction flushChatCardUsageOutbox', appendStart);
-const batchStart = index.indexOf('async function sendBatchMessages(){');
-const batchEnd = index.indexOf('\nfunction cancelBatchMode', batchStart);
-assert.ok(appendStart >= 0 && appendEnd > appendStart && batchStart >= 0 && batchEnd > batchStart);
-const sendHarness = `
-const window={__duoRestoreInProgress:false,__duoExportInProgress:false};
-let isBatchMode=true, batchSending=false;
-let batchMessages=[];
-let nextId=0, saveResult=true, saveCalls=0, replies=[], renderCalls=0, cleaned=[];
-const MAX_PENDING_CARD_USAGE_EVENTS=1000;
-const state={chatHistory:[],cardUsageOutbox:[{eventId:'existing-event',textSnapshot:'keep'}],offline:{lastChatAt:123}};
-let stickerStore={items:[{id:'stk-1',mediaId:'sticker-media-1',mimeType:'image/png',name:'测试表情'}],tombstones:[]};
-const mediaUrlCache=new Map();
-const URL={createObjectURL(){return 'blob:test-'+(++nextId)},revokeObjectURL(){}};
-function uid(prefix='m'){return prefix+'-'+(++nextId)}
-function formatHM(){return '12:34'}
-function ensureChatState(){if(!Array.isArray(state.chatHistory))state.chatHistory=[];if(!Array.isArray(state.cardUsageOutbox))state.cardUsageOutbox=[]}
-function buildMessageRow(msg){return {dataset:{mid:String(msg.id)},querySelector(){return {messageId:String(msg.id)}}}}
-const rows=[];
-const chatList={appendChild(row){rows.push(row)},querySelectorAll(){return rows}};
-const plainNode={classList:{remove(){}}};
-function $(selector){if(selector==='#chatList')return chatList;if(selector==='#morePanel'||selector==='#inputHelper')return plainNode;return null}
-function scrollChatToBottom(){}
-function save(){saveCalls++;return saveResult}
-function showToast(){}
-function renderChatHistory(){renderCalls++}
-function renderBatchPreview(){}
-function updateBatchControls(){}
-function flushChatCardUsageOutbox(){return true}
-function triggerReply(meta,ids){replies.push({meta,ids})}
-function releaseBatchPreview(item){if(item?.previewUrl)item.previewUrl=''}
-async function putMediaBlob(file){return file.mediaId}
-async function getMediaRecord(id){return id==='sticker-media-1'?{blob:{type:'image/png',size:64}}:null}
-function readStickerLibraryStore(){return stickerStore}
-function isStickerSendable(id){return !!stickerStore.items.find(item=>item.id===id)&&!stickerStore.tombstones.some(item=>item.id===id)}
-async function deleteIfUnreferenced(id){cleaned.push(id)}
-${index.slice(appendStart, appendEnd)}
-${index.slice(batchStart, batchEnd)}
-globalThis.runBatchSend=sendBatchMessages;
-globalThis.setBatch=(items)=>{batchMessages=items.slice();isBatchMode=true};
-globalThis.markStickerDeleted=()=>{stickerStore={items:[],tombstones:[{id:'stk-1'}]}};
-globalThis.snapshot=()=>({state,saveCalls,renderCalls,replies,cleaned,batchSending,batchMessages:batchMessages.length,isBatchMode,rows});
+function extractBalancedFunction(source, signature) {
+  const from = source.indexOf(signature);
+  assert.ok(from >= 0, `missing function: ${signature}`);
+  const open = source.indexOf('{', from);
+  let depth = 0, quote = '', escaped = false;
+  for (let i = open; i < source.length; i++) {
+    const ch = source[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\\\') escaped = true;
+      else if (ch === quote) quote = '';
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) return source.slice(from, i + 1);
+  }
+  throw new Error(`unterminated function: ${signature}`);
+}
+const appMarker = "const STORAGE_KEY='dual_space_app_clean_test_v1';";
+const appOffset = index.indexOf(appMarker);
+assert.ok(appOffset >= 0);
+const appSource = index.slice(appOffset);
+const appSafeMediaUrl = extractBalancedFunction(appSource, 'function safeMediaUrl(value){');
+const keyHandler = extractBalancedFunction(appSource, 'function handleChatInputKeydown(event){');
+const sendHandler = extractBalancedFunction(appSource, 'function handleChatSendButtonClick(){');
+const singleStickerSend = extractBalancedFunction(appSource, 'async function sendSticker(stickerId){');
+assert.match(singleStickerSend, /isStickerSendable\\(stickerId\\)/);
+assert.match(singleStickerSend, /appendChatMessage\\(/);
+assert.doesNotMatch(singleStickerSend, /queueForBatch|batchMessages|isBatchMode/);
+
+// Execute the real key/send handlers: both must always use the direct send path.
+const composerHarness = `
+const state={enterKeySendEnabled:true};
+const calls=[];
+function sendCurrentText(){calls.push('send')}
+function resizeChatInput(){calls.push('resize')}
+${keyHandler}
+${sendHandler}
+globalThis.fireSend=()=>{calls.length=0;handleChatSendButtonClick();return calls.slice()};
+globalThis.fireEnter=()=>{calls.length=0;let prevented=false;handleChatInputKeydown({key:'Enter',preventDefault(){prevented=true}});return {prevented,calls:calls.slice()}};
+globalThis.setEnterEnabled=value=>{state.enterKeySendEnabled=value};
 `;
-const sendSandbox = {};
-vm.runInNewContext(sendHarness, sendSandbox, { filename: 'phase2-batch-harness.js' });
-sendSandbox.setBatch([
-  { id: 'q1', text: '第一条批量文字', usageEvents: [{ eventId: 'batch-use-1', textSnapshot: '第一条批量文字', source: 'chat' }] },
-  { id: 'q2', text: '第二条批量文字', usageEvents: [] },
-]);
-await sendSandbox.runBatchSend();
-let sendSnapshot = sendSandbox.snapshot();
-assert.deepEqual(Array.from(sendSnapshot.state.chatHistory, item => item.text), ['第一条批量文字','第二条批量文字']);
-assert.equal(sendSnapshot.saveCalls, 1, 'batch messages should be committed with one state save');
-assert.equal(sendSnapshot.state.cardUsageOutbox.find(item => item.eventId === 'batch-use-1').messageId, sendSnapshot.state.chatHistory[0].id);
-assert.equal(sendSnapshot.state.offline.lastChatAt > 123, true);
-assert.deepEqual(Array.from(sendSnapshot.replies[0].ids), Array.from(sendSnapshot.state.chatHistory, item => item.id), 'one reply/read-receipt cycle must cover the entire batch');
-assert.equal(sendSnapshot.batchMessages, 0);
+const composerSandbox={};
+vm.runInNewContext(composerHarness,composerSandbox,{filename:'chat-direct-send-harness.js'});
+assert.deepEqual(Array.from(composerSandbox.fireSend()),['send','resize']);
+assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())),{prevented:true,calls:['send','resize']});
+composerSandbox.setEnterEnabled(false);
+assert.deepEqual(JSON.parse(JSON.stringify(composerSandbox.fireEnter())),{prevented:false,calls:[]});
 
-const rollbackSandbox = {};
-vm.runInNewContext(sendHarness.replace('saveResult=true','saveResult=false'), rollbackSandbox, { filename: 'phase2-batch-rollback-harness.js' });
-rollbackSandbox.setBatch([
-  { id: 'q3', text: '不可提交的队列消息', usageEvents: [{ eventId: 'batch-use-rollback', textSnapshot: '不可提交的队列消息' }] },
-]);
-await rollbackSandbox.runBatchSend();
-const rollbackSnapshot = rollbackSandbox.snapshot();
-assert.equal(rollbackSnapshot.state.chatHistory.length, 0, 'failed batch state write must roll back queued messages');
-assert.equal(rollbackSnapshot.state.cardUsageOutbox.length, 1);
-assert.equal(rollbackSnapshot.state.cardUsageOutbox[0].eventId, 'existing-event', 'rollback must preserve pre-existing usage events');
-assert.equal(rollbackSnapshot.state.offline.lastChatAt, 123, 'rollback must restore the previous last-chat timestamp');
-assert.equal(rollbackSnapshot.batchMessages, 1, 'failed queue should remain available for retry');
-
-const imageSandbox = {};
-vm.runInNewContext(sendHarness.replace('saveResult=true','saveResult=true'), imageSandbox, { filename: 'phase2-batch-image-harness.js' });
-imageSandbox.setBatch([{ id: 'q-image', file: { name: 'test.png', type: 'image/png', size: 64, mediaId: 'media-image-1' }, previewUrl: 'blob:preview' }]);
-await imageSandbox.runBatchSend();
-const imageSnapshot = imageSandbox.snapshot();
-assert.equal(imageSnapshot.state.chatHistory[0].type, 'image', 'queued images must enter the normal chat media message path');
-assert.equal(imageSnapshot.state.chatHistory[0].mediaId, 'media-image-1');
-assert.equal(imageSnapshot.saveCalls, 1);
-
-const stickerSandbox={};
-vm.runInNewContext(sendHarness,stickerSandbox,{filename:'phase2-batch-sticker-harness.js'});
-stickerSandbox.setBatch([{id:'q-sticker',stickerId:'stk-1',mediaId:'sticker-media-1',mimeType:'image/png',name:'测试表情',previewUrl:'blob:sticker-preview'}]);
-await stickerSandbox.runBatchSend();
-const stickerSnapshot=stickerSandbox.snapshot();
-assert.equal(stickerSnapshot.state.chatHistory[0].type,'sticker','queued stickers must enter the normal sticker message path');
-assert.equal(stickerSnapshot.state.chatHistory[0].mediaId,'sticker-media-1');
-assert.equal(stickerSnapshot.saveCalls,1);
-
-const deletedStickerSandbox={};
-vm.runInNewContext(sendHarness,deletedStickerSandbox,{filename:'phase2-batch-deleted-sticker-harness.js'});
-deletedStickerSandbox.setBatch([{id:'q-sticker-deleted',stickerId:'stk-1',mediaId:'sticker-media-1',mimeType:'image/png',name:'已删除表情'}]);
-deletedStickerSandbox.markStickerDeleted();
-await deletedStickerSandbox.runBatchSend();
-const deletedStickerSnapshot=deletedStickerSandbox.snapshot();
-assert.equal(deletedStickerSnapshot.state.chatHistory.length,0,'a deleted sticker must not be sent from an old queue entry');
-assert.equal(deletedStickerSnapshot.saveCalls,0,'stale sticker queue must fail before persistence');
-assert.equal(deletedStickerSnapshot.batchMessages,1,'stale sticker entry remains visible for manual removal');
-
-const keyHandlerStart=index.indexOf('function handleChatInputKeydown(event){');
-const keyHandlerEnd=index.indexOf('\nfunction handleChatSendButtonClick()',keyHandlerStart);
-const sendClickStart=keyHandlerEnd+1;
-const sendClickEnd=index.indexOf('\n\nlet wakeLock=null',sendClickStart);
-assert.ok(keyHandlerStart>=0&&keyHandlerEnd>keyHandlerStart&&sendClickEnd>sendClickStart);
-const keyHarness=`
-const state={enterKeySendEnabled:false};let isBatchMode=false,batchSending=false;let calls=[];
-function addToBatch(){calls.push('queue')};function sendCurrentText(){calls.push('send')};function resizeChatInput(){calls.push('resize')};
-${index.slice(keyHandlerStart,keyHandlerEnd)}
-${index.slice(sendClickStart,sendClickEnd)}
-globalThis.setMode=(enabled,batch=false,sending=false)=>{state.enterKeySendEnabled=enabled;isBatchMode=batch;batchSending=sending;calls=[]};
-globalThis.fireKey=e=>{let prevented=false;handleChatInputKeydown({...e,preventDefault(){prevented=true}});return JSON.stringify({prevented,calls:[...calls]})};
-globalThis.fireSend=()=>{handleChatSendButtonClick();return JSON.stringify(calls)};
-`;
-const keySandbox={};vm.runInNewContext(keyHarness,keySandbox,{filename:'phase2-enter-handler-harness.js'});
-keySandbox.setMode(false,false,false);
-assert.deepEqual(JSON.parse(keySandbox.fireKey({key:'Enter'})),{prevented:false,calls:[]},'Enter defaults to newline while the setting is off');
-keySandbox.setMode(true,false,false);
-assert.deepEqual(JSON.parse(keySandbox.fireKey({key:'Enter',shiftKey:true})),{prevented:false,calls:[]},'Shift+Enter must remain a newline');
-assert.deepEqual(JSON.parse(keySandbox.fireKey({key:'Enter',isComposing:true})),{prevented:false,calls:[]},'IME composition Enter must not send');
-assert.deepEqual(JSON.parse(keySandbox.fireKey({key:'Enter'})),{prevented:true,calls:['send','resize']},'enabled Enter sends through the normal send path');
-keySandbox.setMode(true,true,false);
-assert.deepEqual(JSON.parse(keySandbox.fireKey({key:'Enter'})),{prevented:true,calls:['queue','resize']},'enabled Enter in batch mode adds to the queue');
-keySandbox.setMode(false,false,false);
-assert.deepEqual(JSON.parse(keySandbox.fireSend()),['send','resize'],'the independent send button works while Enter sending is off');
-keySandbox.setMode(true,true,false);
-assert.deepEqual(JSON.parse(keySandbox.fireSend()),['queue','resize'],'the independent send button adds to the batch queue in batch mode');
-keySandbox.setMode(true,true,true);
-assert.deepEqual(JSON.parse(keySandbox.fireSend()),[],'the send button is locked during a batch commit');
-
-// Execute the real normal-send and queue-add functions behind the real button
-// handler, so the test covers message payload creation, clearing and queueing.
-const sendTextStart=index.indexOf('function sendCurrentText(forceText){');
-const sendTextEnd=index.indexOf('\nlet isBatchMode=false;',sendTextStart);
-const addBatchStart=index.indexOf('function addToBatch(){',sendTextEnd);
-const addBatchEnd=index.indexOf('\nfunction addBatchImages',addBatchStart);
-assert.ok(sendTextStart>=0&&sendTextEnd>sendTextStart&&addBatchStart>sendTextEnd&&addBatchEnd>addBatchStart);
-const actionHarness=`
-const window={__duoRestoreInProgress:false,__duoExportInProgress:false};
-const state={enterKeySendEnabled:false,offline:{lastChatAt:10}};
-let isBatchMode=false,batchSending=false,batchMessages=[],sent=[],usageReads=[],toasts=[];
-const MAX_BATCH_ITEMS=100;
-const input={value:'普通消息',dataset:{pendingCardFragments:'[]',pendingCardSnapshot:'普通消息'}};
-const list={querySelectorAll(){return []}};
-const helper={classList:{remove(){}}};
-const panel={classList:{remove(){}}};
-function $(selector){if(selector==='#chatInput')return input;if(selector==='#inputHelper')return helper;if(selector==='#morePanel')return panel;if(selector==='#chatList')return list;return null}
-function uid(prefix='m'){return prefix+'-test-'+(sent.length+batchMessages.length+1)}
-function formatHM(){return '12:34'}
-function getPendingCardUsageEvents(node,text,allowSearch){usageReads.push({text,allowSearch});return text.includes('字卡')?[{eventId:'card-use-'+(usageReads.length),textSnapshot:'字卡内容',source:'chat'}]:[]}
-function appendChatMessage(message,shouldSave=true,events=[]){const saved={...message,id:'message-'+(sent.length+1),events};sent.push(saved);return saved}
-function triggerReply(meta){sent[sent.length-1].replyTriggered=true}
-function showToast(message){toasts.push(message)}
-function resizeChatInput(){}
-function renderBatchPreview(){}
-${index.slice(sendTextStart,sendTextEnd)}
-${index.slice(addBatchStart,addBatchEnd)}
-${index.slice(keyHandlerStart,keyHandlerEnd)}
-${index.slice(sendClickStart,sendClickEnd)}
-globalThis.input=input;
-globalThis.state=state;
-globalThis.sent=sent;
-globalThis.getQueue=()=>batchMessages;
-globalThis.setMode=(enabled,batch)=>{state.enterKeySendEnabled=enabled;isBatchMode=batch;input.value='普通消息';input.dataset.pendingCardFragments='[]';input.dataset.pendingCardSnapshot=input.value;sent.length=0;batchMessages=[];usageReads.length=0};
-globalThis.pressSend=()=>handleChatSendButtonClick();
-globalThis.pressEnter=()=>{let prevented=false;handleChatInputKeydown({key:'Enter',preventDefault(){prevented=true}});return prevented};
-`;
-const actionSandbox={};vm.runInNewContext(actionHarness,actionSandbox,{filename:'phase2-actual-send-and-queue-harness.js'});
-actionSandbox.setMode(false,false);
-actionSandbox.pressSend();
-assert.equal(actionSandbox.sent.length,1,'the independent send button must create an actual message through sendCurrentText');
-assert.equal(actionSandbox.sent[0].text,'普通消息');
-assert.equal(actionSandbox.input.value,'','successful normal send clears the input');
-assert.equal(actionSandbox.sent[0].replyTriggered,true,'successful normal send enters the existing reply path');
-assert.deepEqual(JSON.parse(JSON.stringify(actionSandbox.sent[0].events)),[]);
-actionSandbox.setMode(true,true);
-assert.equal(actionSandbox.pressEnter(),true,'enabled Enter prevents newline in batch mode');
-assert.equal(actionSandbox.getQueue().length,1,'enabled Enter adds an actual text item to the queue');
-assert.equal(actionSandbox.getQueue()[0].text,'普通消息');
-assert.equal(actionSandbox.input.value,'','queueing clears the input draft');
-assert.deepEqual(JSON.parse(JSON.stringify(actionSandbox.getQueue()[0].usageEvents)),[]);
+// Execute the actual shared URL guard from the main app scope.
+const mediaUrlSandbox={
+  document:{baseURI:'https://app.test/index.html'},
+  location:{origin:'https://app.test'},
+  URL,
+  window:{__duoCircleMedia:{resolve:()=> 'blob:resolved-media'}}
+};
+vm.runInNewContext(`${appSafeMediaUrl}\\nglobalThis.safeMediaUrl=safeMediaUrl;`,mediaUrlSandbox);
+assert.equal(mediaUrlSandbox.safeMediaUrl('javascript:alert(1)'),'');
+assert.equal(mediaUrlSandbox.safeMediaUrl('data:text/html;base64,AAAA'),'');
+assert.equal(mediaUrlSandbox.safeMediaUrl('https://good.example/a.png'),'https://good.example/a.png');
+assert.equal(mediaUrlSandbox.safeMediaUrl('idb-media:item-1'),'blob:resolved-media');
 
 // User-facing settings regression: remove obsolete empty rows and expose the
 // two read-receipt modes as the first dedicated Chat Settings subpage.
@@ -831,4 +706,4 @@ console.log(isolationUiTest.stdout.trim());
 const applicationAuditTest = spawnSync(process.execPath, ['tests/recovery-application-auditor.test.mjs'], { cwd: root, encoding: 'utf8' });
 assert.equal(applicationAuditTest.status, 0, `application consistency audit regressions failed:\n${applicationAuditTest.stdout}\n${applicationAuditTest.stderr}`);
 console.log(applicationAuditTest.stdout.trim());
-console.log(`PASS: 352 sticker assets; phase-2 send button/Enter toggle/batch queue and backup persistence; manual-only Android backup rules; Gradle source checks; Android 13+ and legacy Back hooks; single SAF save picker; legacy/V4 import URL validation; message text/metadata escaping; malformed V4 manifest rejection; 128 MB JSON cap; mailbox KKK alignment; chat/mailbox/Circle media ownership, migration, backup and rollback checks; direct and batch media-send path rollback checks; V4 manifest identity validation; export/restore mutual exclusion; atomic font restore; cross-module backup rollback checks; crash-recovery journal; single-writer multi-tab coordination; storage quota reporting and aged orphan-media cleanup; read-only salvage analysis, privacy-safe preview, isolated candidate ZIP generation, independent ZIP/manifest/hash validation, copy-on-write reconstruction, application consistency audit, recovery UI gating and Phase 17–37 browser recovery acceptance matrix/path-filter validation; ${scriptIndex} inline scripts and root JS syntax; Android XML parsing.`);
+console.log(`PASS: 352 sticker assets; chat send button/Enter and single-sticker direct path; batch-send and input-helper removal; manual-only Android backup rules; Gradle source checks; Android 13+ and legacy Back hooks; single SAF save picker; legacy/V4 import URL validation; message text/metadata escaping; malformed V4 manifest rejection; 128 MB JSON cap; mailbox KKK alignment; chat/mailbox/Circle media ownership, migration, backup and rollback checks; direct media-send path rollback checks; V4 manifest identity validation; export/restore mutual exclusion; atomic font restore; cross-module backup rollback checks; crash-recovery journal; single-writer multi-tab coordination; storage quota reporting and aged orphan-media cleanup; read-only salvage analysis, privacy-safe preview, isolated candidate ZIP generation, independent ZIP/manifest/hash validation, copy-on-write reconstruction, application consistency audit, recovery UI gating and Phase 17–37 browser recovery acceptance matrix/path-filter validation; ${scriptIndex} inline scripts and root JS syntax; Android XML parsing.`);
