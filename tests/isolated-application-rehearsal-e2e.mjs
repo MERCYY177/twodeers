@@ -457,17 +457,37 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await page.waitForFunction(id=>{const s=window.__duoCircleApi.exportState();return s.myAvatar===''&&s.otherAvatar==='idb-media:'+id;},sharedAvatarId,{timeout:15_000});
   const sharedProfileAvatarStillPresent=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,sharedAvatarId);
   assert.equal(sharedProfileAvatarStillPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile');
-  await page.evaluate(id=>{
+  const chatReferencePersisted=await page.evaluate(id=>{
     state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
     state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
-    save();
+    const saveResult=save();
+    const persisted=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
+    return {
+      saveResult,
+      liveStateHasReference:state.chatHistory.some(message=>message?.mediaId===id),
+      persistedStateHasReference:(persisted.chatHistory||[]).some(message=>message?.mediaId===id),
+      reachabilityHasReference:latestPersistedMediaReferences().has(id)
+    };
   },sharedCoverId);
+  assert.equal(chatReferencePersisted.saveResult,true,'saving the chat media reference must succeed');
+  assert.equal(chatReferencePersisted.liveStateHasReference,true);
+  assert.equal(chatReferencePersisted.persistedStateHasReference,true);
+  assert.equal(chatReferencePersisted.reachabilityHasReference,true,'the global media reachability collector must see the live chat reference');
   await circle.locator('#backBtn').click();
   await circle.locator('#clearCoverBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(() => window.__duoCircleApi?.exportState?.()?.myCover==='',null,{timeout:15_000});
-  const sharedCoverStillPresent=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,sharedCoverId);
-  assert.equal(sharedCoverStillPresent,true,'clearing a Circle cover must preserve its media while chat references it');
+  const sharedCoverDiagnostic=await page.evaluate(async id=>{
+    const persisted=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
+    return {
+      recordPresent:!!(await window.getMediaRecord(id))?.blob,
+      liveStateHasReference:(state.chatHistory||[]).some(message=>message?.mediaId===id),
+      persistedStateHasReference:(persisted.chatHistory||[]).some(message=>message?.mediaId===id),
+      reachabilityHasReference:latestPersistedMediaReferences().has(id),
+      circleCover:window.__duoCircleApi.exportState().myCover
+    };
+  },sharedCoverId);
+  assert.equal(sharedCoverDiagnostic.recordPresent,true,'clearing a Circle cover must preserve its media while chat references it: '+JSON.stringify(sharedCoverDiagnostic));
 
   await page.evaluate(() => window.goto('chatPage'));
   await page.locator('#chatInput').fill('第十七阶段隔离环境发送回归');
