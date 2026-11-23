@@ -530,6 +530,21 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await circle.locator('#clearCoverBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(() => window.__duoCircleApi?.exportState?.()?.myCover==='',null,{timeout:15_000});
+  const coverSaveUiDiagnostic=await page.evaluate(()=>{
+    const root=window.__duoCircleRoot;
+    const settings=root?.querySelector('#settingsMask');
+    const saveButton=root?.querySelector('#saveSettingsBtn');
+    const hint=root?.querySelector('#saveHint');
+    return {
+      settingsClass:settings?.className||null,
+      settingsShown:!!settings?.classList.contains('show'),
+      saveButtonDisabled:!!saveButton?.disabled,
+      saveHint:hint?.textContent||'',
+      liveCover:window.__duoCircleApi?.exportState?.()?.myCover,
+      toast:document.querySelector('#toast')?.textContent||''
+    };
+  });
+  console.log('PROFILE_COVER_SAVE_UI '+JSON.stringify(coverSaveUiDiagnostic));
   await page.waitForFunction(() => {
     const settings=window.__duoCircleRoot?.querySelector('#settingsMask');
     return !!settings&&!settings.classList.contains('show');
