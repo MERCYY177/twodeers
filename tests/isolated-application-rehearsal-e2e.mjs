@@ -455,8 +455,23 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await circle.locator('#clearMyAvatarBtn').click();
   await circle.locator('#saveSettingsBtn').click();
   await page.waitForFunction(id=>{const s=window.__duoCircleApi.exportState();return s.myAvatar===''&&s.otherAvatar==='idb-media:'+id;},sharedAvatarId,{timeout:15_000});
-  const sharedProfileAvatarStillPresent=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,sharedAvatarId);
-  assert.equal(sharedProfileAvatarStillPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile');
+  const sharedProfileAvatarDiagnostic=await page.evaluate(async id=>{
+    const circleState=window.__duoCircleApi.exportState();
+    const persistedCircle=JSON.parse(localStorage.getItem(window.__duoCircleApi.getStoreKey())||'{}');
+    const persistedApp=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}');
+    return {
+      recordPresent:!!(await window.getMediaRecord(id))?.blob,
+      liveMyAvatar:circleState.myAvatar,
+      liveOtherAvatar:circleState.otherAvatar,
+      persistedMyAvatar:persistedCircle.myAvatar,
+      persistedOtherAvatar:persistedCircle.otherAvatar,
+      circleReachability:window.__duoCircleMedia.collectIdsFromState(circleState).has(id),
+      persistedCircleReachability:window.__duoCircleMedia.collectIdsFromState(persistedCircle).has(id),
+      globalReachability:latestPersistedMediaReferences().has(id),
+      appChatHistoryCount:(persistedApp.chatHistory||[]).length
+    };
+  },sharedAvatarId);
+  assert.equal(sharedProfileAvatarDiagnostic.recordPresent,true,'clearing one profile avatar must preserve the same media still used by the other profile: '+JSON.stringify(sharedProfileAvatarDiagnostic));
   const chatReferencePersisted=await page.evaluate(id=>{
     state.chatHistory=Array.isArray(state.chatHistory)?state.chatHistory:[];
     state.chatHistory.push({id:'phase24-shared-cover-reference',sender:'me',type:'image',mediaId:id,mediaMime:'image/png',mediaName:'shared-cover',time:'12:00',read:false});
