@@ -632,12 +632,14 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
     cardText: window.__duoCardSystem?.getPoolItems?.('chat')?.[0]?.text || '',
     mailboxCount: window.__duoMailbox?.exportData?.()?.mailbox?.items?.length || 0,
     circlePostCount: window.__duoCircleApi?.exportState?.()?.posts?.length || 0,
+    circlePostState: {autoPost:window.__duoCircleApi?.exportState?.()?.autoPost,nextOtherPostAt:window.__duoCircleApi?.exportState?.()?.nextOtherPostAt,posts:(window.__duoCircleApi?.exportState?.()?.posts||[]).map(post=>({id:post.id,author:post.author,text:post.text,ts:post.ts}))},
     fontId: window.ChuanXunFontManager?.getCurrentFontId?.() || null,
     fontLoaded: document.fonts.check('16px "ChuanXunLocalFont_phase17_font"'),
     missingCircleMedia: (await window.__duoCircleMedia?.ensure?.())?.missing ?? -1,
     circleAvatarResolved: !!window.__duoCircleMedia?.resolve?.('idb-media:phase17-circle-avatar'),
     circleCoverResolved: !!window.__duoCircleMedia?.resolve?.('idb-media:phase17-circle-cover')
   }));
+  console.log('POST_RELOAD_CIRCLE_SNAPSHOT '+JSON.stringify(afterReload.circlePostState));
   assert.equal(afterReload.chatPersisted, true);
   assert.equal(afterReload.stickerMessagePersisted, true);
   assert.equal(afterReload.stickerSendable, false, 'deleted picker item must remain unavailable after reload');
