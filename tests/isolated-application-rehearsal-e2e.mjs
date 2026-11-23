@@ -631,6 +631,7 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
     audio: await (async()=>{const msg=JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').chatHistory?.find(item=>item.type==='audio');const row=[...document.querySelectorAll('#chatList [data-mid]')].find(item=>item.dataset.mid===String(msg?.id||''));const node=row?.querySelector('audio');if(!node)return {present:false,ready:false,played:false};node.muted=true;try{await node.play();await new Promise(resolve=>{if(node.currentTime>0.02)return resolve();node.addEventListener('timeupdate',resolve,{once:true});setTimeout(resolve,1000);});}catch(_){}const result={present:true,ready:node.readyState>=1,duration:node.duration,played:node.currentTime>0.01};node.pause();return result;})(),
     cardText: window.__duoCardSystem?.getPoolItems?.('chat')?.[0]?.text || '',
     mailboxCount: window.__duoMailbox?.exportData?.()?.mailbox?.items?.length || 0,
+    mailboxItems: (window.__duoMailbox?.exportData?.()?.mailbox?.items||[]).map(item=>({id:item.id,type:item.type,title:item.title,replyToId:item.replyToId})),
     circlePostCount: window.__duoCircleApi?.exportState?.()?.posts?.length || 0,
     circlePostState: {autoPost:window.__duoCircleApi?.exportState?.()?.autoPost,nextOtherPostAt:window.__duoCircleApi?.exportState?.()?.nextOtherPostAt,posts:(window.__duoCircleApi?.exportState?.()?.posts||[]).map(post=>({id:post.id,author:post.author,text:post.text,ts:post.ts}))},
     fontId: window.ChuanXunFontManager?.getCurrentFontId?.() || null,
@@ -649,7 +650,13 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(afterReload.video.present, true);assert.equal(afterReload.video.ready, true);assert.equal(afterReload.video.width, 32);assert.equal(afterReload.video.played, true);
   assert.equal(afterReload.audio.present, true);assert.equal(afterReload.audio.ready, true);assert.equal(afterReload.audio.played, true);
   assert.equal(afterReload.cardText, '隔离演练主字卡');
-  assert.equal(afterReload.mailboxCount, 1);
+  assert.equal(afterReload.mailboxCount, 3, 'one seed letter, one retained auto-reply source, and its generated incoming reply should remain');
+  assert.ok(afterReload.mailboxItems.some(item=>item.id==='phase17-letter'),'the original seeded letter must remain');
+  const autoReplySourceAfterReload=afterReload.mailboxItems.find(item=>item.title==='第二十五阶段自动回信演练');
+  assert.ok(autoReplySourceAfterReload,'the outgoing letter that generated an auto-reply must remain');
+  assert.ok(afterReload.mailboxItems.some(item=>item.type==='incoming'&&item.replyToId===autoReplySourceAfterReload.id),'the generated incoming auto-reply must remain linked to its source');
+  assert.equal(afterReload.mailboxItems.some(item=>item.title==='第二十五阶段待取消回信来源'),false,'the source letter whose reply was cancelled must remain deleted');
+  assert.equal(afterReload.mailboxItems.some(item=>item.title==='第二十四阶段新寄出信件'),false,'the letter deleted in the shared attachment GC test must remain deleted');
   assert.equal(afterReload.circlePostCount, 1);
   assert.equal(afterReload.fontId, 'phase17_font');
   assert.equal(afterReload.fontLoaded, true);
