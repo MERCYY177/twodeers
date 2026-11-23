@@ -32,7 +32,7 @@ Expected runner steps, in order:
 3. `syntax-full-app-e2e`
 4. `synthetic-fixture-invariants`
 5. `syntax-media-send-path-test`
-6. `batch-media-send-source-regression`
+6. `direct-chat-send-source-regression`
 7. `syntax-video-media-test`
 8. `video-media-source-regression`
 9. `syntax-voice-media-test`
@@ -48,7 +48,7 @@ Acceptance scenarios:
 - Fresh loopback origin and isolated BrowserContext.
 - Seeded localStorage, media IndexedDB, font IndexedDB and six synthetic media records.
 - Real chat render, seeded chat image decode, text send, sticker-panel selection/send, reload persistence.
-- Mixed text+image+sticker batch: delete the queued sticker after insertion, reject the stale sticker, roll back all earlier batch changes/media, and preserve the already-sent sticker history image.
+- Single-send composer: verify there is no batch-send control or auto-opening long-text/clipboard/card helper; send text, sticker and image separately; delete a sent picker sticker and verify future sends are blocked while the existing history image remains intact.
 - Direct chat image file-picker → preview → send → reload, including actual image decode after reload.
 - Three card pools and stable IDs.
 - Mailbox item open and attachment decode.
@@ -64,7 +64,7 @@ Required artifact evidence: `summary.json`, runner environment log, font apt log
 
 **Pass rule:** GitHub job succeeds; `summary.json.status` is `passed`; all fifteen steps have `status=passed`, `exitCode=0`, and `timedOut=false`; all listed application assertions pass; the artifact is downloaded/inspected and required files exist.
 
-**Current status:** fixture, direct/batch media-send Node regressions and local source checks passed; real Chromium and GitHub Actions status are `not-run`.
+**Current status:** fixture, direct single-send media regressions and local source checks passed; real Chromium and GitHub Actions status are `not-run`.
 
 ## Phase 18 — Isolated restore lifecycle rehearsal
 
