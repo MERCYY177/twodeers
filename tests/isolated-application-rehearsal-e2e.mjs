@@ -562,6 +562,29 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   assert.equal(sharedCoverDiagnostic.recordPresent,true,'clearing a Circle cover must preserve its media while chat references it: '+JSON.stringify(sharedCoverDiagnostic));
 
   await page.evaluate(() => window.goto('chatPage'));
+  const chatNavigationDiagnostic=await page.evaluate(()=>{
+    const page=document.querySelector('#chatPage');
+    const input=document.querySelector('#chatInput');
+    const rect=input?.getBoundingClientRect();
+    const ancestors=[];
+    for(let node=input;node&&ancestors.length<8;node=node.parentElement){
+      const style=getComputedStyle(node);
+      ancestors.push({tag:node.tagName,id:node.id,className:node.className,display:style.display,visibility:style.visibility,opacity:style.opacity,rect:(()=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()});
+    }
+    return {
+      gotoType:typeof window.goto,
+      currentPage:JSON.parse(localStorage.getItem('dual_space_app_clean_test_v1')||'{}').currentPage,
+      chatPageClass:page?.className||null,
+      chatPageDisplay:page?getComputedStyle(page).display:null,
+      inputRect:rect?{x:rect.x,y:rect.y,width:rect.width,height:rect.height}:null,
+      activePages:[...document.querySelectorAll('.page.active')].map(node=>node.id),
+      circlePageClass:document.querySelector('#circlePage')?.className||null,
+      settingsMaskClass:window.__duoCircleRoot?.querySelector('#settingsMask')?.className||null,
+      profileMaskClass:window.__duoCircleRoot?.querySelector('#profileMask')?.className||null,
+      ancestors
+    };
+  });
+  console.log('CHAT_NAVIGATION_DIAGNOSTIC '+JSON.stringify(chatNavigationDiagnostic));
   await page.waitForFunction(() => {
     const page=document.querySelector('#chatPage');
     const input=document.querySelector('#chatInput');
