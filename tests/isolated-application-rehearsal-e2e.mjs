@@ -401,8 +401,10 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   const newPostMediaId=newPostMeta.src.slice('idb-media:'.length);
   const publishedCircleMedia=await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,newPostMediaId);
   assert.equal(publishedCircleMedia,true);
-  await circle.locator(`.post-media[data-open-viewer="${newPostMeta.id}::0"]`).click();
+  await circle.locator('#coverAvatar').click();
+  await circle.locator(\`#timelineBody [data-open-viewer="\${newPostMeta.id}"]\`).click();
   await circle.locator('#viewerDetailBtn').click();
+
   // Edit the existing owned post, retain its ID/history, replace its media and
   // verify the removed old media is reclaimed only after the post commit.
   await circle.locator('#detailTopMenuBtn').click();
@@ -421,8 +423,10 @@ async function testValidRuntimeRehearsal(browser, baseUrl, fontBase64) {
   await page.waitForFunction(async id=>!(await window.getMediaRecord(id))?.blob,newPostMediaId,{timeout:15_000});
   const editedMediaId=editedPostMeta.srcs[0].slice('idb-media:'.length);
   assert.equal(!!(await page.evaluate(async id=>!!(await window.getMediaRecord(id))?.blob,editedMediaId)),true);
-  await circle.locator(`.post-media[data-open-viewer="${newPostMeta.id}::0"]`).click();
+  await circle.locator('#detailBackBtn').click();
+  await circle.locator(\`#timelineBody [data-open-viewer="\${newPostMeta.id}"]\`).click();
   await circle.locator('#viewerDetailBtn').click();
+
   await circle.locator('#detailInlineDelete').click();
   await circle.locator('#confirmOkBtn').click();
   await page.waitForFunction(id=>!window.__duoCircleApi.exportState().posts.some(post=>post.id===id),newPostMeta.id,{timeout:15_000});
