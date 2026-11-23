@@ -31,7 +31,6 @@
   /* Page-level layer contract. Bubble pseudo-elements keep their own local z-index. */
   --z-message-decoration:10;
   --z-more-panel:34;
-  --z-input-helper:35;
   --z-emoji-panel:38;
   --z-toast:50;
   --z-panel-mask:50;
@@ -167,10 +166,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 
 
 
-.input-helper{position:absolute;left:54px;right:94px;bottom:calc(58px + env(safe-area-inset-bottom));background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.10);display:none;overflow:hidden}
-.input-helper.show{display:flex}
-.input-helper button{flex:1;padding:12px 0;font-size:13px;color:#4f4f4f;background:#fff}
-.input-helper button + button{border-left:1px solid #f0e6de}
 
 
 
@@ -354,7 +349,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 .msg-row .sticker-bubble{padding:3px;background:transparent;box-shadow:none}
 .msg-row .sticker-bubble img{display:block;width:auto !important;height:auto !important;max-width:min(80vw,320px) !important;max-height:320px !important;object-fit:contain !important;object-position:center !important}
 .media-pending{font-size:12px;color:#888;padding:12px}
-.input-helper{z-index:var(--z-input-helper,35)}
 .more-panel{z-index:var(--z-more-panel,34)}
 .emoji-panel{display:none;position:absolute;z-index:var(--z-emoji-panel,38);left:10px;right:10px;bottom:calc(72px + env(safe-area-inset-bottom));max-height:42vh;overflow:hidden;background:var(--panel,#fff);border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:0 18px 42px rgba(0,0,0,.14)}
 .emoji-panel.show{display:flex;flex-direction:column}
@@ -545,11 +539,6 @@ body.bubble-square .me .bubble{border-bottom-right-radius:4px}
 </div>
 </div>
 <div class="chat-bg" id="chatList"></div>
-<div class="input-helper" id="inputHelper">
-<button id="longTextBtn">长文本</button>
-<button id="clipboardBtn">剪贴板</button>
-<button id="phraseBtn">字卡</button>
-</div>
 <div class="more-panel" id="morePanel">
 <div class="quick-grid media-quick-grid">
 <button class="quick-item" id="quickImageBtn" type="button"><span class="quick-icon">▧</span><span class="quick-lab">图片</span></button>
@@ -5874,7 +5863,6 @@ function sendCurrentText(forceText){
   if(!msg){state.offline.lastChatAt=previousLastChatAt;return false;}
   delete input.dataset.pendingCardText;delete input.dataset.pendingCardId;delete input.dataset.pendingCardSource;delete input.dataset.pendingCardFragments;delete input.dataset.pendingCardSnapshot;
   if(forceText===undefined) input.value='';
-  $('#inputHelper').classList.remove('show');
   $('#morePanel').classList.remove('show');
   const list=$('#chatList');
   const row=list?Array.from(list.querySelectorAll('[data-mid]')).find(node=>node.dataset.mid===String(msg.id)):null;
@@ -6339,7 +6327,6 @@ function goto(id){
   state.currentPage=id; save();
   if(id==='settingsPage')setSettingsTab('param');
   $('#morePanel').classList.remove('show');
-  $('#inputHelper').classList.remove('show');
 }
 $$('[data-go]').forEach(btn=>btn.addEventListener('click',()=>goto(btn.dataset.go)));
 
@@ -6689,15 +6676,13 @@ async function sendPendingMedia(){
     return false;
   }finally{item.sending=false;if(btn)btn.disabled=false;}
 }
-$('#chatInput').addEventListener('focus',()=>$('#inputHelper').classList.add('show'));
-$('#chatInput').addEventListener('click',()=>$('#inputHelper').classList.add('show'));
 $('#chatInput').addEventListener('input',()=>{const input=$('#chatInput');updatePendingCardFragmentsOnInput(input);resizeChatInput();});
 $('#chatInput').addEventListener('keydown',e=>{
   handleChatInputKeydown(e);
 });
 $('#sendBtn').addEventListener('click',handleChatSendButtonClick);
 $('#voiceToggleBtn').addEventListener('click',()=>{
-  $('#inputShell').classList.toggle('voice');$('#inputHelper').classList.remove('show');closeEmojiPanel();closeStickerPanel();
+  $('#inputShell').classList.toggle('voice');closeEmojiPanel();closeStickerPanel();
 });
 $('#emojiBtn').addEventListener('click',openEmojiPanel);
 $('#stickerClose').addEventListener('click',closeEmojiPanel);
@@ -6728,18 +6713,10 @@ $('#mediaPreviewSend').addEventListener('click',sendPendingMedia);
 $('#mediaPreviewCancel').addEventListener('click',closeMediaPreview);
 $('#mediaPreviewClose').addEventListener('click',closeMediaPreview);
 $('#mediaPreviewModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeMediaPreview();});
-$('#longTextBtn').addEventListener('click',openLongText);
 $('#longTextClose').addEventListener('click',closeLongText);$('#longTextCancel').addEventListener('click',closeLongText);
 $('#longTextModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLongText();});
 $('#longTextFill').addEventListener('click',()=>{const input=$('#chatInput');input.value=$('#longTextArea').value;delete input.dataset.pendingCardFragments;input.dataset.pendingCardSnapshot=input.value;resizeChatInput();closeLongText();input.focus();});
 $('#longTextSend').addEventListener('click',()=>{const t=$('#longTextArea').value;if(!t.trim()){showToast('长文本内容不能为空');return;}if(sendCurrentText(t)){ $('#chatInput').value='';resizeChatInput();closeLongText(); }});
-$('#clipboardBtn').addEventListener('click',async()=>{
-  const input=$('#chatInput');
-  if(input.value.trim()&&!confirm('输入框已有内容，读取剪贴板会替换它。继续吗？'))return;
-  if(!navigator.clipboard?.readText){showToast('当前浏览器不支持读取文本剪贴板，请使用 HTTPS 或 localhost');return;}
-  try{const txt=await navigator.clipboard.readText();if(!txt){showToast('剪贴板是空的');return;}input.value=txt;resizeChatInput();input.focus();showToast('已读取剪贴板');}
-  catch(e){showToast(e?.name==='NotAllowedError'?'剪贴板权限被拒绝，请允许访问后重试':'读取剪贴板失败，请检查浏览器权限或安全环境');}
-});
 $('#paramPhraseAddBtn').addEventListener('click',()=>{
   const input=$('#paramPhraseInput'),value=String(input.value||'').trim();
   if(!value){showToast('字卡内容不能为空');return;}
@@ -6815,7 +6792,6 @@ $('#callSettingsOverlay').addEventListener('click',e=>{if(e.target===e.currentTa
 $('#incomingAnswerBtn').addEventListener('click',answerIncomingCall);
 $('#incomingRejectBtn').addEventListener('click',rejectIncomingCall);
 
-$('#phraseBtn').addEventListener('click',openPhraseModal);
 $('#phraseCloseBtn').addEventListener('click',closePhraseModal);
 $('#phraseModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closePhraseModal();});
 $('#phraseAddBtn').addEventListener('click',()=>{const inp=$('#phraseInput');const txt=String(inp.value||'').trim();if(!txt){showToast('字卡内容不能为空');return;}try{if(window.__duoCardSystem?.add)window.__duoCardSystem.add('chat',txt);else{state.cardPhrases.unshift(txt);if(save()===false)throw new Error('保存失败');renderPhraseList();renderParamPhraseList();}inp.value='';}catch(error){showToast(error.message||'字卡添加失败');}});
@@ -6888,7 +6864,6 @@ $('#chatList').addEventListener('pointerdown',e=>{const row=e.target.closest('.m
 document.addEventListener('click',e=>{
   if(!e.target.closest('#plusBtn')&&!e.target.closest('#morePanel'))$('#morePanel').classList.remove('show');
   if(!e.target.closest('#emojiBtn,#stickerOverlay'))closeEmojiPanel();
-  if(!e.target.closest('#chatInput')&&!e.target.closest('#inputHelper')&&!e.target.closest('#voiceToggleBtn'))$('#inputHelper').classList.remove('show');
 });
 $('#settingsTabs').addEventListener('click',e=>{
   const btn=e.target.closest('button[data-settings]'); if(!btn) return;
